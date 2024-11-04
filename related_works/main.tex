@@ -45,8 +45,24 @@
 % creates the second title. It will be ignored for other modes.
 \IEEEpeerreviewmaketitle
 
-\section{INTRODUCTION}
-This is an example of a citation \cite{10143983}.
+\section{Paper summaries}
+
+\subsection{Physical layer security in wireless networks: a tutorial}
+Paper \cite{5751298} talks about how telecommunications need protections against active attacks, like jamming, and passive attacks, like eavesdropping or traffic analysis, and how general exchange of information could benefit from extra security coming from the physical layer.
+
+To increase security, some solutions are proposed:
+\begin{itemize}
+  \item Radio Frequency Fingerprinting, where you extract feature from each signal to identify legitimate users and intruders;
+  \item Error correction coding, to increase encryptions levels without losing relevant bits that could distrupt the decoding;
+  \item Spread spectrum coding, sending the transmission in multiple different frequencies to increase success in case of jamming;
+  \item Directional antennas, to avoid jammed paths (source 23, Guaranteeing Secrecy Using Artificial Noise);
+  \item Artificial Noise Schemes, sending noise elsewhere to make the intruder intercept the signal impossible (source 24, Secret Communication in Presence of Colluding Eavesdroppers);
+\end{itemize}
+
+\subsection{The challenges facing physical layer security}
+Paper \cite{7120011} talks about the problems we have when dealing with physical layer security and supporting authentication and confidentiality. 
+
+For starters, there are different 
 
 \newpage
 \bibliographystyle{IEEEtran}
