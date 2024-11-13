@@ -61,13 +61,13 @@ ENV PATH="/omnetpp-6.1/bin:$PATH"
 ENV OMNETPP_ROOT="/omnetpp-6.1"
 
 # Install Veins
-RUN d veins && \
+RUN cd veins && \
   git checkout cooperis && \
   ./configure && \
   make
 
 # Install Plexe
-RUN  cd plexe && \
+RUN cd plexe && \
   git checkout -b plexe-3.1.3-work plexe-3.1.3 && \
   ./configure && \
   make
