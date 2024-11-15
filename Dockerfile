@@ -70,7 +70,6 @@ RUN cd veins && \
 
 # Install Plexe
 RUN cd plexe && \
-  git checkout -b plexe-3.1.3-work plexe-3.1.3 && \
   ./configure && \
   make
 
@@ -83,8 +82,5 @@ RUN cd cooperis && \
 RUN cd plexe/subprojects/plexe_cooperis && \
   /bin/bash -c "source setenv && ./configure && make"
 
-# Set working directory
-WORKDIR /plexe/subprojects/plexe_cooperis/examples/plexe_cooperis
-
 # Command to run the example
-CMD ["plexe_cooperis_run", "-u", "Cmdenv", "-c", "TrackingTIntersection", "-r", "0"]
+# cd /plexe/subprojects/plexe_cooperis && source setenv && cd examples/plexe_cooperis && plexe_cooperis_run -u Cmdenv -c TrackingTIntersection -r 0
