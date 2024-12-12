@@ -131,19 +131,39 @@ def verify_diagonalization(P: np.ndarray, Gs: List[np.ndarray], H: np.ndarray, t
     return results
 
 def print_effective_channel(G: np.ndarray, H: np.ndarray, P: np.ndarray):
+    """
+    Print the effective channel matrix GPH.
+
+    Args:
+        G: Channel matrix from RIS to receiver
+        H: Channel matrix from transmitter to RIS
+        P: Reflection matrix
+    """
     effective_channel = G @ P @ H
     rounded_matrix = np.round(np.abs(effective_channel), 2)
     print(rounded_matrix)
 
 def verify_results(
-    P: np.ndarray, Gs: List[np.ndarray], H: np.ndarray, dor: int
+    P: np.ndarray, Gs: List[np.ndarray], H: np.ndarray
 ):
-    print(f"Shape of P: {P.shape}")
+    """
+    Verify diagonalization results and print effective channel matrix for each receiver.
+
+    Args:
+        P: Calculated reflection matrix
+        Gs: List of channel matrices from RIS to receivers
+        H: Channel matrix from transmitter to RIS
+    """
     diagonalization_results = verify_diagonalization(P, Gs, H)
     
-    print(f"Degree of Randomness (DoR): {dor}")
-    print("Diagonalization successful for all receivers:", all(diagonalization_results))
-    print("Individual results:", diagonalization_results)
+    if all(diagonalization_results):
+        print("Diagonalization successful for ALL receivers")
+    elif any(diagonalization_results):
+        print("Diagonalization successful for SOME receivers")
+    else:
+        print("Diagonalization successful for NO receivers")
+        
+    print("Individual results:", [bool(x) for x in diagonalization_results])
     
     # Print example effective channel matrix for first receiver
     print("\nEffective channel matrix for first receiver:")
@@ -155,21 +175,39 @@ if __name__ == "__main__":
     N = 16  # Number of reflecting elements
     K = 2   # Number of antennas
     J = 4   # Number of receivers
+    E = 10 # Number of eavesdroppers
+
+    print(f"Parameters: RIS Reflecting Elements = {N}, Receiver Antennas = {K}")
     
     # Generate random channel matrices for demonstration
     np.random.seed(42)
     H = (np.random.normal(0, 1, (N, K)) + 1j * np.random.normal(0, 1, (N, K))) / np.sqrt(2)
     Gs = [(np.random.normal(0, 1, (K, N)) + 1j * np.random.normal(0, 1, (K, N))) / np.sqrt(2) 
           for _ in range(J)]
+    Es = [(np.random.normal(0, 1, (K, N)) + 1j * np.random.normal(0, 1, (K, N))) / np.sqrt(2) 
+          for _ in range(E)]
     
     try:
-        # Calculate reflection matrix
         P, P_paper, dor = calculate_reflection_matrix(Gs, H, eta=0.9, random_seed=42)
+        print(f"Degree of Randomness (DoR): {dor}")
+        print(f"Shape of P: {P.shape}")
         
-        # Verify results
-        verify_results(P, Gs, H, dor)
-        print("\nPaper method:")
-        verify_results(P_paper, Gs, H, dor)
+        print(f"\n{J} Receivers:")
+        verify_results(P, Gs, H)
+
+        print(f"\n{E} Eavesdroppers:")
+        verify_results(P, Es, H)
+
+        if J == 1:
+            print("\n-----------------------------------")
+            print("\nPaper method:")
+
+            print(f"Shape of P_paper: {P_paper.shape}")
+            print(f"\n{J} Receivers:")
+            verify_results(P_paper, Gs, H)
+
+            print(f"\n{E} Eavesdroppers:")
+            verify_results(P_paper, Es, H)
         
     except ValueError as e:
         print(f"Error: {e}")
