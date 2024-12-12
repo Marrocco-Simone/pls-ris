@@ -3,8 +3,9 @@
 
 \usepackage{cite}
 \usepackage{graphicx}
-\usepackage{amsmath}
 \usepackage{algorithmic}
+\usepackage{amsmath}
+\usepackage{amsfonts} % for "\mathbb" macro
 \usepackage[caption=false,font=normalsize,labelfont=sf,textfont=sf]{subfig}
 \usepackage{url}
 \usepackage{hyperref}
@@ -17,6 +18,12 @@
   postbreak=\mbox{\space}, % Optional: mark line breaks
   escapeinside={(@}{@)}, % Define escape characters
 }
+
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
 
 
 \begin{document}
@@ -44,6 +51,7 @@
 \IEEEpeerreviewmaketitle
 
 \input{introduction.tex}
+\input{noise.tex}
 
 \bibliographystyle{IEEEtran}
 \bibliography{references.bib}
