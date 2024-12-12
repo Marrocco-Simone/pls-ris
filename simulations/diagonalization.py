@@ -52,7 +52,7 @@ def calculate_W_multiple(Gs: List[np.ndarray], H: np.ndarray) -> np.ndarray:
 def calculate_reflection_matrix(Gs: List[np.ndarray], 
                              H: np.ndarray, 
                              eta: float = 1.0,
-                             random_seed: Optional[int] = None) -> Tuple[np.ndarray, float]:
+                             random_seed: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray, float]:
     """
     Calculate the reflection matrix P given channel gains.
     
@@ -64,6 +64,7 @@ def calculate_reflection_matrix(Gs: List[np.ndarray],
     
     Returns:
         P: Diagonal reflection matrix
+        P_paper: Diagonal reflection matrix, made with the paper method
         dor: Degree of randomness achieved
     """
     if random_seed is not None:
@@ -77,30 +78,36 @@ def calculate_reflection_matrix(Gs: List[np.ndarray],
     W = calculate_W_multiple(Gs, H)
     
     # Perform SVD
-    _, _, Vh = np.linalg.svd(W)
+    U, _, Vh = np.linalg.svd(W)
     
-    # Get the null space (last N-JK²+JK columns of V^†)
+    # Get the null space (last N-JK²+JK columns of V^† and U)
     null_space_dim = N - J*K**2 + J*K
     if null_space_dim <= 0:
         raise ValueError(f"No solution exists. Need more reflecting elements. "
                        f"Current: {N}, Required: >{J*K**2 - J*K}")
     
-    U = Vh[-null_space_dim:, :].T.conj()
-    
+    # Get the null space basis from U
+    null_space_basis = Vh[-null_space_dim:, :].T.conj()
+    null_space_basis_paper = U[:, -null_space_dim:]
+
     # Generate random vector a
     a = np.random.normal(0, 1, (null_space_dim,)) + 1j * np.random.normal(0, 1, (null_space_dim,))
     
     # Calculate reflection vector p
-    Ua = U @ a
-    p = eta * Ua / np.max(np.abs(Ua))
+    p_unnormalized = null_space_basis @ a
+    p = eta * p_unnormalized / np.max(np.abs(p_unnormalized))
+
+    p_unnormalized_paper = null_space_basis_paper @ a
+    p_paper = eta * p_unnormalized_paper / np.max(np.abs(p_unnormalized_paper))
     
     # Create diagonal reflection matrix P
     P = np.diag(p)
+    P_paper = np.diag(p_paper)
     
     # Calculate DoR
     dor = 2 * (N - J*K**2 + J*K)
     
-    return P, dor
+    return P, P_paper, dor
 
 def verify_diagonalization(P: np.ndarray, Gs: List[np.ndarray], H: np.ndarray, 
                          tolerance: float = 1e-10) -> List[bool]:
@@ -129,7 +136,7 @@ if __name__ == "__main__":
     # Example parameters
     N = 16  # Number of reflecting elements
     K = 2   # Number of antennas
-    J = 1   # Number of receivers
+    J = 4   # Number of receivers
     
     # Generate random channel matrices for demonstration
     np.random.seed(42)
@@ -139,9 +146,10 @@ if __name__ == "__main__":
     
     try:
         # Calculate reflection matrix
-        P, dor = calculate_reflection_matrix(Gs, H, eta=0.9, random_seed=42)
+        P, P_paper, dor = calculate_reflection_matrix(Gs, H, eta=0.9, random_seed=42)
         
         # Verify the result
+        print(f"Shape of P: {P.shape}")
         diagonalization_results = verify_diagonalization(P, Gs, H)
         
         print(f"Degree of Randomness (DoR): {dor}")
@@ -151,7 +159,24 @@ if __name__ == "__main__":
         # Print example effective channel matrix for first receiver
         print("\nEffective channel matrix for first receiver:")
         effective_channel = Gs[0] @ P @ H
-        print(np.abs(effective_channel))
+        rounded_matrix = np.round(np.abs(effective_channel), 2)
+        print(rounded_matrix)
+
+        # ! Paper method
+        print("\nPaper method:")
+        # Verify the result
+        print(f"Shape of P: {P_paper.shape}")
+        diagonalization_results = verify_diagonalization(P_paper, Gs, H)
+        
+        print(f"Degree of Randomness (DoR): {dor}")
+        print("Diagonalization successful for all receivers:", all(diagonalization_results))
+        print("Individual results:", diagonalization_results)
+        
+        # Print example effective channel matrix for first receiver
+        print("\nEffective channel matrix for first receiver:")
+        effective_channel = Gs[0] @ P_paper @ H
+        rounded_matrix = np.round(np.abs(effective_channel), 2)
+        print(rounded_matrix)
         
     except ValueError as e:
         print(f"Error: {e}")
