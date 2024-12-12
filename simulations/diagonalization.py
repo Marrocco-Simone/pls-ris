@@ -109,8 +109,7 @@ def calculate_reflection_matrix(Gs: List[np.ndarray],
     
     return P, P_paper, dor
 
-def verify_diagonalization(P: np.ndarray, Gs: List[np.ndarray], H: np.ndarray, 
-                         tolerance: float = 1e-10) -> List[bool]:
+def verify_diagonalization(P: np.ndarray, Gs: List[np.ndarray], H: np.ndarray, tolerance: float = 1e-10) -> List[bool]:
     """
     Verify that GPH is diagonal for all receivers.
     
@@ -131,6 +130,25 @@ def verify_diagonalization(P: np.ndarray, Gs: List[np.ndarray], H: np.ndarray,
         results.append(off_diag_sum < tolerance)
     return results
 
+def print_effective_channel(G: np.ndarray, H: np.ndarray, P: np.ndarray):
+    effective_channel = G @ P @ H
+    rounded_matrix = np.round(np.abs(effective_channel), 2)
+    print(rounded_matrix)
+
+def verify_results(
+    P: np.ndarray, Gs: List[np.ndarray], H: np.ndarray, dor: int
+):
+    print(f"Shape of P: {P.shape}")
+    diagonalization_results = verify_diagonalization(P, Gs, H)
+    
+    print(f"Degree of Randomness (DoR): {dor}")
+    print("Diagonalization successful for all receivers:", all(diagonalization_results))
+    print("Individual results:", diagonalization_results)
+    
+    # Print example effective channel matrix for first receiver
+    print("\nEffective channel matrix for first receiver:")
+    print_effective_channel(Gs[0], H, P)
+
 # Example usage
 if __name__ == "__main__":
     # Example parameters
@@ -148,35 +166,10 @@ if __name__ == "__main__":
         # Calculate reflection matrix
         P, P_paper, dor = calculate_reflection_matrix(Gs, H, eta=0.9, random_seed=42)
         
-        # Verify the result
-        print(f"Shape of P: {P.shape}")
-        diagonalization_results = verify_diagonalization(P, Gs, H)
-        
-        print(f"Degree of Randomness (DoR): {dor}")
-        print("Diagonalization successful for all receivers:", all(diagonalization_results))
-        print("Individual results:", diagonalization_results)
-        
-        # Print example effective channel matrix for first receiver
-        print("\nEffective channel matrix for first receiver:")
-        effective_channel = Gs[0] @ P @ H
-        rounded_matrix = np.round(np.abs(effective_channel), 2)
-        print(rounded_matrix)
-
-        # ! Paper method
+        # Verify results
+        verify_results(P, Gs, H, dor)
         print("\nPaper method:")
-        # Verify the result
-        print(f"Shape of P: {P_paper.shape}")
-        diagonalization_results = verify_diagonalization(P_paper, Gs, H)
-        
-        print(f"Degree of Randomness (DoR): {dor}")
-        print("Diagonalization successful for all receivers:", all(diagonalization_results))
-        print("Individual results:", diagonalization_results)
-        
-        # Print example effective channel matrix for first receiver
-        print("\nEffective channel matrix for first receiver:")
-        effective_channel = Gs[0] @ P_paper @ H
-        rounded_matrix = np.round(np.abs(effective_channel), 2)
-        print(rounded_matrix)
+        verify_results(P_paper, Gs, H, dor)
         
     except ValueError as e:
         print(f"Error: {e}")
