@@ -43,71 +43,7 @@
 % For peerreview papers, this IEEEtran command inserts a page break and creates the second title. It will be ignored for other modes.
 \IEEEpeerreviewmaketitle
 
-\section{Introduction}
-\subsection{Physical Layer Security}
-
-Modern technologies, like the Internet of Things (IOT) and the Cooperative Autonomous Driving (CAV), are becoming more and more popular and necessary in our society. However, they also bring new security concerns, especially in the wireless communications.
-
-We have two type of threats we need to protect against. Active attacks, like jamming a frequency, distrupt and block the flow of information; while passive attacks, like eavesdropping, are more subtle and we need to make our signals undeciphrable with encryption or noise. There are different methods we can use to mask our communications: we can fingerprint the legitimate users, spread it through multiple frequencies, use directional antennas or artificial noise schemes \cite{5751298}.
-
-The adversaries may also have better resources, both in computer power and signal reception, and it is difficult to model all possible threats we may face \cite{7120011}.
-
-In particular to eavesdropping, there is a huge opportunity for improvements. While distruptions have been studied for long, especially in military communications, message encryption is usually delegated to the higher levels \cite{6739367}. However, the physical layer can assist by hiding or masking the signal, making it harder for the eavesdropper to capture the it. Given the advances in quantum computing and encryption breaking \cite{365700}, it is important to be protected at all layers.
-
-Achieving perfect communication secrecy is not really possible for all cases, given that we need the secret key to be at least as big as the secret message \cite{6769090}, but there are some practical strategies we can implement.
-
-In \cite{7543509} a statistical model is created to calculate the probability of achieving secrecy from eavesdroppers in unknown locations, while in \cite{4543070} and \cite{1605889} it is discussed how we can use the antenna spare power to induce artificial noise to assure the legitimate receiver has better signal.
-
-\newpage
-\subsection{Reconfigurable Intelligent Surface}
-
-Reconfigurable Intelligent Surfaces (RISs) are a new technology that can help in improving the security of wireless communications. They are made of a large number of passive elements that can reflect the signals in a way that can be controlled and optimized.
-
-With RISs, it is possible to control the propagation and reflection of signals, making it possible to transform the environment, in which the waves need to travel, from an uncontrollable phenomena to a programmable variable that is possible to (partially) control and optimize \cite{9086766}.
-
-RISs can help in particular in two scenarios. In the first one, two nodes which are not in the line of sight (LOS) can communicate with the help of the RIS; in the second one, being in the LOS means an inability to take advantage of delayed reflections (especially for new technologies like 5G and 6G), which can be used to improve the signal quality and robustness, but we can create them with RISs \cite{9086766}.
-
-The main advantages of RISs are the low cost, the low power consumption and the easy deployment, which makes them a good candidate for the future of wireless communications. They do not require a dedicated energy source, they do not suffer from noise amplification, they can work with any frequency and can be easly put in any surface like walls or ceilings \cite{8796365}.
-
-\subsection{Using RISs for Physical Layer Security}
-
-RISs can be used to greatly increase not only the network performance but also its security \cite{10409564}. By using RISs, we can make the signal quality better, reduce the signal degradation and make the signal more difficult to intercept by eavesdroppers.
-
-For example, the reflection can be used as multiplicative randomness to make the transmission not understable from eavesdroppers, while having a decoding for the legitimate user linear \cite{9328149}.
-
-Another paper \cite{s21041439} studied how to use a novel RIS based channel randomization technique to improve the secrecy rate, and another one \cite{8742603} shows an iterative efficient algorithm to maximize the minimum secrecy rate by optimizing the reflecting coefficients of the RIS.
-
-RISs can also be used to protect against jamming attacks: for example, in \cite{9424472} it is used an aerial RIS to mitigate the effects of the disturbance and increase the transmission power and reliability.
-
-\subsection{RISs and Physical Layer Security for Vehicular Networks}
-
-Cooperative autonomous driving can bring many benefits, like reducing traffic congestion, improving road safety and reducing the environmental impact of the vehicles. Cars and other vehicles can communicate with each other and with the infrastructure to share information and coordinate their movements. However, it also brings new security concerns, especially in the wireless communications.
-
-It is clear that it is necessary to have a secure and fast way to communicate, and 6G network technologies plus RISs can help in this regard. By reflecting the signals, we can overcome the limitations of LOS and improve the signal quality by reducing signal degradation \cite{10715713}.
-
-The sector is just starting to be studied, but there are already some promising result. Network simulators made specific, like CoopeRIS, allow to study and progress this field \cite{SEGATA2024110443}.
-
-Vehicular networks need low latency and high security. Active attack may jeopardize drivers' and people's safety, while also slowing down information exchange rate. Being moving agents, it is more difficult to correctly model this type of network, but also way more necessary: complex upper layer encryption may slow down data processing enough to render it useless \cite{8403278}.
-
-Passive attackers may instead use vehicles' geolocation and traffic data for malicious activity. A way to detect and filter out intruders is discussed in \cite{8474336}.
-
-Recent studies shows how RISs can be used to protect the vehicular network against illegitimate users. In \cite{makarfi2020reconfigurableintelligentsurfacesenabledvehicular} the authors study how RISs can improve the average secrecy capacity and secrecy outrage probability.
-
-\subsection{Future Directions}
-
-Network intensive technologies like IOT and CAV are gaining traction fast, thanks to the many benefits they bring to society and the newest technologies that now allow this incredibly huge traffic load.
-
-However, the security of these networks is still a big concern, and it is necessary to study and implement new technologies to protect them. RISs are a promising technology that can help in this regard. Being cost effective, fairly passive and easy to deploy, they can assist in overcoming the problems of 6G like signal fading and out of LOS communication \cite{8796365}.
-
-However, while we have some initial literature in both physical layer security using RISs, and using RISs to improve vehicular network performances, not much has been made in studying all three of these aspects \cite{makarfi2020reconfigurableintelligentsurfacesenabledvehicular}.
-
-Practical solutions could be studied and simulated starting from the resources presented here. RISs can be used both to mask the network signal or to make it noisier for unwanted listeners located in different places.
-
-For example, starting from \cite{4543070}, it could be studied how cooperating vehicles could calculate together with a RIS how to add noise to other locations while moving in space, and so needing constant modifications in the calculations themselves.
-
-Modern cars have as much computing power as a modern personal computer: for example, Tesla cars have an integrated GPU to utilize the autonomus driving feature \cite{10586734}, which could be used for highly efficient matrix calculations \cite{1011452699470}.
-
-In conclusion, the future of vehicular networks is bright, but it is necessary to study and implement new technologies to protect them. RISs are a promising technology that can help in this regard, and it is necessary to study how to use them to improve the security of vehicular networks.
+\input{introduction.tex}
 
 \bibliographystyle{IEEEtran}
 \bibliography{references.bib}
