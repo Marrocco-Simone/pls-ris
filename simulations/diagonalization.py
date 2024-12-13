@@ -48,7 +48,7 @@ def calculate_W_multiple(K: int, N: int, J: int, Gs: List[np.ndarray], H: np.nda
     
     return W_combined
 
-def calculate_reflection_matrix(K: int, N: int, J: int, Gs: List[np.ndarray], H: np.ndarray, eta: float) -> Tuple[np.ndarray, np.ndarray, float]:
+def calculate_reflection_matrix(K: int, N: int, J: int, Gs: List[np.ndarray], H: np.ndarray, eta: float) -> Tuple[np.ndarray, float]:
     """
     Calculate the reflection matrix P given channel gains.
     
@@ -62,7 +62,6 @@ def calculate_reflection_matrix(K: int, N: int, J: int, Gs: List[np.ndarray], H:
     
     Returns:
         P: Diagonal reflection matrix
-        P_paper: Diagonal reflection matrix, made with the paper method
         dor: Degree of randomness achieved
     """
     W = calculate_W_multiple(K, N, J, Gs, H)
@@ -73,23 +72,19 @@ def calculate_reflection_matrix(K: int, N: int, J: int, Gs: List[np.ndarray], H:
     if null_space_dim <= 0:
         raise ValueError(f"No solution exists. Need more reflecting elements. Current: {N}, Required: >{J*K**2 - J*K}")
     
-    null_space_basis_paper = U[:, -null_space_dim:]
+    # null_space_basis = U[:, -null_space_dim:] # * paper method
     null_space_basis = Vh[-null_space_dim:, :].T.conj()
 
     a = np.random.normal(0, 1, (null_space_dim,)) + 1j * np.random.normal(0, 1, (null_space_dim,))
     
-    p_unnormalized_paper = null_space_basis_paper @ a
-    p_paper = eta * p_unnormalized_paper / np.max(np.abs(p_unnormalized_paper))
-
     p_unnormalized = null_space_basis @ a
     p = eta * p_unnormalized / np.max(np.abs(p_unnormalized))
     
     P = np.diag(p)
-    P_paper = np.diag(p_paper)
     
     dor = 2 * (N - J*K**2 + J*K)
     
-    return P, P_paper, dor
+    return P, dor
 
 def verify_diagonalization(P: np.ndarray, Gs: List[np.ndarray], H: np.ndarray) -> List[bool]:
     """
@@ -166,7 +161,7 @@ if __name__ == "__main__":
           for _ in range(E)]
     
     try:
-        P, P_paper, dor = calculate_reflection_matrix(K, N, J, Gs, H, eta)
+        P, dor = calculate_reflection_matrix(K, N, J, Gs, H, eta)
         print(f"Degree of Randomness (DoR): {dor}")
         print(f"Shape of P: {P.shape}")
         
@@ -175,16 +170,6 @@ if __name__ == "__main__":
 
         print(f"\n{E} Eavesdroppers:")
         verify_results(P, Es, H)
-
-        print("\n-----------------------------------")
-        print("\nPaper method:")
-
-        print(f"Shape of P_paper: {P_paper.shape}")
-        print(f"\n{J} Receivers:")
-        verify_results(P_paper, Gs, H)
-
-        print(f"\n{E} Eavesdroppers:")
-        verify_results(P_paper, Es, H)
         
     except ValueError as e:
         print(f"Error: {e}")
