@@ -48,7 +48,7 @@ def calculate_W_multiple(K: int, N: int, J: int, Gs: List[np.ndarray], H: np.nda
     
     return W_combined
 
-def calculate_reflection_matrix(K: int, N: int, J: int, Gs: List[np.ndarray], H: np.ndarray, eta: float = 1.0, random_seed: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray, float]:
+def calculate_reflection_matrix(K: int, N: int, J: int, Gs: List[np.ndarray], H: np.ndarray, eta: float) -> Tuple[np.ndarray, np.ndarray, float]:
     """
     Calculate the reflection matrix P given channel gains.
     
@@ -59,16 +59,12 @@ def calculate_reflection_matrix(K: int, N: int, J: int, Gs: List[np.ndarray], H:
         Gs: List of channel matrices from RIS to receivers [G_1, G_2, ..., G_J]
         H: Channel matrix from transmitter to RIS
         eta: Reflection efficiency (default: 1.0)
-        random_seed: Random seed for reproducibility
     
     Returns:
         P: Diagonal reflection matrix
         P_paper: Diagonal reflection matrix, made with the paper method
         dor: Degree of randomness achieved
     """
-    if random_seed is not None:
-        np.random.seed(random_seed)
-    
     W = calculate_W_multiple(K, N, J, Gs, H)
     U, _, Vh = np.linalg.svd(W)
     
@@ -95,7 +91,7 @@ def calculate_reflection_matrix(K: int, N: int, J: int, Gs: List[np.ndarray], H:
     
     return P, P_paper, dor
 
-def verify_diagonalization(P: np.ndarray, Gs: List[np.ndarray], H: np.ndarray, tolerance: float = 1e-10) -> List[bool]:
+def verify_diagonalization(P: np.ndarray, Gs: List[np.ndarray], H: np.ndarray) -> List[bool]:
     """
     Verify that GPH is diagonal for all receivers.
     
@@ -103,12 +99,12 @@ def verify_diagonalization(P: np.ndarray, Gs: List[np.ndarray], H: np.ndarray, t
         P: Calculated reflection matrix
         Gs: List of channel matrices from RIS to receivers
         H: Channel matrix from transmitter to RIS
-        tolerance: Tolerance for considering an element zero
     
     Returns:
         List of boolean values indicating if GPH is diagonal for each receiver
     """
     results = []
+    tolerance = 1e-10
     for G in Gs:
         effective_channel = G @ P @ H
         off_diag_sum = np.sum(np.abs(effective_channel - np.diag(np.diag(effective_channel))))
@@ -154,14 +150,15 @@ def verify_results(
     print_effective_channel(Gs[0], H, P)
 
 if __name__ == "__main__":
-    N = 16 # * Number of reflecting elements
-    K = 2  # * Number of antennas
-    J = 4  # * Number of receivers
-    E = 10 # * Number of eavesdroppers
+    N = 16    # * Number of reflecting elements
+    K = 2     # * Number of antennas
+    J = 4     # * Number of receivers
+    E = 10    # * Number of eavesdroppers
+    eta = 0.9 # * Reflection efficiency
 
-    print(f"Parameters: RIS Reflecting Elements = {N}, Receiver Antennas = {K}")
+    print(f"Parameters: RIS Reflection efficiency = {eta}, RIS Reflecting Elements = {N}, Receiver Antennas = {K}")
     
-    np.random.seed(42)
+    # np.random.seed(42)
     H = (np.random.normal(0, 1, (N, K)) + 1j * np.random.normal(0, 1, (N, K))) / np.sqrt(2)
     Gs = [(np.random.normal(0, 1, (K, N)) + 1j * np.random.normal(0, 1, (K, N))) / np.sqrt(2) 
           for _ in range(J)]
@@ -169,7 +166,7 @@ if __name__ == "__main__":
           for _ in range(E)]
     
     try:
-        P, P_paper, dor = calculate_reflection_matrix(K, N, J, Gs, H, eta=0.9, random_seed=42)
+        P, P_paper, dor = calculate_reflection_matrix(K, N, J, Gs, H, eta)
         print(f"Degree of Randomness (DoR): {dor}")
         print(f"Shape of P: {P.shape}")
         
