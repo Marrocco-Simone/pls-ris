@@ -60,3 +60,70 @@ and
 \end{equation}
 
 being true, and $q \in \C^{N-(K^2 - K)}$ can be a random vector.
+
+\subsection{Expanding to multiple users}
+
+In real life scenarios, we deal with more than two communicating actors. We want to expand the findings of this paper by having it support multiple RISs in series and multiple receivers from the same transmitter. Once we have those, we can generalize it to also have receivers getting signals from multiple indipendent reflections of RISs.
+
+We will first, however, make some semplifications about the actors by having $L = K$ for all of them. We will still consider one transmitter, with $J \ge 1$ receivers.
+
+\subsubsection{Reflecting to multiple users}
+
+We consider the case where the transmitter wants to send the signal to $J$ receivers without LOS. The condition we want to satisfy is
+
+\begin{equation}
+  \forall j \in [1...J] \rightarrow || G_jPH - [G_jPH]_{diag} || ^2 = 0
+\end{equation}
+
+\begin{equation}
+  \forall j \in [1...J] \rightarrow W_jp = 0
+\end{equation}
+
+\begin{equation}
+  \begin{bmatrix}
+    W_1  \\
+    W_ 2 \\
+    ...  \\\
+    W_j
+  \end{bmatrix}
+  p = 0
+\end{equation}
+
+\begin{equation}
+  \begin{bmatrix}
+    W_1  \\
+    W_ 2 \\
+    ...  \\\
+    W_j
+  \end{bmatrix}
+  = W \in \C ^ {JNxN}, W = R \lambda V^H
+\end{equation}
+
+The problem we have now is that $W$ is not a square matrix anymore, so we cannot use the last $N - (K^2 - K)$ columns of $R$ to calculate the null space and $p$ with its linear combination.
+
+We can, however, use the the last $N - (K^2 - K)$ rows of $V^H$, then apply again the hermitian transposition (transpose, then apply the complex conjugation) [TODO: EXPLANATION AND CITATION NEEDED].
+
+Take $U_1 \in \C ^ {N - J(K^2 - K) x N}$ the last $N - (K^2 - K)$ rows of $V^H$, and
+\begin{equation}
+  U = U_1^H \in \C ^ {N x N - J(K^2 - K)}
+\end{equation}
+
+We now can apply the same method as before
+
+\begin{equation}p = Uq\end{equation}
+
+\begin{equation}WU = 0\end{equation}
+
+\begin{equation}WUq = 0\end{equation}
+
+\subsubsection{RISs in series}
+
+We consider the case where the signal is bounced between two RISs in this way:
+
+\begin{equation}
+  \text{Transmitter} \rightarrow \text{RIS 1} \rightarrow \text{RIS 2} \rightarrow \text{Receiver}
+\end{equation}
+
+\begin{equation}
+  || GP_1P_2H - [GP_1P_2H]_{diag} || ^2 = 0
+\end{equation}
