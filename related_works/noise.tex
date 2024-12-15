@@ -2,8 +2,6 @@
 
 We will start from the paper \textit{Reconfigurable Intelligent Surface: Reflection Design Against Passive Eavesdropping} \cite{9328149}, explaining how to hide communication between two actors from eavesdroppers using Reconfigurable Intelligent Surfaces, then expanding it to multiple receiving users at the same time.
 
-\subsection{The paper problem mathematics}
-
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{imgs/problem-description.png}
@@ -61,13 +59,13 @@ and
 
 being true, and $q \in \C^{N-(K^2 - K)}$ can be a random vector.
 
-\subsection{Expanding to multiple users}
+\section{Expanding to multiple users}
 
 In real life scenarios, we deal with more than two communicating actors. We want to expand the findings of this paper by having it support multiple RISs in series and multiple receivers from the same transmitter. Once we have those, we can generalize it to also have receivers getting signals from multiple indipendent reflections of RISs.
 
 We will first, however, make some semplifications about the actors by having $L = K$ for all of them. We will still consider one transmitter, with $J \ge 1$ receivers.
 
-\subsubsection{Reflecting to multiple users}
+\subsection{Reflecting to multiple users}
 
 We consider the case where the transmitter wants to send the signal to $J$ receivers without LOS. The condition we want to satisfy is
 
@@ -116,7 +114,7 @@ We now can apply the same method as before
 
 \begin{equation}WUq = 0\end{equation}
 
-\subsubsection{RISs in parallel}
+\subsection{RISs in parallel}
 
 Given the previous property, it follows that we can use $M$ multiple RIS, each one reflecting the signal to $J$ multiple receivers. For the receiver $j \in [1, J]$, we have
 
@@ -126,7 +124,7 @@ Given the previous property, it follows that we can use $M$ multiple RIS, each o
 
 The sum of diagonal matrixes is still a diagonal matrix, so the property still holds.
 
-\subsubsection{RISs in series}
+\subsection{RISs in series}
 
 We consider the case where the signal is bounced between $M$ RISs in this way:
 
