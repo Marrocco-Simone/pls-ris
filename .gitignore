@@ -44,3 +44,6 @@
 
 # TeX Live specific files
 texlive/*
+
+# Pdf I need
+!Reconfigurable_Intelligent_Surface_Reflection_Design_Against_Passive_Eavesdropping.pdf
