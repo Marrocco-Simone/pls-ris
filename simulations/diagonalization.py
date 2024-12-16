@@ -1,5 +1,7 @@
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List, Tuple
+
+tolerance = 1e-10
 
 def calculate_W_single(K: int, N: int, G: np.ndarray, H: np.ndarray) -> np.ndarray:
     """
@@ -115,15 +117,26 @@ def calculate_multi_ris_reflection_matrices(
         dor: Degree of randomness achieved
     """
     W = calculate_W_multiple(K, N, J, Gs, H)
-    U, _, Vh = np.linalg.svd(W)
+    U, sigma, Vh = np.linalg.svd(W)
     
     # * last N-JK²+JK columns of U and rows of Vh
     null_space_dim = N - J*K**2 + J*K
     if null_space_dim <= 0:
         raise ValueError(f"No solution exists. Need more reflecting elements. Current: {N}, Required: >{J*K**2 - J*K}")
     
+    first_singular_values = sigma[:N - null_space_dim]
+    last_singular_values = sigma[-null_space_dim:]
+    first_all_are_not_zero = np.all(first_singular_values >= tolerance)
+    last_all_are_zero = np.all(last_singular_values < tolerance)
+
+    if not first_all_are_not_zero or not last_all_are_zero:
+        raise ValueError(f"Invalid singular values. First: {np.round(first_singular_values, 2)}, Last: {np.round(last_singular_values, 2)}")
+
     # null_space_basis = U[:, -null_space_dim:] # * paper method
     null_space_basis = Vh[-null_space_dim:, :].T.conj()
+
+    if null_space_basis.shape != (N, null_space_dim):
+        raise ValueError(f"Invalid null space basis shape: {null_space_basis.shape}, should be ({N}, {null_space_dim})")
 
     a = np.random.normal(0, 1, (null_space_dim,)) + 1j * np.random.normal(0, 1, (null_space_dim,))
     
@@ -170,7 +183,6 @@ def verify_multi_ris_diagonalization(
         List of boolean values indicating if effective channel is diagonal for each receiver
     """
     results = []
-    tolerance = 1e-10
     
     P = unify_ris_reflection_matrices(Ps)
     for G in Gs:
@@ -247,8 +259,9 @@ if __name__ == "__main__":
         print(f"\n{E} End Eavesdroppers:")
         verify_results(Ps, Es, H)
 
-        print(f"\n{E} Intermediate Eavesdroppers:")
-        verify_results(Ps[1:], Es, H)
+        if M > 1:
+            print(f"\n{E} Intermediate Eavesdroppers:")
+            verify_results(Ps[1:], Es, H)
         
     except ValueError as e:
         print(f"Error: {e}")
