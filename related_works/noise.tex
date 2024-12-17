@@ -30,32 +30,44 @@ Given
 \begin{equation}
   W = \sum_{i,j = 1, i \ne j}^{K} (g_{j,:} \odot h_i^T)^H (g_{j,:} \odot h_i^T)
 \end{equation}
+\begin{equation}
+  rank(W) = K(K-1), rank(W) - nullity(W) = N
+\end{equation}
+\begin{equation}
+  nullity(W) = N - (K^2 - K)
+\end{equation}
 
 The formula (1) can be rewritten as
 
-\begin{equation}
-  Wp = 0
-\end{equation}
+\begin{equation}Wp = 0\end{equation}
 
 and the solutions of $p$ can be found in the null space of $W$. Using singular value decomposition (SVD), we can decompose
 
 \begin{equation}
-  W = R \lambda V^H
+  W = R \Sigma V^H \footnote{An hermitian transpose of $V$ ($V^H$), means we fist transpose the matrix ($V \rightarrow V^T$), then take the conjugate of every element (so invert the sign of the immaginary part).}
 \end{equation}
 
-Taken $U \in \C ^ {Nx(N-(K^2 - K))}$ the last $N-(K^2 - K)$ columns of the left singular matrix $R$. We then have
+With SVD, we have $\Sigma = diag(\sigma) \in C^{NxN}$ a diagonal matrix. the first $rank(W) = K^2-K$ elements of $\sigma$ are non-zero, while the last $nullity(W) = N - (K^2-K)$ elements are zero. \footnote{\url{https://math.stackexchange.com/questions/1771013/how-is-the-null-space-related-to-singular-value-decomposition}}
 
-\begin{equation} p = Uq \end{equation}
+Given a more generic $A \in \C^{mxn} = R' \Sigma' V'^H$, we have the column vectors of $R'$ being an orthonormal span of $C^m$, and the row vectors of $V'$ being an orthonormal span of $C^n$.
 
-and
+Suppose $A$ is an Hermitian matrix (meaning $A = A^H$). This will be useful later, as $W$ is also an Hermitian matrix by construction. Let's call $k$ the null space dimension of $A$, and ,by the property above, the null space dimension of $A^H$ too.
+
+The last $k$ columns of $R'$ are a span of the null space
+\begin{equation}
+  N(A^H) = [r_{m-k}, ..., r_m ] \in \C^{mxk}
+\end{equation}
+while the last $k$ rows of $V'^H$ are a span of the null space
+\begin{equation}
+  N(A) = \begin{bmatrix} v'^H_{n-k} \\ ... \\ v'^H_n \end{bmatrix} \in \C^{kxn}
+\end{equation}
+Being $A$ an Hermitian matrix, the two null spaces are both solutions to $Ax = 0$.
+
+Consider now $W \in C^{NxN}$. The paper in question uses equation (7) to find the solutions, since $W$ is hermitian and square. Taken $U \in \C ^ {Nx(N-(K^2 - K))}$ the last $N-(K^2 - K)$ columns of the left singular matrix $R$. $U \in N(W)$ for the explanation above. We then have
 
 \begin{equation}WU = 0\end{equation}
-
-[TODO: EXPLANATION AND CITATION NEEDED], so all together we have
-
-\begin{equation}
-  WUq = 0
-\end{equation}
+\begin{equation}p = Uq\end{equation}
+\begin{equation}WUq = 0\end{equation}
 
 being true, and $q \in \C^{N-(K^2 - K)}$ can be a random vector.
 
@@ -94,12 +106,16 @@ We consider the case where the transmitter wants to send the signal to $J$ recei
     ...  \\\
     W_j
   \end{bmatrix}
-  = W \in \C ^ {JNxN}, W = R \lambda V^H
+  = W \in \C ^ {JNxN}, W = R \Sigma V^H
 \end{equation}
 
-The problem we have now is that $W$ is not a square matrix anymore, so we cannot use the last $N - (K^2 - K)$ columns of $R$ to calculate the null space and $p$ with its linear combination.
+The problem we have now is that $W$ is not a square matrix anymore, so we cannot use the last $N - (K^2 - K)$ columns of $R$ to calculate the null space and $p$ with its linear combination. The null space would have dimension $N(W) \in \C^{JN x (N - (K^2 - K))}$, but we need $p \in C^N$.
 
-We can, however, use the the last $N - (K^2 - K)$ rows of $V^H$, then apply again the hermitian transposition (transpose, then apply the complex conjugation) [TODO: EXPLANATION AND CITATION NEEDED].
+We can, however, use the the last $N - (K^2 - K)$ rows of $V^H$, then apply again the hermitian transposition to get our desired solution. Remember that $N(W)$ can also be calculated using the left singular matrix. Since $W = W^H$,
+
+\begin{equation}
+  N(W) = N(W^H) = N(W)^H = \begin{bmatrix} v^H_{N - J(K^2 - K)} \\ ... \\ v^H_N \end{bmatrix} ^ H
+\end{equation}
 
 Take $U_1 \in \C ^ {N - J(K^2 - K) x N}$ the last $N - (K^2 - K)$ rows of $V^H$, and
 \begin{equation}
