@@ -145,7 +145,7 @@ def calculate_multi_ris_reflection_matrices(
     
     Ps = decompose_reflection_vector(p, N, M)
     
-    dor = 2 * (N - J*K**2 + J*K) + 2*(M-1)*N
+    dor = 2 * null_space_dim
     
     return Ps, dor
 
