@@ -113,10 +113,10 @@ We consider the case where the transmitter wants to send the signal to $J$ recei
 
 The problem we have now is that $W$ is not a square matrix anymore, so we cannot use the last $N - (K^2 - K)$ columns of $R$ to calculate the null space and $p$ with its linear combination. The null space would have dimension $N(W) \in \C^{JN x (N - (K^2 - K))}$, but we need $p \in C^N$.
 
-We can, however, use the the last $N - (K^2 - K)$ rows of $V^H$, then apply again the hermitian transposition to get our desired solution. Remember that $N(W)$ can also be calculated using the left singular matrix. Since $W = W^H$,
+We can, however, use the the last $N - (K^2 - K)$ rows of $V^H$, then apply again the hermitian transposition to get our desired solution. Remember that $N(W)$ can also be calculated using the left singular matrix. Since now $W$ is not a square matrix, so $W \ne W^H$,
 
 \begin{equation}
-  N(W) = N(W^H) = N(W)^H = \begin{bmatrix} v^H_{N - J(K^2 - K)} \\ ... \\ v^H_N \end{bmatrix} ^ H
+  N(W) = \begin{bmatrix} v^H_{N - J(K^2 - K)} \\ ... \\ v^H_N \end{bmatrix} ^ H
 \end{equation}
 
 Take $U_1 \in \C ^ {N - J(K^2 - K) x N}$ the last $N - (K^2 - K)$ rows of $V^H$, and
