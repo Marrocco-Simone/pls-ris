@@ -232,21 +232,34 @@ def verify_results(
     P = unify_ris_reflection_matrices(Ps)
     print_effective_channel(Gs[0], H, P)
 
+def generate_random_channel_matrix(rows: int, cols: int) -> np.ndarray:
+    """
+    Generate a random complex channel matrix.
+    
+    Args:
+        rows: Number of rows
+        cols: Number of columns
+    
+    Returns:
+        Random complex channel matrix
+    """
+    return (np.random.normal(0, 1, (rows, cols)) + 1j * np.random.normal(0, 1, (rows, cols))) / np.sqrt(2)
+
 if __name__ == "__main__":
     N = 16    # * Number of reflecting elements
     K = 2     # * Number of antennas
-    J = 4     # * Number of receivers
-    M = 2     # * Number of RIS surfaces
+    J = 2     # * Number of receivers
+    M = 1     # * Number of RIS surfaces
     E = 10    # * Number of eavesdroppers
     eta = 0.9 # * Reflection efficiency
 
     print(f"Parameters: \n- RIS surfaces = {M}\n- Elements per RIS = {N}\n- Reflection efficiency = {eta}\n- Receiver Antennas = {K}")
-    
-    H = (np.random.normal(0, 1, (N, K)) + 1j * np.random.normal(0, 1, (N, K))) / np.sqrt(2)
-    Gs = [(np.random.normal(0, 1, (K, N)) + 1j * np.random.normal(0, 1, (K, N))) / np.sqrt(2) 
-          for _ in range(J)]
-    Es = [(np.random.normal(0, 1, (K, N)) + 1j * np.random.normal(0, 1, (K, N))) / np.sqrt(2) 
-          for _ in range(E)]
+
+    np.random.seed(0)
+
+    H = generate_random_channel_matrix(N, K)
+    Gs = [generate_random_channel_matrix(K, N) for _ in range(J)]
+    Es = [generate_random_channel_matrix(K, N) for _ in range(E)]
     
     try:
         Ps, dor = calculate_multi_ris_reflection_matrices(K, N, J, M, Gs, H, eta)
