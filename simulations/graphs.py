@@ -76,9 +76,10 @@ def calculate_achievable_rate_eavesdropper_Sigma(
     sigma_sq: float,
     num_samples=10000 
 ):
-    sum_result = np.zeros((M, M), dtype=complex)
+    sum_result = np.zeros((K, K), dtype=complex)
     for _ in range(num_samples):
         P = generate_random_channel_matrix(N, N)
+        diff = diff.reshape(-1, 1)
         term = F @ P @ H @ diff @ diff.conj().T @ H.conj().T @ P.conj().T @ F.conj().T
         sum_result += term
     expected= sum_result / num_samples
@@ -122,20 +123,16 @@ def calculate_achievable_rate_eavesdropper(
     for i in range(K):
         x_i = np.zeros(K)
         x_i[i] = 1
-        sum_exp = 0    
-        for _ in range(num_samples):
-            sum_l = 0
-            for l in range(K):
-                x_l = np.zeros(K)
-                x_l[l] = 1
-                term = calculate_achievable_rate_eavesdropper_term(
-                    N, K, B, F, P, H, x_i, x_l, sigma_sq, num_samples
-                )
-                sum_l += np.exp(term)
-            sum_l = np.log2(sum_l)
-            sum_exp += sum_l
-        expected = sum_exp/num_samples
-        sum_i += expected
+        sum_l = 0
+        for l in range(K):
+            x_l = np.zeros(K)
+            x_l[l] = 1
+            term = calculate_achievable_rate_eavesdropper_term(
+                N, K, B, F, P, H, x_i, x_l, sigma_sq, num_samples
+            )
+            sum_l += np.exp(term)
+        sum_l = np.log2(sum_l)
+        sum_i += sum_l
     return np.log2(K) - sum_i / K
 
 def calculate_secrecy_rate(
@@ -171,8 +168,7 @@ if __name__ == "__main__":
     M = 1     # * Number of RIS surfaces
     E = 10    # * Number of eavesdroppers
     eta = 0.9 # * Reflection efficiency
-    sigma_sq = 1.0 # * Noise variance
-    snr_range_db = np.linspace(0, 30, 16)  # SNR range from 0 to 30 dB
+    snr_range_db = np.arange(-20, 21)  # * SNR range from 0 to 30 dB
 
     print(f"Parameters: \n- RIS surfaces = {M}\n- Elements per RIS = {N}\n- Reflection efficiency = {eta}\n- Receiver Antennas = {K}")
 
@@ -186,8 +182,12 @@ if __name__ == "__main__":
     try:
         Ps, dor = calculate_multi_ris_reflection_matrices(K, N, J, M, Gs, H, eta)
         P = unify_ris_reflection_matrices(Ps)
-        secrecy_rate = calculate_secrecy_rate(N, K, G, P, H, B, F, sigma_sq)
-        print(f"Secrecy Rate: {secrecy_rate:.2f} bits/s/Hz")
+        secrecy_rates = []
+        for snr_db in snr_range_db:
+            sigma_sq = 10**(-snr_db/10)
+            secrecy_rate = calculate_secrecy_rate(N, K, G, P, H, B, F, sigma_sq)
+            print(f"SNR: {snr_db}, Secrecy Rate: {secrecy_rate:.2f} bits/s/Hz")
+            secrecy_rates.append(secrecy_rate)
         
     except ValueError as e:
         print(f"Error: {e}")
