@@ -161,106 +161,8 @@ def calculate_secrecy_rate(
     return secrecy_rate
 
 ######## BER Calculation ########
-
-def calculate_scaling_factor(K: int) -> float:
-    """
-    Calculate the scaling factor δ_κ for BER calculation.
     
-    Args:
-        K: Number of transmit/receive antennas
-        
-    Returns:
-        Scaling factor δ_κ
-    """
-    if K < 2:
-        raise ValueError("K must be at least 2")
-        
-    kappa = int(np.log2(K))  # κ = log_2(K)
-    delta = np.zeros(kappa + 1)
-    
-    # Calculate scaling factor using recursive formula (69)
-    for k in range(1, kappa + 1):
-        delta[k] = delta[k-1] + (2**(k-1) - delta[k-1])/(2**k - 1)
-        
-    return delta[kappa]
-
-def lambda_pdf(x: float, mean_lambda: float) -> float:
-    """
-    Calculate the probability density function of λ.
-    This is approximated as a gamma distribution.
-    
-    Args:
-        x: Value at which to evaluate PDF
-        mean_lambda: Mean value of λ
-        
-    Returns:
-        PDF value at x
-    """
-    # Shape and scale parameters for gamma approximation
-    k = 2.0  # Shape parameter
-    theta = mean_lambda / k  # Scale parameter
-    
-    return stats.gamma.pdf(x, a=k, scale=theta)
-
-def calculate_ber_ssk(K: int, mean_snr_db: float) -> float:
-    """
-    Calculate the BER for SSK transmission according to equation (65).
-    
-    Args:
-        K: Number of transmit/receive antennas
-        mean_snr_db: Mean SNR in dB
-        
-    Returns:
-        BER value
-    """
-    # Convert SNR from dB to linear scale
-    mean_snr = 10**(mean_snr_db/10)
-    
-    # Calculate scaling factor
-    delta_kappa = calculate_scaling_factor(K)
-    
-    def integrand(t: float, lambda_val: float) -> float:
-        """Inner integrand function for numerical integration."""
-        # CDF of chi-square distribution with 2 degrees of freedom
-        F_chi2 = stats.chi2.cdf(t, df=2)
-        
-        # PDF of non-central chi-square distribution with 2 degrees of freedom
-        f_chi2_nc = stats.ncx2.pdf(t, df=2, nc=lambda_val)
-        
-        return F_chi2**(K-1) * f_chi2_nc
-    
-    def outer_integrand(lambda_val: float) -> float:
-        """Outer integrand function for numerical integration."""
-        # Integrate over t from 0 to ∞
-        result, _ = integrate.quad(integrand, 0, np.inf, args=(lambda_val,))
-        return result * lambda_pdf(lambda_val, mean_snr)
-    
-    # Integrate over λ from 0 to ∞
-    integral, _ = integrate.quad(outer_integrand, 0, 100*mean_snr)  # Upper limit chosen empirically
-    
-    # Calculate final BER
-    ber = delta_kappa * (1 - integral)
-    
-    return ber
-
-def calculate_ber_range(K: int, snr_range_db: np.ndarray) -> np.ndarray:
-    """
-    Calculate BER values for a range of SNR values.
-    
-    Args:
-        K: Number of transmit/receive antennas
-        snr_range_db: Array of SNR values in dB
-        
-    Returns:
-        Array of BER values corresponding to input SNR values
-    """
-    ber_values = np.zeros_like(snr_range_db)
-    
-    for i, snr_db in enumerate(snr_range_db):
-        ber_values[i] = calculate_ber_ssk(K, snr_db)
-        
-    return ber_values
-    
+######## MAIN ###################
 
 if __name__ == "__main__":
     N = 16    # * Number of reflecting elements
@@ -274,8 +176,6 @@ if __name__ == "__main__":
 
     print(f"Parameters: \n- RIS surfaces = {M}\n- Elements per RIS = {N}\n- Reflection efficiency = {eta}\n- Receiver Antennas = {K}")
 
-    np.random.seed(0)
-
     H = generate_random_channel_matrix(N, K)
     B = generate_random_channel_matrix(K, K)
     Gs = [generate_random_channel_matrix(K, N) for _ in range(J)]
@@ -288,12 +188,6 @@ if __name__ == "__main__":
         P = unify_ris_reflection_matrices(Ps)
         secrecy_rate = calculate_secrecy_rate(N, K, G, P, H, B, F, sigma_sq)
         print(f"Secrecy Rate: {secrecy_rate:.2f} bits/s/Hz")
-        # ber_values = calculate_ber_range(K, snr_range_db)
-    
-        # print("SNR (dB) | BER")
-        # print("---------|---------")
-        # for snr, ber in zip(snr_range_db, ber_values):
-        #     print(f"{snr:8.2f} | {ber:.2e}")
         
     except ValueError as e:
         print(f"Error: {e}")
