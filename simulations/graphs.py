@@ -24,144 +24,56 @@ def create_random_noise_vector(K: int, sigma_sq: float) -> np.ndarray:
 
 ######## Secrecy Rate Calculation ########
 
-def calculate_achievable_rate_receiever_term(
-    G: np.ndarray, 
-    P: np.ndarray, 
-    H: np.ndarray, 
-    x_i: np.ndarray, 
-    x_l: np.ndarray, 
-    sigma_sq: float
-):
-    mu = create_random_noise_vector(K, sigma_sq)
-    received = G @ P @ H @ (x_i - x_l) + mu
-    term = -np.linalg.norm(received)**2 + np.linalg.norm(mu)**2
-    term = term/sigma_sq
-    return term
-    
+def calculate_receiver_term(G: np.ndarray, P: np.ndarray, H: np.ndarray, xi: np.ndarray, xj: np.ndarray, mu: np.ndarray, sigma_sq: float): 
+    try: 
+        a = G @ P @ H @ (xi - xj) + mu
+        a = np.linalg.norm(a, ord='fro') ** 2
+        b = np.linalg.norm(mu, ord='fro') ** 2
+        return (-a + b) / sigma_sq
+    except ValueError as e:
+        print(f"Error at calculate_receiver_term: {e}")
+        raise e
 
-def calculate_achievable_rate_receiever(
-    K: int,
-    G: np.ndarray, 
-    P: np.ndarray, 
-    H: np.ndarray, 
-    sigma_sq: float, 
-    num_samples=10000
-):
-    sum_i = 0
-    for i in range(K):
-        x_i = np.zeros(K)
-        x_i[i] = 1
-        sum_exp = 0    
+def calculate_eavesdropper_Sigma_inv_sqrt(K: int, N: int, eta: float, G: np.ndarray, H: np.ndarray, F: np.ndarray, xi: np.ndarray, xj: np.ndarray, sigma_sq: float, num_samples=1000):
+    try:
+        expected = 0
         for _ in range(num_samples):
-            sum_l = 0
-            for l in range(K):
-                x_l = np.zeros(K)
-                x_l[l] = 1
-                term = calculate_achievable_rate_receiever_term(
-                    G, P, H, x_i, x_l, sigma_sq
-                )
-                sum_l += np.exp(term)
-            sum_l = np.log2(sum_l)
-            sum_exp += sum_l
-        expected = sum_exp/num_samples
-        sum_i += expected
-    return np.log2(K) - sum_i / K
+            Ps, _ = calculate_multi_ris_reflection_matrices(K, N, 1, 1, [G], H, eta)
+            P = unify_ris_reflection_matrices(Ps)
+            a = F @ P @ H @ (xi - xj) @ (xi - xj).T.conj() @ H.T.conj() @ P.T.conj() @ F.T.conj()
+            expected += a
+        expected /= num_samples
+        Sigma = expected + sigma_sq * np.eye(K)
+        Sigma_inv_sqrt = np.linalg.inv(sqrtm(Sigma))
+        return Sigma_inv_sqrt
+    except ValueError as e:
+        print(f"Error at calculate_eavesdropper_Sigma_inv_sqrt: {e}")
+        raise e
 
-def calculate_achievable_rate_eavesdropper_Sigma(
-    N: int,
-    K: int,
-    F: np.ndarray,  
-    H: np.ndarray, 
-    diff: np.ndarray, 
-    sigma_sq: float,
-    num_samples=10000 
-):
-    sum_result = np.zeros((K, K), dtype=complex)
-    for _ in range(num_samples):
-        P = generate_random_channel_matrix(N, N)
-        diff = diff.reshape(-1, 1)
-        term = F @ P @ H @ diff @ diff.conj().T @ H.conj().T @ P.conj().T @ F.conj().T
-        sum_result += term
-    expected= sum_result / num_samples
-    return expected + sigma_sq * np.eye(K)
-
-def calculate_achievable_rate_eavesdropper_term(
-    N: int,
-    K: int,
-    B: np.ndarray, 
-    F: np.ndarray,  
-    P: np.ndarray, 
-    H: np.ndarray, 
-    x_i: np.ndarray, 
-    x_l: np.ndarray, 
-    sigma_sq: float,
-    num_samples=10000 
-):
-    mu = create_random_noise_vector(K, sigma_sq)
-    diff = x_i - x_l
-    Sigma = calculate_achievable_rate_eavesdropper_Sigma(
-        N, K, F, H, diff, sigma_sq, num_samples
-    )
-    Sigma_inv_sqrt = np.linalg.inv(sqrtm(Sigma))
-    interference = F @ P @ H @ (x_i - x_l)
-    v_prime = Sigma_inv_sqrt @ (interference + mu)
-    received = Sigma_inv_sqrt @ B @ diff + v_prime
-    term = -np.linalg.norm(received)**2 + np.linalg.norm(mu)**2
-    return term
-
-def calculate_achievable_rate_eavesdropper(
-    N: int,
-    K: int,
-    B: np.ndarray, 
-    F: np.ndarray, 
-    P: np.ndarray, 
-    H: np.ndarray, 
-    sigma_sq: float, 
-    num_samples=10000 
-):
-    sum_i = 0
-    for i in range(K):
-        x_i = np.zeros(K)
-        x_i[i] = 1
-        sum_l = 0
-        for l in range(K):
-            x_l = np.zeros(K)
-            x_l[l] = 1
-            term = calculate_achievable_rate_eavesdropper_term(
-                N, K, B, F, P, H, x_i, x_l, sigma_sq, num_samples
-            )
-            sum_l += np.exp(term)
-        sum_l = np.log2(sum_l)
-        sum_i += sum_l
-    return np.log2(K) - sum_i / K
-
-def calculate_secrecy_rate(
-    N: int,
-    K: int,
-    G: np.ndarray,
-    P: np.ndarray,
-    H: np.ndarray,
-    B: np.ndarray,
-    F: np.ndarray,
-    sigma_sq: float,
-    num_samples=10000  
-):
-    R_receiver = calculate_achievable_rate_receiever(
-        K, G, P, H, sigma_sq, num_samples
-    )
-    R_eavesdropper = calculate_achievable_rate_eavesdropper(
-        N, K, B, F, P, H, sigma_sq, num_samples
-    )
-    secrecy_rate = R_receiver - R_eavesdropper
-    if secrecy_rate < 0:
-        return 0
-    return secrecy_rate
-
-######## BER Calculation ########
+def calculate_eavesdropper_noise(Sigma_inv_sqrt: np.ndarray, P: np.ndarray, H: np.ndarray, F: np.ndarray, xi: np.ndarray, xj: np.ndarray, mu: np.ndarray):
+    try:
+        a = F @ P @ H @ (xi - xj) + mu
+        return Sigma_inv_sqrt @ a
+    except ValueError as e:
+        print(f"Error at calculate_eavesdropper_noise: {e}")
+        raise e
+    
+def calculate_eavesdropper_term(K: int, N: int, eta: float, G: np.ndarray, P: np.ndarray, H: np.ndarray, F: np.ndarray, B: np.ndarray, xi: np.ndarray, xj: np.ndarray, mu: np.ndarray, sigma_sq: float, num_samples=1000):
+    try:
+        mu = create_random_noise_vector(K, sigma_sq)
+        Sigma_inv_sqrt = calculate_eavesdropper_Sigma_inv_sqrt(K, N, eta, G, H, F, xi, xj, sigma_sq, num_samples)
+        mu_prime = calculate_eavesdropper_noise(Sigma_inv_sqrt, P, H, F, xi, xj, mu)
+        a = Sigma_inv_sqrt @ B @ (xi - xj) + mu_prime
+        a = np.linalg.norm(a, ord='fro') ** 2
+        b = np.linalg.norm(mu_prime, ord='fro') ** 2
+        return -a + b
+    except ValueError as e:
+        print(f"Error at calculate_eavesdropper_term: {e}")
+        raise e
     
 ######## MAIN ###################
 
-if __name__ == "__main__":
+def main():
     N = 16    # * Number of reflecting elements
     K = 2     # * Number of antennas
     J = 2     # * Number of receivers
@@ -191,3 +103,6 @@ if __name__ == "__main__":
         
     except ValueError as e:
         print(f"Error: {e}")
+
+if __name__ == "__main__":
+    main()
