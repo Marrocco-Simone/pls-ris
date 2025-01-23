@@ -1,3 +1,5 @@
+.DS_store
+
 # LaTeX intermediate files
 *.aux
 *.bbl
