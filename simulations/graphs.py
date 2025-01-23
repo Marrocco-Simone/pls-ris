@@ -2,7 +2,7 @@ import numpy as np
 from scipy.linalg import sqrtm
 from scipy import stats, integrate
 import matplotlib.pyplot as plt
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 from diagonalization import generate_random_channel_matrix, calculate_multi_ris_reflection_matrices, unify_ris_reflection_matrices
 
 def create_random_noise_vector(K: int, sigma_sq: float) -> np.ndarray:
@@ -60,7 +60,6 @@ def calculate_eavesdropper_noise(Sigma_inv_sqrt: np.ndarray, P: np.ndarray, H: n
     
 def calculate_eavesdropper_term(K: int, N: int, eta: float, G: np.ndarray, P: np.ndarray, H: np.ndarray, F: np.ndarray, B: np.ndarray, xi: np.ndarray, xj: np.ndarray, mu: np.ndarray, sigma_sq: float, num_samples=1000):
     try:
-        mu = create_random_noise_vector(K, sigma_sq)
         Sigma_inv_sqrt = calculate_eavesdropper_Sigma_inv_sqrt(K, N, eta, G, H, F, xi, xj, sigma_sq, num_samples)
         mu_prime = calculate_eavesdropper_noise(Sigma_inv_sqrt, P, H, F, xi, xj, mu)
         a = Sigma_inv_sqrt @ B @ (xi - xj) + mu_prime
@@ -69,6 +68,29 @@ def calculate_eavesdropper_term(K: int, N: int, eta: float, G: np.ndarray, P: np
         return -a + b
     except ValueError as e:
         print(f"Error at calculate_eavesdropper_term: {e}")
+        raise e
+    
+def calculate_general_secrecy_rate(K: int, calculate_term: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray], sigma_sq: float, num_samples = 1000):
+    try:
+        sum_i = 0
+        for i in range(K):
+            xi = np.zeros((K, 1))
+            xi[i] = 1
+            expected = 0
+            for _ in range(num_samples):
+                mu = create_random_noise_vector(K, sigma_sq)
+                sum_j = 0
+                for j in range(K):
+                    xj = np.zeros((K, 1))
+                    xj[j] = 1
+                    term = calculate_term(xi, xj, mu)
+                    sum_j += np.exp(term)
+                expected += np.log2(sum_j)
+            expected /= num_samples
+            sum_i += expected
+        return np.log2(K) - sum_i / K
+    except ValueError as e:
+        print(f"Error at calculate_general_secrecy_rate: {e}")
         raise e
     
 ######## MAIN ###################
