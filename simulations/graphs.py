@@ -93,6 +93,19 @@ def calculate_general_secrecy_rate(K: int, calculate_term: Callable[[np.ndarray,
         print(f"Error at calculate_general_secrecy_rate: {e}")
         raise e
     
+def calculate_secrecy_rate(N: int, K: int, G: np.ndarray, P: np.ndarray, H: np.ndarray, B: np.ndarray, F: np.ndarray, sigma_sq: float, eta: float):
+    try:
+        def calculate_receiver_term_wrapper(xi: np.ndarray, xj: np.ndarray, mu: np.ndarray):
+            return calculate_receiver_term(G, P, H, xi, xj, mu, sigma_sq)
+        def calculate_eavesdropper_term_wrapper(xi: np.ndarray, xj: np.ndarray, mu: np.ndarray):
+            return calculate_eavesdropper_term(K, N, eta, G, P, H, F, B, xi, xj, mu, sigma_sq)
+        receiver_secrecy_rate = calculate_general_secrecy_rate(K, calculate_receiver_term_wrapper, sigma_sq)
+        eavesdropper_secrecy_rate = calculate_general_secrecy_rate(K, calculate_eavesdropper_term_wrapper, sigma_sq)
+        return receiver_secrecy_rate - eavesdropper_secrecy_rate
+    except ValueError as e:
+        print(f"Error at calculate_secrecy_rate: {e}")
+        raise e
+    
 ######## MAIN ###################
 
 def main():
@@ -119,7 +132,7 @@ def main():
         secrecy_rates = []
         for snr_db in snr_range_db:
             sigma_sq = 10**(-snr_db/10)
-            secrecy_rate = calculate_secrecy_rate(N, K, G, P, H, B, F, sigma_sq)
+            secrecy_rate = calculate_secrecy_rate(N, K, G, P, H, B, F, sigma_sq, eta)
             print(f"SNR: {snr_db}, Secrecy Rate: {secrecy_rate:.2f} bits/s/Hz")
             secrecy_rates.append(secrecy_rate)
         
