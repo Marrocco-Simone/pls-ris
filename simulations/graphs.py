@@ -34,7 +34,7 @@ def calculate_receiver_term(G: np.ndarray, P: np.ndarray, H: np.ndarray, xi: np.
         print(f"Error at calculate_receiver_term: {e}")
         raise e
 
-def calculate_eavesdropper_Sigma_inv_sqrt(K: int, N: int, eta: float, G: np.ndarray, H: np.ndarray, F: np.ndarray, xi: np.ndarray, xj: np.ndarray, sigma_sq: float, num_samples = 1000):
+def calculate_eavesdropper_Sigma_inv_sqrt(K: int, N: int, eta: float, G: np.ndarray, H: np.ndarray, F: np.ndarray, xi: np.ndarray, xj: np.ndarray, sigma_sq: float, num_samples = 100):
     try:
         expected = 0
         for _ in range(num_samples):
@@ -68,7 +68,7 @@ def calculate_eavesdropper_noise(Sigma_inv_sqrt: np.ndarray, P: np.ndarray, H: n
         print(f"Error at calculate_eavesdropper_noise: {e}")
         raise e
     
-def calculate_eavesdropper_term(K: int, N: int, eta: float, G: np.ndarray, P: np.ndarray, H: np.ndarray, F: np.ndarray, B: np.ndarray, xi: np.ndarray, xj: np.ndarray, mu: np.ndarray, sigma_sq: float, num_samples = 1000):
+def calculate_eavesdropper_term(K: int, N: int, eta: float, G: np.ndarray, P: np.ndarray, H: np.ndarray, F: np.ndarray, B: np.ndarray, xi: np.ndarray, xj: np.ndarray, mu: np.ndarray, sigma_sq: float, num_samples = 100):
     try:
         Sigma_inv_sqrt = calculate_eavesdropper_Sigma_inv_sqrt(K, N, eta, G, H, F, xi, xj, sigma_sq, num_samples)
         mu_prime = calculate_eavesdropper_noise(Sigma_inv_sqrt, P, H, F, xi, xj, mu)
@@ -80,7 +80,7 @@ def calculate_eavesdropper_term(K: int, N: int, eta: float, G: np.ndarray, P: np
         print(f"Error at calculate_eavesdropper_term: {e}")
         raise e
     
-def calculate_general_secrecy_rate(K: int, calculate_term: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray], sigma_sq: float, num_samples = 1000):
+def calculate_general_secrecy_rate(K: int, calculate_term: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray], sigma_sq: float, num_samples = 100):
     try:
         sum_i = 0
         for i in range(K):
@@ -103,7 +103,7 @@ def calculate_general_secrecy_rate(K: int, calculate_term: Callable[[np.ndarray,
         print(f"Error at calculate_general_secrecy_rate: {e}")
         raise e
     
-def calculate_secrecy_rate(N: int, K: int, G: np.ndarray, P: np.ndarray, H: np.ndarray, B: np.ndarray, F: np.ndarray, sigma_sq: float, eta: float, num_samples = 1000):
+def calculate_secrecy_rate(N: int, K: int, G: np.ndarray, P: np.ndarray, H: np.ndarray, B: np.ndarray, F: np.ndarray, sigma_sq: float, eta: float, num_samples = 100):
     try:
         def calculate_receiver_term_wrapper(xi: np.ndarray, xj: np.ndarray, mu: np.ndarray):
             return calculate_receiver_term(G, P, H, xi, xj, mu, sigma_sq)
@@ -138,14 +138,14 @@ def main():
     F = Es[0]
 
     try:
-        Ps, dor = calculate_multi_ris_reflection_matrices(K, N, J, M, Gs, H, eta)
+        Ps, _ = calculate_multi_ris_reflection_matrices(K, N, J, M, Gs, H, eta)
         P = unify_ris_reflection_matrices(Ps)
         secrecy_rates = []
         receiver_secrecy_rates = []
         eavesdropper_secrecy_rates = []
         for snr_db in snr_range_db:
             sigma_sq = 10**(-snr_db/10)
-            secrecy_rate, receiver_secrecy_rate, eavesdropper_secrecy_rate = calculate_secrecy_rate(N, K, G, P, H, B, F, sigma_sq, eta, 100)
+            secrecy_rate, receiver_secrecy_rate, eavesdropper_secrecy_rate = calculate_secrecy_rate(N, K, G, P, H, B, F, sigma_sq, eta)
             print(f"SNR: {snr_db}, Secrecy Rate: {secrecy_rate:.2f} ({receiver_secrecy_rate:.2f} - {eavesdropper_secrecy_rate:.2f}) bits/s/Hz")
             secrecy_rates.append(secrecy_rate)
             receiver_secrecy_rates.append(receiver_secrecy_rate)
@@ -154,6 +154,7 @@ def main():
         plt.plot(snr_range_db, secrecy_rates, label="Secrecy Rate")
         plt.plot(snr_range_db, receiver_secrecy_rates, label="Receiver Secrecy Rate")
         plt.plot(snr_range_db, eavesdropper_secrecy_rates, label="Eavesdropper Secrecy Rate")
+        plt.legend()
         plt.xlabel("SNR (dB)")
         plt.ylabel("Secrecy Rate (bits/s/Hz)")
         plt.title("Secrecy Rate vs SNR")
