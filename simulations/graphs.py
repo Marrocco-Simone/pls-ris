@@ -27,14 +27,14 @@ def create_random_noise_vector(K: int, sigma_sq: float) -> np.ndarray:
 def calculate_receiver_term(G: np.ndarray, P: np.ndarray, H: np.ndarray, xi: np.ndarray, xj: np.ndarray, mu: np.ndarray, sigma_sq: float): 
     try: 
         a = G @ P @ H @ (xi - xj) + mu
-        a = np.linalg.norm(a, ord='fro') ** 2
-        b = np.linalg.norm(mu, ord='fro') ** 2
+        a = np.linalg.norm(a) ** 2
+        b = np.linalg.norm(mu) ** 2
         return (-a + b) / sigma_sq
     except ValueError as e:
         print(f"Error at calculate_receiver_term: {e}")
         raise e
 
-def calculate_eavesdropper_Sigma_inv_sqrt(K: int, N: int, eta: float, G: np.ndarray, H: np.ndarray, F: np.ndarray, xi: np.ndarray, xj: np.ndarray, sigma_sq: float, num_samples=1000):
+def calculate_eavesdropper_Sigma_inv_sqrt(K: int, N: int, eta: float, G: np.ndarray, H: np.ndarray, F: np.ndarray, xi: np.ndarray, xj: np.ndarray, sigma_sq: float, num_samples = 1000):
     try:
         expected = 0
         for _ in range(num_samples):
@@ -44,7 +44,17 @@ def calculate_eavesdropper_Sigma_inv_sqrt(K: int, N: int, eta: float, G: np.ndar
             expected += a
         expected /= num_samples
         Sigma = expected + sigma_sq * np.eye(K)
-        Sigma_inv_sqrt = np.linalg.inv(sqrtm(Sigma))
+
+        # Sigma_sqrt = Sigma ** -0.5
+        # Sigma_inv_sqrt = np.linalg.inv(Sigma_sqrt)
+
+        # Calculate Σ^(-1/2) using eigendecomposition
+        eigenvals, eigenvecs = np.linalg.eigh(Sigma)
+        # Ensure eigenvalues are positive
+        eigenvals = np.maximum(eigenvals, 1e-12)
+        # Calculate inverse square root
+        Sigma_inv_sqrt = eigenvecs @ np.diag(1/np.sqrt(eigenvals)) @ eigenvecs.conj().T
+
         return Sigma_inv_sqrt
     except ValueError as e:
         print(f"Error at calculate_eavesdropper_Sigma_inv_sqrt: {e}")
@@ -58,13 +68,13 @@ def calculate_eavesdropper_noise(Sigma_inv_sqrt: np.ndarray, P: np.ndarray, H: n
         print(f"Error at calculate_eavesdropper_noise: {e}")
         raise e
     
-def calculate_eavesdropper_term(K: int, N: int, eta: float, G: np.ndarray, P: np.ndarray, H: np.ndarray, F: np.ndarray, B: np.ndarray, xi: np.ndarray, xj: np.ndarray, mu: np.ndarray, sigma_sq: float, num_samples=1000):
+def calculate_eavesdropper_term(K: int, N: int, eta: float, G: np.ndarray, P: np.ndarray, H: np.ndarray, F: np.ndarray, B: np.ndarray, xi: np.ndarray, xj: np.ndarray, mu: np.ndarray, sigma_sq: float, num_samples = 1000):
     try:
         Sigma_inv_sqrt = calculate_eavesdropper_Sigma_inv_sqrt(K, N, eta, G, H, F, xi, xj, sigma_sq, num_samples)
         mu_prime = calculate_eavesdropper_noise(Sigma_inv_sqrt, P, H, F, xi, xj, mu)
         a = Sigma_inv_sqrt @ B @ (xi - xj) + mu_prime
-        a = np.linalg.norm(a, ord='fro') ** 2
-        b = np.linalg.norm(mu_prime, ord='fro') ** 2
+        a = np.linalg.norm(a) ** 2
+        b = np.linalg.norm(mu_prime) ** 2
         return -a + b
     except ValueError as e:
         print(f"Error at calculate_eavesdropper_term: {e}")
@@ -93,15 +103,16 @@ def calculate_general_secrecy_rate(K: int, calculate_term: Callable[[np.ndarray,
         print(f"Error at calculate_general_secrecy_rate: {e}")
         raise e
     
-def calculate_secrecy_rate(N: int, K: int, G: np.ndarray, P: np.ndarray, H: np.ndarray, B: np.ndarray, F: np.ndarray, sigma_sq: float, eta: float):
+def calculate_secrecy_rate(N: int, K: int, G: np.ndarray, P: np.ndarray, H: np.ndarray, B: np.ndarray, F: np.ndarray, sigma_sq: float, eta: float, num_samples = 1000):
     try:
         def calculate_receiver_term_wrapper(xi: np.ndarray, xj: np.ndarray, mu: np.ndarray):
             return calculate_receiver_term(G, P, H, xi, xj, mu, sigma_sq)
         def calculate_eavesdropper_term_wrapper(xi: np.ndarray, xj: np.ndarray, mu: np.ndarray):
-            return calculate_eavesdropper_term(K, N, eta, G, P, H, F, B, xi, xj, mu, sigma_sq)
-        receiver_secrecy_rate = calculate_general_secrecy_rate(K, calculate_receiver_term_wrapper, sigma_sq)
-        eavesdropper_secrecy_rate = calculate_general_secrecy_rate(K, calculate_eavesdropper_term_wrapper, sigma_sq)
-        return receiver_secrecy_rate - eavesdropper_secrecy_rate
+            return calculate_eavesdropper_term(K, N, eta, G, P, H, F, B, xi, xj, mu, sigma_sq, num_samples)
+        receiver_secrecy_rate = calculate_general_secrecy_rate(K, calculate_receiver_term_wrapper, sigma_sq, num_samples)
+        eavesdropper_secrecy_rate = calculate_general_secrecy_rate(K, calculate_eavesdropper_term_wrapper, sigma_sq, num_samples)
+        secrecy_rate = receiver_secrecy_rate - eavesdropper_secrecy_rate
+        return secrecy_rate, receiver_secrecy_rate, eavesdropper_secrecy_rate
     except ValueError as e:
         print(f"Error at calculate_secrecy_rate: {e}")
         raise e
@@ -115,7 +126,7 @@ def main():
     M = 1     # * Number of RIS surfaces
     E = 10    # * Number of eavesdroppers
     eta = 0.9 # * Reflection efficiency
-    snr_range_db = np.arange(-20, 21)  # * SNR range from 0 to 30 dB
+    snr_range_db = np.arange(-20, 21, 0.5)  # * SNR range
 
     print(f"Parameters: \n- RIS surfaces = {M}\n- Elements per RIS = {N}\n- Reflection efficiency = {eta}\n- Receiver Antennas = {K}")
 
@@ -130,11 +141,24 @@ def main():
         Ps, dor = calculate_multi_ris_reflection_matrices(K, N, J, M, Gs, H, eta)
         P = unify_ris_reflection_matrices(Ps)
         secrecy_rates = []
+        receiver_secrecy_rates = []
+        eavesdropper_secrecy_rates = []
         for snr_db in snr_range_db:
             sigma_sq = 10**(-snr_db/10)
-            secrecy_rate = calculate_secrecy_rate(N, K, G, P, H, B, F, sigma_sq, eta)
-            print(f"SNR: {snr_db}, Secrecy Rate: {secrecy_rate:.2f} bits/s/Hz")
+            secrecy_rate, receiver_secrecy_rate, eavesdropper_secrecy_rate = calculate_secrecy_rate(N, K, G, P, H, B, F, sigma_sq, eta, 100)
+            print(f"SNR: {snr_db}, Secrecy Rate: {secrecy_rate:.2f} ({receiver_secrecy_rate:.2f} - {eavesdropper_secrecy_rate:.2f}) bits/s/Hz")
             secrecy_rates.append(secrecy_rate)
+            receiver_secrecy_rates.append(receiver_secrecy_rate)
+            eavesdropper_secrecy_rates.append(eavesdropper_secrecy_rate)
+
+        plt.plot(snr_range_db, secrecy_rates, label="Secrecy Rate")
+        plt.plot(snr_range_db, receiver_secrecy_rates, label="Receiver Secrecy Rate")
+        plt.plot(snr_range_db, eavesdropper_secrecy_rates, label="Eavesdropper Secrecy Rate")
+        plt.xlabel("SNR (dB)")
+        plt.ylabel("Secrecy Rate (bits/s/Hz)")
+        plt.title("Secrecy Rate vs SNR")
+        plt.grid()
+        plt.show()
         
     except ValueError as e:
         print(f"Error: {e}")
