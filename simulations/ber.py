@@ -131,24 +131,24 @@ def calculate_ber_simulation(snr_db, K, N, num_symbols=10000):
     errors_eavesdroopper = 0
     errors_eavesdroopper_completed = 0
     
-    # Generate random channels
-    H = generate_random_channel_matrix(N, K)
-    G = generate_random_channel_matrix(K, N)
-    F = generate_random_channel_matrix(K, N)
-    B = generate_random_channel_matrix(K, K)
-    
-    # Calculate reflection matrix P
-    Ps, _ = calculate_multi_ris_reflection_matrices(
-        K, N, 1, 1, [G], H, eta=0.9
-    )
-    P = Ps[0]
-    
-    # Calculate effective channel
-    effective_channel_receiver = G @ P @ H
-    effective_channel_eavesdropper = F @ P @ H
-    effective_channel_eavesdropper_completed = effective_channel_eavesdropper + B
-    
     for _ in range(num_symbols):
+        # Generate random channels
+        H = generate_random_channel_matrix(N, K)
+        G = generate_random_channel_matrix(K, N)
+        F = generate_random_channel_matrix(K, N)
+        B = generate_random_channel_matrix(K, K)
+
+        # Calculate reflection matrix P
+        Ps, _ = calculate_multi_ris_reflection_matrices(
+            K, N, 1, 1, [G], H, eta=0.9
+        )
+        P = Ps[0]
+
+        # Calculate effective channel
+        effective_channel_receiver = G @ P @ H
+        effective_channel_eavesdropper = F @ P @ H
+        effective_channel_eavesdropper_completed = effective_channel_eavesdropper + B
+
         # Generate random SSK symbol
         x = np.zeros(K)
         x[np.random.randint(K)] = 1
