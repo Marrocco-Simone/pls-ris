@@ -245,7 +245,7 @@ def generate_random_channel_matrix(rows: int, cols: int) -> np.ndarray:
     """
     return (np.random.normal(0, 1, (rows, cols)) + 1j * np.random.normal(0, 1, (rows, cols))) / np.sqrt(2)
 
-if __name__ == "__main__":
+def main():
     N = 16    # * Number of reflecting elements
     K = 2     # * Number of antennas
     J = 2     # * Number of receivers
@@ -278,3 +278,6 @@ if __name__ == "__main__":
         
     except ValueError as e:
         print(f"Error: {e}")
+
+if __name__ == "__main__":
+    main()
