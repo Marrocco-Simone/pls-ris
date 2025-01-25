@@ -112,7 +112,7 @@ def simulate_ssk_transmission(x, effective_channel, noise_var):
     
     return detected_idx == true_idx
 
-def calculate_ber_simulation(snr_db, K, N, num_symbols=10000):
+def calculate_ber_simulation(snr_db, K, N, eta=0.9, num_symbols=10000):
     """
     Calculate BER through Monte Carlo simulation of SSK transmission.
     
@@ -140,7 +140,7 @@ def calculate_ber_simulation(snr_db, K, N, num_symbols=10000):
 
         # Calculate reflection matrix P
         Ps, _ = calculate_multi_ris_reflection_matrices(
-            K, N, 1, 1, [G], H, eta=0.9
+            K, N, 1, 1, [G], H, eta
         )
         P = Ps[0]
 
