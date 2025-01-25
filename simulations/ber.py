@@ -184,8 +184,8 @@ def plot_ber_curves():
     
     plt.figure(figsize=(10, 6))
     plt.semilogy(snr_db_range, ber_theoretical, 'b-', label='Theoretical')
-    plt.semilogy(snr_db_range, ber_simulated_receiver, 'ro', label='Simulation Receiver', linestyle='--')
-    plt.semilogy(snr_db_range, ber_simulated_eavesdropper, 'ro', label='Simulation Eavesdropper', linestyle='--')
+    plt.semilogy(snr_db_range, ber_simulated_receiver, 'r-', label='Simulation Receiver', linestyle='--')
+    plt.semilogy(snr_db_range, ber_simulated_eavesdropper, 'g-', label='Simulation Eavesdropper', linestyle='--')
     plt.grid(True)
     plt.xlabel('SNR (dB)')
     plt.ylabel('Bit Error Rate (BER)')
