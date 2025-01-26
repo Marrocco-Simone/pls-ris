@@ -7,42 +7,18 @@ from diagonalization import (
 )
 
 def calculate_scaling_factor(K):
-    """
-    Calculate the scaling factor δκ for converting symbol error rate to bit error rate.
-    This implements equation (69) from the paper.
-    
-    Args:
-        K: Number of transmit/receive antennas (must be power of 2)
-    
-    Returns:
-        Scaling factor for BER calculation
-    """
-    if K < 2 or (K & (K - 1)) != 0:  # Check if K is power of 2
+    if K < 2 or (K & (K - 1)) != 0:
         raise ValueError("K must be power of 2")
         
-    kappa = int(np.log2(K))  # κ = log2(K)
-    delta = np.zeros(kappa + 1)  # δ0 through δκ
+    kappa = int(np.log2(K))
+    delta = np.zeros(kappa + 1)
     
-    # Calculate scaling factors iteratively using equation (69)
     for k in range(1, kappa + 1):
         delta[k] = delta[k-1] + (2**(k-1) - delta[k-1])/(2**k - 1)
     
     return delta[kappa]
 
 def calculate_ber_theoretical(snr_db, K, N, num_monte_carlo=1000):
-    """
-    Calculate theoretical BER using equation (65) from the paper.
-    Uses Monte Carlo integration to average over random channel realizations.
-    
-    Args:
-        snr_db: Signal-to-noise ratio in dB
-        K: Number of transmit/receive antennas
-        N: Number of reflecting elements
-        num_monte_carlo: Number of Monte Carlo trials
-    
-    Returns:
-        Theoretical BER value
-    """
     snr_linear = 10**(snr_db/10)
     delta_k = calculate_scaling_factor(K)
     
@@ -50,35 +26,31 @@ def calculate_ber_theoretical(snr_db, K, N, num_monte_carlo=1000):
     
     # Monte Carlo integration over channel realizations
     for _ in range(num_monte_carlo):
-        # Generate random channels
         H = generate_random_channel_matrix(N, K)
         G = generate_random_channel_matrix(K, N)
-        
-        # Calculate reflection matrix P
         Ps, _ = calculate_multi_ris_reflection_matrices(
             K, N, 1, 1, [G], H, eta=0.9
         )
         P = Ps[0]
         
-        # Calculate effective channel gains
         effective_channel = G @ P @ H
-        channel_gains = np.abs(np.diag(effective_channel))**2
+        diag_elements = np.diag(effective_channel)
+        channel_gains = np.abs(diag_elements)**2
         
-        # Calculate non-centrality parameter
         lambda_i = 2 * channel_gains * snr_linear
         lambda_avg = np.mean(lambda_i)
         
         # Inner integral over t
         def integrand(t):
             # CDF of chi-square with 2 DoF
-            F_chi2 = chi2.cdf(t, df=2)
+            F_chi2 = chi2.cdf(t, df=2)**(K-1)
             # PDF of non-central chi-square with 2 DoF
             f_chi2_nc = ncx2.pdf(t, df=2, nc=lambda_avg)
-            return F_chi2**(K-1) * f_chi2_nc
+            return F_chi2 * f_chi2_nc
             
         # Numerical integration using Simpson's rule
         t = np.linspace(0, 100, 1000)
-        integral = np.trapz(integrand(t), t)
+        integral = np.trapezoid(integrand(t), t)
         
         total_error_prob += (1 - integral)
     
