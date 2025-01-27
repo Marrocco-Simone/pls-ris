@@ -134,7 +134,7 @@ def main():
     M = 1     # * Number of RIS surfaces
     E = 10    # * Number of eavesdroppers
     eta = 0.9 # * Reflection efficiency
-    snr_range_db = np.arange(-20, 21, 0.5)  # * SNR range
+    snr_range_db = np.arange(-20, 21, 2)  # * SNR range
 
     print(f"Parameters: \n- RIS surfaces = {M}\n- Elements per RIS = {N}\n- Reflection efficiency = {eta}\n- Receiver Antennas = {K}")
 
