@@ -92,7 +92,7 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
         H = generate_random_channel_matrix(N, K)
         Gs = [generate_random_channel_matrix(K, N) for _ in range(J)]
         G = Gs[0]
-        F = generate_random_channel_matrix(K, N)
+        Fs = [generate_random_channel_matrix(K, N) for _ in range(M)]
         B = generate_random_channel_matrix(K, K)
         Ps, _ = calculate_multi_ris_reflection_matrices(
             K, N, J, M, Gs, H, eta
@@ -103,7 +103,10 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
         x[np.random.randint(K)] = 1
 
         effective_channel_receiver = G @ P @ H
-        effective_channel_eavesdropper = F @ P @ H
+        effective_channel_eavesdropper = np.zeros((K, K), dtype=np.complex128) # F @ P @ H
+        for i in range(M):
+            P_to_i = unify_ris_reflection_matrices(Ps[:i+1])
+            effective_channel_eavesdropper += Fs[i] @ P_to_i @ H
         effective_channel_direct = np.zeros((K, K))
 
         if not simulate_ssk_transmission_reflection(x, effective_channel_receiver, sigma_sq):
@@ -118,14 +121,17 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
         H2 = generate_random_channel_matrix(N, K)
         Gs2 = [generate_random_channel_matrix(K, N) for _ in range(J)]
         G2 = Gs2[0]
-        F2 = generate_random_channel_matrix(K, N)
+        Fs2 = [generate_random_channel_matrix(K, N) for _ in range(M)]
         Ps2, _ = calculate_multi_ris_reflection_matrices(
             K, N, J, M, Gs2, H2, eta
         )
         P2 = unify_ris_reflection_matrices(Ps2)
 
         effective_channel_receiver_2 = G2 @ P2 @ H2
-        effective_channel_eavesdropper_2 = F2 @ P2 @ H2
+        effective_channel_eavesdropper_2 = np.zeros((K, K), dtype=np.complex128) # F @ P @ H
+        for i in range(M):
+            P_to_i = unify_ris_reflection_matrices(Ps2[:i+1])
+            effective_channel_eavesdropper_2 += Fs2[i] @ P_to_i @ H2
 
         effective_channel_receiver_double = effective_channel_receiver + effective_channel_receiver_2
         effective_channel_eavesdropper_double = effective_channel_eavesdropper + effective_channel_eavesdropper_2
@@ -169,7 +175,7 @@ def plot_ber_curves():
                 ber_simulated_direct.append(result_direct)
                 ber_simulated_receiver_double.append(result_receiver_double)
                 ber_simulated_eavesdropper_double.append(result_eavesdropper_double)
-                print(f"Processed SNR = {snr_db} dB:\t{result_receiver:.2f}/\t{result_eavesdropper:.2f}/\t{result_direct:.2f}")
+                print(f"Processed SNR = {snr_db} dB:\t{result_receiver:.2f}\t{result_eavesdropper:.2f}\t{result_direct:.2f}")
 
             plt_name = f'SSK BER Performance with RIS (K={K}, N={N}, J={J}, M={M})'
             plt.figure(figsize=(10, 6))
