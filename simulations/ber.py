@@ -84,6 +84,9 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
     errors_receiver = 0
     errors_eavesdropper = 0
     errors_direct = 0
+
+    errors_receiver_double = 0
+    errors_eavesdropper_double = 0
     
     for _ in range(num_symbols):
         H = generate_random_channel_matrix(N, K)
@@ -111,12 +114,34 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
 
         if not simulate_ssk_transmission_direct(x, B, effective_channel_direct, sigma_sq):
             errors_direct += 1
+
+        H2 = generate_random_channel_matrix(N, K)
+        Gs2 = [generate_random_channel_matrix(K, N) for _ in range(J)]
+        G2 = Gs2[0]
+        F2 = generate_random_channel_matrix(K, N)
+        Ps2, _ = calculate_multi_ris_reflection_matrices(
+            K, N, J, M, Gs2, H2, eta
+        )
+        P2 = unify_ris_reflection_matrices(Ps2)
+
+        effective_channel_receiver_2 = G2 @ P2 @ H2
+        effective_channel_eavesdropper_2 = F2 @ P2 @ H2
+
+        effective_channel_receiver_double = effective_channel_receiver + effective_channel_receiver_2
+        effective_channel_eavesdropper_double = effective_channel_eavesdropper + effective_channel_eavesdropper_2
+
+        if not simulate_ssk_transmission_reflection(x, effective_channel_receiver_double, sigma_sq):
+            errors_receiver_double += 1
+        if not simulate_ssk_transmission_direct(x, B, effective_channel_eavesdropper_double, sigma_sq):
+            errors_eavesdropper_double += 1
     
     result_receiver = errors_receiver / num_symbols
     result_eavesdropper = errors_eavesdropper / num_symbols
     result_direct = errors_direct / num_symbols
+    result_receiver_double = errors_receiver_double / num_symbols
+    result_eavesdropper_double = errors_eavesdropper_double / num_symbols
 
-    return result_receiver, result_eavesdropper, result_direct
+    return result_receiver, result_eavesdropper, result_direct, result_receiver_double, result_eavesdropper_double
 
 def plot_ber_curves():
     N = 16    # * Number of reflecting elements
@@ -132,14 +157,18 @@ def plot_ber_curves():
             ber_simulated_receiver = []
             ber_simulated_eavesdropper = []
             ber_simulated_direct = []
+            ber_simulated_receiver_double = []
+            ber_simulated_eavesdropper_double = []
             
             for snr_db in snr_range_db:
                 ber_theoretical.append(calculate_ber_theoretical(snr_db, K, N))
 
-                result_receiver, result_eavesdropper, result_direct = calculate_ber_simulation(snr_db, K, N, J, M, eta)
+                result_receiver, result_eavesdropper, result_direct,result_receiver_double, result_eavesdropper_double = calculate_ber_simulation(snr_db, K, N, J, M, eta)
                 ber_simulated_receiver.append(result_receiver)
                 ber_simulated_eavesdropper.append(result_eavesdropper)
                 ber_simulated_direct.append(result_direct)
+                ber_simulated_receiver_double.append(result_receiver_double)
+                ber_simulated_eavesdropper_double.append(result_eavesdropper_double)
                 print(f"Processed SNR = {snr_db} dB:\t{result_receiver:.2f}/\t{result_eavesdropper:.2f}/\t{result_direct:.2f}")
 
             plt_name = f'SSK BER Performance with RIS (K={K}, N={N}, J={J}, M={M})'
@@ -148,6 +177,8 @@ def plot_ber_curves():
             plt.semilogy(snr_range_db, ber_simulated_receiver, label='Simulation Receiver')
             plt.semilogy(snr_range_db, ber_simulated_eavesdropper, label=f'Simulation Eavesdropper')
             plt.semilogy(snr_range_db, ber_simulated_direct, label=f'Simulation Direct')
+            plt.semilogy(snr_range_db, ber_simulated_receiver_double, label='Simulation Receiver Double RIS Source')
+            plt.semilogy(snr_range_db, ber_simulated_eavesdropper_double, label=f'Simulation Eavesdropper Double RIS Source')
             plt.grid(True)
             plt.xlabel('SNR (dB)')
             plt.ylabel('Bit Error Rate (BER)')
