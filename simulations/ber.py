@@ -5,6 +5,10 @@ from diagonalization import (
     calculate_multi_ris_reflection_matrices,
     generate_random_channel_matrix
 )
+from secrecy import (
+    create_random_noise_vector,
+    snr_db_to_sigma_sq
+)
 
 def calculate_scaling_factor(K):
     if K < 2 or (K & (K - 1)) != 0:
@@ -57,22 +61,16 @@ def calculate_ber_theoretical(snr_db, K, N, num_monte_carlo=1000):
     ber = delta_k * (total_error_prob / num_monte_carlo)
     return ber
 
-def simulate_ssk_transmission_receiver(x, effective_channel, noise_var):
-    # Generate complex Gaussian noise
-    noise = np.sqrt(noise_var/2) * (
-        np.random.randn(len(x)) + 1j*np.random.randn(len(x))
-    )
-    
-    y = effective_channel @ x + noise
-    
+def simulate_ssk_transmission_receiver(x, effective_channel, sigma_sq):
+    noise = create_random_noise_vector(len(x), sigma_sq)
+    y = effective_channel @ x + noise 
     detected_idx = np.argmax(np.abs(y)**2)
     true_idx = np.argmax(x)
     
     return detected_idx == true_idx
 
 def calculate_ber_simulation_receiver(snr_db, K, N, eta=0.9, num_symbols=10000):
-    snr_linear = 10**(snr_db/10)
-    noise_var = 1/snr_linear
+    sigma_sq = snr_db_to_sigma_sq(snr_db)
     errors = 0
     
     for _ in range(num_symbols):
@@ -88,19 +86,14 @@ def calculate_ber_simulation_receiver(snr_db, K, N, eta=0.9, num_symbols=10000):
 
         effective_channel = G @ P @ H
         
-        if not simulate_ssk_transmission_receiver(x, effective_channel, noise_var):
+        if not simulate_ssk_transmission_receiver(x, effective_channel, sigma_sq):
             errors += 1
     
     return errors / num_symbols
 
-def simulate_ssk_transmission_eavesdropper(x, B, effective_channel, tau, noise_var):
-    # Generate complex Gaussian noise
-    noise = np.sqrt(noise_var/2) * (
-        np.random.randn(len(x)) + 1j*np.random.randn(len(x))
-    )
-    
-    y = ((1 - tau) * B + tau * effective_channel) @ x + noise
-    
+def simulate_ssk_transmission_eavesdropper(x, B, effective_channel, tau, sigma_sq):
+    noise = create_random_noise_vector(len(x), sigma_sq)
+    y = ((1 - tau) * B + tau * effective_channel) @ x + noise 
     distances = np.array([np.linalg.norm(y - B[:, i]) for i in range(B.shape[1])])
     detected_idx = np.argmin(distances)
     true_idx = np.argmax(x)
@@ -108,8 +101,7 @@ def simulate_ssk_transmission_eavesdropper(x, B, effective_channel, tau, noise_v
     return detected_idx == true_idx
 
 def calculate_ber_simulation_eavesdropper(snr_db, K, N, taus, eta=0.9, num_symbols=10000):
-    snr_linear = 10**(snr_db/10)
-    noise_var = 1/snr_linear
+    sigma_sq = snr_db_to_sigma_sq(snr_db)
     errors = np.zeros(len(taus))
     
     for _ in range(num_symbols):
@@ -128,7 +120,7 @@ def calculate_ber_simulation_eavesdropper(snr_db, K, N, taus, eta=0.9, num_symbo
         for i, tau in enumerate(taus):
             effective_channel = B + F @ P @ H
             
-            if not simulate_ssk_transmission_eavesdropper(x, B, effective_channel, tau, noise_var):
+            if not simulate_ssk_transmission_eavesdropper(x, B, effective_channel, tau, sigma_sq):
                 errors[i] += 1
     
     return errors / num_symbols

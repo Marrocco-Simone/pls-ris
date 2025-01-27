@@ -16,11 +16,19 @@ def create_random_noise_vector(K: int, sigma_sq: float) -> np.ndarray:
     Returns:
         Random noise vector
     """
-    mu_real = np.random.normal(0, np.sqrt(sigma_sq/2), K)
-    mu_imag = np.random.normal(0, np.sqrt(sigma_sq/2), K)
-    mu = mu_real + 1j*mu_imag
+    # mu_real = np.random.normal(0, np.sqrt(sigma_sq/2), K)
+    # mu_imag = np.random.normal(0, np.sqrt(sigma_sq/2), K)
+    # mu = mu_real + 1j*mu_imag
+    mu = np.sqrt(sigma_sq/2) * (
+        np.random.randn(K) + 1j*np.random.randn(K)
+    )
     
     return mu
+
+def snr_db_to_sigma_sq(snr_db):
+    snr_linear = 10**(snr_db/10)
+    sigma_sq = 1/snr_linear
+    return sigma_sq
 
 ######## Secrecy Rate Calculation ########
 
@@ -144,7 +152,7 @@ def main():
         receiver_secrecy_rates = []
         eavesdropper_secrecy_rates = []
         for snr_db in snr_range_db:
-            sigma_sq = 10**(-snr_db/10)
+            sigma_sq = snr_db_to_sigma_sq(snr_db)
             secrecy_rate, receiver_secrecy_rate, eavesdropper_secrecy_rate = calculate_secrecy_rate(N, K, G, P, H, B, F, sigma_sq, eta)
             print(f"SNR: {snr_db}, Secrecy Rate: {secrecy_rate:.2f} ({receiver_secrecy_rate:.2f} - {eavesdropper_secrecy_rate:.2f}) bits/s/Hz")
             secrecy_rates.append(secrecy_rate)
