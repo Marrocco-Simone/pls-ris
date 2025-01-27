@@ -87,11 +87,12 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
     
     for _ in range(num_symbols):
         H = generate_random_channel_matrix(N, K)
-        G = generate_random_channel_matrix(K, N)
+        Gs = [generate_random_channel_matrix(K, N) for _ in range(J)]
+        G = Gs[0]
         F = generate_random_channel_matrix(K, N)
         B = generate_random_channel_matrix(K, K)
         Ps, _ = calculate_multi_ris_reflection_matrices(
-            K, N, 1, 1, [G], H, eta
+            K, N, J, M, Gs, H, eta
         )
         P = unify_ris_reflection_matrices(Ps)
 
@@ -120,8 +121,9 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
 def plot_ber_curves():
     N = 16    # * Number of reflecting elements
     K = 2     # * Number of antennas
-    J = 2     # * Number of receivers
+    J = 1     # * Number of receivers
     M = 1     # * Number of RIS surfaces
+    eta = 0.9 # * Reflection efficiency
     
     snr_range_db = np.arange(-10, 31, 2)
     ber_theoretical = []
@@ -132,23 +134,24 @@ def plot_ber_curves():
     for snr_db in snr_range_db:
         ber_theoretical.append(calculate_ber_theoretical(snr_db, K, N))
 
-        result_receiver, result_eavesdropper, result_direct = calculate_ber_simulation(snr_db, K, N, J, M)
+        result_receiver, result_eavesdropper, result_direct = calculate_ber_simulation(snr_db, K, N, J, M, eta)
         ber_simulated_receiver.append(result_receiver)
         ber_simulated_eavesdropper.append(result_eavesdropper)
         ber_simulated_direct.append(result_direct)
         print(f"Processed SNR = {snr_db} dB:\t{result_receiver:.2f}/\t{result_eavesdropper:.2f}/\t{result_direct:.2f}")
 
+    plt_name = f'SSK BER Performance with RIS (K={K}, N={N}, J={J}, M={M})'
     plt.figure(figsize=(10, 6))
-    plt.semilogy(snr_range_db, ber_theoretical, label='Theoretical Receiver')
+    # plt.semilogy(snr_range_db, ber_theoretical, label='Theoretical Receiver')
     plt.semilogy(snr_range_db, ber_simulated_receiver, label='Simulation Receiver')
     plt.semilogy(snr_range_db, ber_simulated_eavesdropper, label=f'Simulation Eavesdropper')
     plt.semilogy(snr_range_db, ber_simulated_direct, label=f'Simulation Direct')
     plt.grid(True)
     plt.xlabel('SNR (dB)')
     plt.ylabel('Bit Error Rate (BER)')
-    plt.title('SSK BER Performance with RIS')
+    plt.title(plt_name)
     plt.legend()
-    plt.show()
+    plt.savefig(f"results/{plt_name}.png")
 
 if __name__ == "__main__":
     plot_ber_curves()
