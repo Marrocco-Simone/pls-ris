@@ -91,18 +91,18 @@ def calculate_ber_simulation_receiver(snr_db, K, N, eta=0.9, num_symbols=10000):
     
     return errors / num_symbols
 
-def simulate_ssk_transmission_eavesdropper(x, B, effective_channel, tau, sigma_sq):
+def simulate_ssk_transmission_eavesdropper(x, B, effective_channel, sigma_sq):
     noise = create_random_noise_vector(len(x), sigma_sq)
-    y = ((1 - tau) * B + tau * effective_channel) @ x + noise 
+    y = (B + effective_channel) @ x + noise 
     distances = np.array([np.linalg.norm(y - B[:, i]) for i in range(B.shape[1])])
     detected_idx = np.argmin(distances)
     true_idx = np.argmax(x)
     
     return detected_idx == true_idx
 
-def calculate_ber_simulation_eavesdropper(snr_db, K, N, taus, eta=0.9, num_symbols=10000):
+def calculate_ber_simulation_eavesdropper(snr_db, K, N, eta=0.9, num_symbols=10000):
     sigma_sq = snr_db_to_sigma_sq(snr_db)
-    errors = np.zeros(len(taus))
+    errors = 0
     
     for _ in range(num_symbols):
         H = generate_random_channel_matrix(N, K)
@@ -117,18 +117,16 @@ def calculate_ber_simulation_eavesdropper(snr_db, K, N, taus, eta=0.9, num_symbo
         x = np.zeros(K)
         x[np.random.randint(K)] = 1
 
-        for i, tau in enumerate(taus):
-            effective_channel = B + F @ P @ H
-            
-            if not simulate_ssk_transmission_eavesdropper(x, B, effective_channel, tau, sigma_sq):
-                errors[i] += 1
+        effective_channel = B + F @ P @ H
+        
+        if not simulate_ssk_transmission_eavesdropper(x, B, effective_channel, sigma_sq):
+            errors += 1
     
     return errors / num_symbols
 
 def plot_ber_curves():
     K = 2  # Number of antennas
     N = 16  # Number of reflecting elements
-    taus = [0, 0.25, 0.5, 1] # Percenteage of contribution from RIS to eavesdropper
     
     snr_range_db = np.arange(-10, 31, 2)
     ber_theoretical = []
@@ -139,12 +137,11 @@ def plot_ber_curves():
         print(f"Processing SNR = {snr_db} dB...")
         ber_theoretical.append(calculate_ber_theoretical(snr_db, K, N))
         ber_simulated_receiver.append(calculate_ber_simulation_receiver(snr_db, K, N))
-        ber_simulated_eavesdropper.append(calculate_ber_simulation_eavesdropper(snr_db, K, N, taus))
+        ber_simulated_eavesdropper.append(calculate_ber_simulation_eavesdropper(snr_db, K, N))
     plt.figure(figsize=(10, 6))
     plt.semilogy(snr_range_db, ber_theoretical, label='Theoretical Receiver')
     plt.semilogy(snr_range_db, ber_simulated_receiver, label='Simulation Receiver')
-    for i, tau in enumerate(taus):
-        plt.semilogy(snr_range_db, [ber[i] for ber in ber_simulated_eavesdropper], label=f'Simulation Eavesdropper (tau={tau})')
+    plt.semilogy(snr_range_db, ber_simulated_eavesdropper, label=f'Simulation Eavesdropper')
     plt.grid(True)
     plt.xlabel('SNR (dB)')
     plt.ylabel('Bit Error Rate (BER)')
