@@ -66,7 +66,8 @@ def generate_random_channel_matrix(rows: int, cols: int) -> np.ndarray:
 def decompose_reflection_vector(
     p: np.ndarray, 
     N: int, 
-    M: int
+    M: int,
+    Cs: List[np.ndarray]
 ) -> List[np.ndarray]:
     """
     Decompose combined reflection vector into M diagonal matrices.
@@ -75,11 +76,16 @@ def decompose_reflection_vector(
         p: Combined reflection vector
         N: Number of reflecting elements per RIS
         M: Number of RIS surfaces
+        Cs: List of M-1 inter-RIS channel matrices [C_1, C_2, ..., C_(M-1)], where C_i is the channel between RIS i and i+1
     
     Returns:
         List of M diagonal reflection matrices
     """
+    if len(Cs) != M-1:
+        raise ValueError(f"Expected {M-1} inter-RIS channel matrices, got {len(Cs)}")
+
     ps = []
+    P = np.diag(p)
     
     # * Generate M-1 random reflection vectors
     for _ in range(M-1):
@@ -90,9 +96,13 @@ def decompose_reflection_vector(
         ps.append(p_m)
     
     # * Calculate the last reflection matrix
-    p_final = p.copy()
-    for pm in ps:
-        p_final = p_final / pm
+    S = np.eye(N)
+    for i in range(M-1):
+        S = S @ np.diag(p_m) @ Cs[i]
+    P_final = np.linalg.inv(S) @ P
+    if np.sum(np.abs(P_final - np.diag(np.diag(P_final)))) > tolerance:
+        raise ValueError(f"Final reflection matrix is not diagonal:\n{np.round(np.abs(P_final), 2)}")
+    p_final = np.diag(P_final)
     
     # * Normalize final vector to ensure magnitude ≤ 1
     p_final = p_final / np.maximum(1, np.max(np.abs(p_final)))
@@ -101,6 +111,15 @@ def decompose_reflection_vector(
     Ps = []
     for pm in ps:
         Ps.append(np.diag(pm))
+
+    # * Verify that the product of all matrices is equal to the original vector
+    Pt = np.eye(N)
+    for i in range(M-1):
+        Pt = Pt @ Ps[i] @ Cs[i]
+    Pt = S @ Ps[-1]  # Multiply by the last reflection matrix
+
+    if not np.allclose(P, Pt):
+        raise ValueError(f"Decomposition failed. Expected:\n{np.round(np.abs(P), 2)}\nGot:\n{np.round(np.abs(Pt), 2)}")
     
     return Ps
 
@@ -111,7 +130,8 @@ def calculate_multi_ris_reflection_matrices(
     M: int,
     Gs: List[np.ndarray], 
     H: np.ndarray, 
-    eta: float
+    eta: float,
+    Cs: List[np.ndarray]
 ) -> Tuple[List[np.ndarray], float]:
     """
     Calculate reflection matrices for M RIS surfaces.
@@ -124,6 +144,7 @@ def calculate_multi_ris_reflection_matrices(
         Gs: List of channel matrices from last RIS to receivers [G_1, G_2, ..., G_J]
         H: Channel matrix from transmitter to first RIS
         eta: Reflection efficiency
+        Cs: List of M-1 inter-RIS channel matrices [C_1, C_2, ..., C_(M-1)], where C_i is the channel between RIS i and i+1
     
     Returns:
         Ps: List of M diagonal reflection matrices [P_1, P_2, ..., P_M]
@@ -156,7 +177,7 @@ def calculate_multi_ris_reflection_matrices(
     p_unnormalized = null_space_basis @ a
     p = eta * p_unnormalized / np.max(np.abs(p_unnormalized))
     
-    Ps = decompose_reflection_vector(p, N, M)
+    Ps = decompose_reflection_vector(p, N, M, Cs)
     
     dor = 2 * null_space_dim
     
@@ -164,40 +185,44 @@ def calculate_multi_ris_reflection_matrices(
 
 def unify_ris_reflection_matrices(
     Ps: List[np.ndarray],
+    Cs: List[np.ndarray]
 ) -> np.ndarray:
     """
     Unify reflection matrices into a single matrix.
     
     Args:
         Ps: List of reflection matrices [P_1, P_2, ..., P_M]
+        Cs: List of M-1 inter-RIS channel matrices [C_1, C_2, ..., C_(M-1)], where C_i is the channel between RIS i and i+1
     
     Returns:
         P: Combined reflection matrix
     """
     P = Ps[0]
-    for P_m in Ps[1:]:
-        P = P @ P_m
+    for i in range(len(Ps)-1):
+        P = P @ Cs[i] @ Ps[i+1]
     return P
 
 def verify_multi_ris_diagonalization(
     Ps: List[np.ndarray],
     Gs: List[np.ndarray],
-    H: np.ndarray
+    H: np.ndarray,
+    Cs: List[np.ndarray]
 ) -> List[bool]:
     """
-    Verify that G(P_1P_2...P_M)H is diagonal for all receivers.
+    Verify that G(P_1C_1P_2C_2...P_M)H is diagonal for all receivers.
     
     Args:
         Ps: List of reflection matrices [P_1, P_2, ..., P_M]
         Gs: List of channel matrices from RIS to receivers
         H: Channel matrix from transmitter to RIS
+        Cs: List of M-1 inter-RIS channel matrices [C_1, C_2, ..., C_(M-1)], where C_i is the channel between RIS i and i+1
     
     Returns:
         List of boolean values indicating if effective channel is diagonal for each receiver
     """
     results = []
     
-    P = unify_ris_reflection_matrices(Ps)
+    P = unify_ris_reflection_matrices(Ps, Cs)
     for G in Gs:
         effective_channel = G @ P @ H
         off_diag_sum = np.sum(np.abs(effective_channel - np.diag(np.diag(effective_channel))))
@@ -221,6 +246,7 @@ def verify_results(
     Ps: List[np.ndarray],
     Gs: List[np.ndarray],
     H: np.ndarray,
+    Cs: List[np.ndarray]
 ):
     """
     Verify diagonalization results and print effective channel matrix for each receiver.
@@ -229,8 +255,9 @@ def verify_results(
         Ps: List of reflection matrices
         Gs: List of channel matrices from RIS to receivers
         H: Channel matrix from transmitter to RIS
+        Cs: List of M-1 inter-RIS channel matrices [C_1, C_2, ..., C_(M-1)], where C_i is the channel between RIS i and i+1
     """
-    diagonalization_results = verify_multi_ris_diagonalization(Ps, Gs, H)
+    diagonalization_results = verify_multi_ris_diagonalization(Ps, Gs, H, Cs)
     
     if all(diagonalization_results):
         print("Diagonalization successful for ALL receivers")
@@ -242,14 +269,14 @@ def verify_results(
     print("Individual results:", [bool(x) for x in diagonalization_results])
     
     print("\nEffective channel matrix for first receiver:")
-    P = unify_ris_reflection_matrices(Ps)
+    P = unify_ris_reflection_matrices(Ps, Cs)
     print_effective_channel(Gs[0], H, P)
 
 def main():
     N = 16    # * Number of reflecting elements
     K = 2     # * Number of antennas
     J = 2     # * Number of receivers
-    M = 1     # * Number of RIS surfaces
+    M = 2     # * Number of RIS surfaces
     E = 10    # * Number of eavesdroppers
     eta = 0.9 # * Reflection efficiency
 
@@ -260,21 +287,21 @@ def main():
     H = generate_random_channel_matrix(N, K)
     Gs = [generate_random_channel_matrix(K, N) for _ in range(J)]
     Es = [generate_random_channel_matrix(K, N) for _ in range(E)]
+    Cs = [generate_random_channel_matrix(N, N) for _ in range(M-1)]
     
     try:
-        Ps, dor = calculate_multi_ris_reflection_matrices(K, N, J, M, Gs, H, eta)
+        Ps, dor = calculate_multi_ris_reflection_matrices(K, N, J, M, Gs, H, eta, Cs)
         print(f"Degree of Randomness (DoR): {dor}")
-        print(f"Shape of P: {Ps[0].shape}")
         
         print(f"\n{J} Legitimate Receivers:")
-        verify_results(Ps, Gs, H)
+        verify_results(Ps, Gs, H, Cs)
 
         print(f"\n{E} End Eavesdroppers:")
-        verify_results(Ps, Es, H)
+        verify_results(Ps, Es, H, Cs)
 
         if M > 1:
             print(f"\n{E} Intermediate Eavesdroppers:")
-            verify_results(Ps[1:], Es, H)
+            verify_results(Ps[1:], Es, H, Cs[1:])
         
     except ValueError as e:
         print(f"Error: {e}")
