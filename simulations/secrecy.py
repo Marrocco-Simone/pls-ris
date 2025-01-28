@@ -159,15 +159,17 @@ def main():
             receiver_secrecy_rates.append(receiver_secrecy_rate)
             eavesdropper_secrecy_rates.append(eavesdropper_secrecy_rate)
 
+        plt_name = "Secrecy Rate vs SNR"
         plt.plot(snr_range_db, secrecy_rates, label="Secrecy Rate")
         plt.plot(snr_range_db, receiver_secrecy_rates, label="Receiver Secrecy Rate")
         plt.plot(snr_range_db, eavesdropper_secrecy_rates, label="Eavesdropper Secrecy Rate")
         plt.legend()
         plt.xlabel("SNR (dB)")
         plt.ylabel("Secrecy Rate (bits/s/Hz)")
-        plt.title("Secrecy Rate vs SNR")
+        plt.title(plt_name)
         plt.grid()
-        plt.show()
+        plt.savefig(f"./simulations/results/{plt_name}.png")
+        print(f"Saved {plt_name}.png\n\n")
         
     except ValueError as e:
         print(f"Error: {e}")
