@@ -50,6 +50,19 @@ def calculate_W_multiple(K: int, N: int, J: int, Gs: List[np.ndarray], H: np.nda
     
     return W_combined
 
+def generate_random_channel_matrix(rows: int, cols: int) -> np.ndarray:
+    """
+    Generate a random complex channel matrix.
+    
+    Args:
+        rows: Number of rows
+        cols: Number of columns
+    
+    Returns:
+        Random complex channel matrix
+    """
+    return (np.random.normal(0, 1, (rows, cols)) + 1j * np.random.normal(0, 1, (rows, cols))) / np.sqrt(2)
+
 def decompose_reflection_vector(
     p: np.ndarray, 
     N: int, 
@@ -231,19 +244,6 @@ def verify_results(
     print("\nEffective channel matrix for first receiver:")
     P = unify_ris_reflection_matrices(Ps)
     print_effective_channel(Gs[0], H, P)
-
-def generate_random_channel_matrix(rows: int, cols: int) -> np.ndarray:
-    """
-    Generate a random complex channel matrix.
-    
-    Args:
-        rows: Number of rows
-        cols: Number of columns
-    
-    Returns:
-        Random complex channel matrix
-    """
-    return (np.random.normal(0, 1, (rows, cols)) + 1j * np.random.normal(0, 1, (rows, cols))) / np.sqrt(2)
 
 def main():
     N = 16    # * Number of reflecting elements
