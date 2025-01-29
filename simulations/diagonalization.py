@@ -63,76 +63,14 @@ def generate_random_channel_matrix(rows: int, cols: int) -> np.ndarray:
     """
     return (np.random.normal(0, 1, (rows, cols)) + 1j * np.random.normal(0, 1, (rows, cols))) / np.sqrt(2)
 
-def decompose_reflection_vector(
-    p: np.ndarray, 
-    N: int, 
-    M: int,
-    Cs: List[np.ndarray]
-) -> List[np.ndarray]:
-    """
-    Decompose combined reflection vector into M diagonal matrices.
-    
-    Args:
-        p: Combined reflection vector
-        N: Number of reflecting elements per RIS
-        M: Number of RIS surfaces
-        Cs: List of M-1 inter-RIS channel matrices [C_1, C_2, ..., C_(M-1)], where C_i is the channel between RIS i and i+1
-    
-    Returns:
-        List of M diagonal reflection matrices
-    """
-    if len(Cs) != M-1:
-        raise ValueError(f"Expected {M-1} inter-RIS channel matrices, got {len(Cs)}")
-
-    ps = []
-    P = np.diag(p)
-    
-    # * Generate M-1 random reflection vectors
-    for _ in range(M-1):
-        absorptions = np.random.uniform(0, 1, N)
-        phases = np.random.uniform(0, 2*np.pi, N)
-        # * p_m[i] = eta * r_i * exp(j*theta_i)
-        p_m = absorptions * np.exp(1j * phases)
-        ps.append(p_m)
-    
-    # * Calculate the last reflection matrix
-    S = np.eye(N)
-    for i in range(M-1):
-        S = S @ np.diag(p_m) @ Cs[i]
-    P_final = np.linalg.inv(S) @ P
-    if np.sum(np.abs(P_final - np.diag(np.diag(P_final)))) > tolerance:
-        raise ValueError(f"Final reflection matrix is not diagonal:\n{np.round(np.abs(P_final), 2)}")
-    p_final = np.diag(P_final)
-    
-    # * Normalize final vector to ensure magnitude ≤ 1
-    p_final = p_final / np.maximum(1, np.max(np.abs(p_final)))
-    ps.append(p_final)
-
-    Ps = []
-    for pm in ps:
-        Ps.append(np.diag(pm))
-
-    # * Verify that the product of all matrices is equal to the original vector
-    Pt = np.eye(N)
-    for i in range(M-1):
-        Pt = Pt @ Ps[i] @ Cs[i]
-    Pt = S @ Ps[-1]  # Multiply by the last reflection matrix
-
-    if not np.allclose(P, Pt):
-        raise ValueError(f"Decomposition failed. Expected:\n{np.round(np.abs(P), 2)}\nGot:\n{np.round(np.abs(Pt), 2)}")
-    
-    return Ps
-
-def calculate_multi_ris_reflection_matrices(
+def calculate_ris_reflection_matrice(
     K: int, 
     N: int, 
     J: int, 
-    M: int,
     Gs: List[np.ndarray], 
     H: np.ndarray, 
     eta: float,
-    Cs: List[np.ndarray]
-) -> Tuple[List[np.ndarray], float]:
+) -> Tuple[np.ndarray, float]:
     """
     Calculate reflection matrices for M RIS surfaces.
     
@@ -140,14 +78,12 @@ def calculate_multi_ris_reflection_matrices(
         K: Number of antennas
         N: Number of reflecting elements per RIS
         J: Number of receivers
-        M: Number of RIS surfaces
         Gs: List of channel matrices from last RIS to receivers [G_1, G_2, ..., G_J]
         H: Channel matrix from transmitter to first RIS
         eta: Reflection efficiency
-        Cs: List of M-1 inter-RIS channel matrices [C_1, C_2, ..., C_(M-1)], where C_i is the channel between RIS i and i+1
     
     Returns:
-        Ps: List of M diagonal reflection matrices [P_1, P_2, ..., P_M]
+        P: diagonal reflection matrice
         dor: Degree of randomness achieved
     """
     W = calculate_W_multiple(K, N, J, Gs, H)
@@ -176,10 +112,62 @@ def calculate_multi_ris_reflection_matrices(
     
     p_unnormalized = null_space_basis @ a
     p = eta * p_unnormalized / np.max(np.abs(p_unnormalized))
-    
-    Ps = decompose_reflection_vector(p, N, M, Cs)
-    
+    P = np.diag(p)
     dor = 2 * null_space_dim
+    return P, dor
+
+def calculate_multi_ris_reflection_matrices(
+    K: int, 
+    N: int, 
+    J: int, 
+    M: int,
+    Gs: List[np.ndarray], 
+    H: np.ndarray, 
+    eta: float,
+    Cs: List[np.ndarray]
+) -> Tuple[List[np.ndarray], float]:
+    """
+    Calculate reflection matrices for M RIS surfaces.
+    
+    Args:
+        K: Number of antennas
+        N: Number of reflecting elements per RIS
+        J: Number of receivers
+        M: Number of RIS surfaces
+        Gs: List of channel matrices from last RIS to receivers [G_1, G_2, ..., G_J]
+        H: Channel matrix from transmitter to first RIS
+        eta: Reflection efficiency
+        Cs: List of M-1 inter-RIS channel matrices [C_1, C_2, ..., C_(M-1)], where C_i is the channel between RIS i and i+1
+    
+    Returns:
+        Ps: List of M diagonal reflection matrices [P_1, P_2, ..., P_M]
+        dor: Degree of randomness achieved
+    """
+    if len(Cs) != M-1:
+        raise ValueError(f"Expected {M-1} inter-RIS channel matrices, got {len(Cs)}")
+
+    ps = []
+    S = np.eye(N)
+
+    # * Generate M-1 random reflection vectors
+    for i in range(M-1):
+        absorptions = np.random.uniform(0, 1, N)
+        phases = np.random.uniform(0, 2*np.pi, N)
+        # * p_m[i] = eta * r_i * exp(j*theta_i)
+        p_m = absorptions * np.exp(1j * phases)
+        ps.append(p_m)
+        S = S @ np.diag(p_m) @ Cs[i]
+
+    Gs_prime = [G @ S for G in Gs]
+    
+    # * Calculate the last reflection matrix
+    P_final, dor = calculate_ris_reflection_matrice(K, N, J, Gs_prime, H, eta)
+    p_final = np.diag(P_final)
+    ps.append(p_final)
+
+    Ps = []
+    for pm in ps:
+        Ps.append(np.diag(pm))
     
     return Ps, dor
 
@@ -281,8 +269,6 @@ def main():
     eta = 0.9 # * Reflection efficiency
 
     print(f"Parameters: \n- RIS surfaces = {M}\n- Elements per RIS = {N}\n- Reflection efficiency = {eta}\n- Receiver Antennas = {K}")
-
-    np.random.seed(0)
 
     H = generate_random_channel_matrix(N, K)
     Gs = [generate_random_channel_matrix(K, N) for _ in range(J)]
