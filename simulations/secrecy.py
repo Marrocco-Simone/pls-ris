@@ -46,8 +46,8 @@ def calculate_eavesdropper_Sigma_inv_sqrt(K: int, N: int, eta: float, G: np.ndar
     try:
         expected = 0
         for _ in range(num_samples):
-            Ps, _ = calculate_multi_ris_reflection_matrices(K, N, 1, 1, [G], H, eta)
-            P = unify_ris_reflection_matrices(Ps)
+            Ps, _ = calculate_multi_ris_reflection_matrices(K, N, 1, 1, [G], H, eta, [])
+            P = unify_ris_reflection_matrices(Ps, [])
             a = F @ P @ H @ (xi - xj) @ (xi - xj).T.conj() @ H.T.conj() @ P.T.conj() @ F.T.conj()
             expected += a
         expected /= num_samples
@@ -142,12 +142,13 @@ def main():
     B = generate_random_channel_matrix(K, K)
     Gs = [generate_random_channel_matrix(K, N) for _ in range(J)]
     Es = [generate_random_channel_matrix(K, N) for _ in range(E)]
+    Cs = [generate_random_channel_matrix(N, N) for _ in range(M-1)]
     G = Gs[0]
     F = Es[0]
 
     try:
-        Ps, _ = calculate_multi_ris_reflection_matrices(K, N, J, M, Gs, H, eta)
-        P = unify_ris_reflection_matrices(Ps)
+        Ps, _ = calculate_multi_ris_reflection_matrices(K, N, J, M, Gs, H, eta, Cs)
+        P = unify_ris_reflection_matrices(Ps, Cs)
         secrecy_rates = []
         receiver_secrecy_rates = []
         eavesdropper_secrecy_rates = []
@@ -168,7 +169,7 @@ def main():
         plt.ylabel("Secrecy Rate (bits/s/Hz)")
         plt.title(plt_name)
         plt.grid()
-        plt.savefig(f"./simulations/results/{plt_name}.png")
+        plt.savefig(f"./simulations/results/{plt_name}.png", dpi=300, format='png')
         print(f"Saved {plt_name}.png\n\n")
         
     except ValueError as e:

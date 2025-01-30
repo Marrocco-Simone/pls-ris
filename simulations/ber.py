@@ -34,9 +34,9 @@ def calculate_ber_theoretical(snr_db, K, N, num_monte_carlo=1000):
         H = generate_random_channel_matrix(N, K)
         G = generate_random_channel_matrix(K, N)
         Ps, _ = calculate_multi_ris_reflection_matrices(
-            K, N, 1, 1, [G], H, eta=0.9
+            K, N, 1, 1, [G], H, eta=0.9, Cs=[]
         )
-        P = unify_ris_reflection_matrices(Ps)
+        P = unify_ris_reflection_matrices(Ps, [])
         
         effective_channel = G @ P @ H
         diag_elements = np.diag(effective_channel)
@@ -94,10 +94,11 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
         G = Gs[0]
         Fs = [generate_random_channel_matrix(K, N) for _ in range(M)]
         B = generate_random_channel_matrix(K, K)
+        Cs = [generate_random_channel_matrix(N, N) for _ in range(M-1)]
         Ps, _ = calculate_multi_ris_reflection_matrices(
-            K, N, J, M, Gs, H, eta
+            K, N, J, M, Gs, H, eta, Cs
         )
-        P = unify_ris_reflection_matrices(Ps)
+        P = unify_ris_reflection_matrices(Ps, Cs)
 
         x = np.zeros(K)
         x[np.random.randint(K)] = 1
@@ -105,7 +106,7 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
         effective_channel_receiver = G @ P @ H
         effective_channel_eavesdropper = np.zeros((K, K), dtype=np.complex128) # F @ P @ H
         for i in range(M):
-            P_to_i = unify_ris_reflection_matrices(Ps[:i+1])
+            P_to_i = unify_ris_reflection_matrices(Ps[:i+1], Cs[:i])
             effective_channel_eavesdropper += Fs[i] @ P_to_i @ H
         effective_channel_direct = np.zeros((K, K))
 
@@ -122,15 +123,16 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
         Gs2 = [generate_random_channel_matrix(K, N) for _ in range(J)]
         G2 = Gs2[0]
         Fs2 = [generate_random_channel_matrix(K, N) for _ in range(M)]
+        Cs2 = [generate_random_channel_matrix(N, N) for _ in range(M-1)]
         Ps2, _ = calculate_multi_ris_reflection_matrices(
-            K, N, J, M, Gs2, H2, eta
+            K, N, J, M, Gs2, H2, eta, Cs2
         )
-        P2 = unify_ris_reflection_matrices(Ps2)
+        P2 = unify_ris_reflection_matrices(Ps2, Cs2)
 
         effective_channel_receiver_2 = G2 @ P2 @ H2
         effective_channel_eavesdropper_2 = np.zeros((K, K), dtype=np.complex128) # F @ P @ H
         for i in range(M):
-            P_to_i = unify_ris_reflection_matrices(Ps2[:i+1])
+            P_to_i = unify_ris_reflection_matrices(Ps2[:i+1], Cs2[:i])
             effective_channel_eavesdropper_2 += Fs2[i] @ P_to_i @ H2
 
         effective_channel_receiver_double = effective_channel_receiver + effective_channel_receiver_2
@@ -190,7 +192,7 @@ def plot_ber_curves():
             plt.ylabel('Bit Error Rate (BER)')
             plt.title(plt_name)
             plt.legend()
-            plt.savefig(f"./simulations/results/{plt_name}.png")
+            plt.savefig(f"./simulations/results/{plt_name}.png", dpi=300, format='png')
             print(f"Saved {plt_name}.png\n\n")
 
 if __name__ == "__main__":

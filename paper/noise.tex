@@ -150,26 +150,10 @@ We consider the case where the signal is bounced between $M$ RISs in this way:
   \text{Transmitter} \rightarrow \text{RIS 1} \rightarrow ... \rightarrow \text{RIS M} \rightarrow \text{Receiver}
 \end{equation}
 
-\begin{equation}
-  || GP_1...P_MH - [GP_1...P_MH]_{diag} || ^2 = 0
-\end{equation}
-
-Since $P_i = diag\{p_i\}$, we can rewritten
+We call $C_i \in \C^{NxN}$ the channel gain between $P_i$ and $P_{i+1}$. We need to solve
 
 \begin{equation}
-  P_1...P_M = diag\{p_1\}...diag\{p_M\} = diag\{p_1 \odot ... \odot p_M\}
-\end{equation}
-
-So we can write
-
-\begin{equation}
-  P = diag\{p_1 \odot ... \odot p_M\}, p = p_1 \odot ... \odot p_M
-\end{equation}
-
-Once we find $p$ using the same way as before, we can now decompose it so that
-
-\begin{equation}
-  p[i] = p_1[i] * ... * p_M[i]
+  || GP_1C_1...P_MH - [GP_1C_1...P_MH]_{diag} || ^2 = 0
 \end{equation}
 
 We can generate $p_1, ..., p_{M-1}$ as random reflections, and calculate the last one based on the previous. An advantage we get is that eavesdroppers listening from a middle RIS will not be able to decipher the signal either. Given $r_i \in [0, 1]$ the absorption coefficient, and $\theta_i \in [0, 2\pi]$ the phase shift, we can choose them randomly for all RIS $p_m$ vectors, but the last one.
@@ -178,6 +162,16 @@ We can generate $p_1, ..., p_{M-1}$ as random reflections, and calculate the las
   \forall m \in [1, M-1] : p_m[i] = \eta * r_i * e^{j\theta_i}
 \end{equation}
 
+Given now
+
 \begin{equation}
-  p_M[i] = p[i] / (p_1[i] * ... * p_{M-1}[i])
+  G' = GP_1C_1...P_{M-1}C_{M-1} \in \C^{KxN}
 \end{equation}
+
+We can consider now the problem of solving
+
+\begin{equation}
+  || G'P_MH - [G'P_MH]_{diag} || ^2 = 0
+\end{equation}
+
+Which can be solved as before. If we have multiple $G_j$, it will be enough to calculate all the $G'_j$ and proceed as before, allowing us to combine these properties in more complicated scenarios.
