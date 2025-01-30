@@ -44,6 +44,7 @@
 *.fls
 *.fdb_latexmk
 *.synctex
+*.synctex(busy)
 
 # TeX Live specific files
 texlive/*
