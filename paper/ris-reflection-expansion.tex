@@ -102,5 +102,6 @@ We can consider now the problem of solving
 Which can be solved as before.
 \footnote{It is also possible to set up randomly the last $M-1$ RIS and calculate the first one using $G$ and $H'=C_1P_2C_2...P_M$. The properties still holds.}
 \footnote{Estimate the channel gains $G$ and $H$, based on \cite{8879620}, could be more difficult, given that we do not have full controll on $P=P_1C_1...P_M$ anymore. We can however estimate directly $G'$ by keeping the same random $P_1, ..., P_{M-1}$ in both the acknowlegdment round and the message trasmission round, and just modify $P_M$ after estimating $G'$ and $H$ to correctly deliver the message.}
+\footnote{The receiver could also get the signal from all the RIS in series, if in the right position. For example, let's say it receives the signals $GP_1H_1x$ and $GP_1C_1P_2H_2x$. To solve this system, instead of setting $P_1$ randomly, we would need first to solve it using $G$ and $H_1$, then solve $P_2$ using $G'=GP_1C_1$ and $H_2$. The sum of the two signals would still be readable for the receiver correctly. While $P_1$ would not be random, the signal would still be undeciphrable for an eavesdropper receiving it.}
 
 If we have multiple $G_j$, it will be enough to calculate all the $G'_j$ and proceed as before, allowing us to combine these properties in more complicated scenarios.
