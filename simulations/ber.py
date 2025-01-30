@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import random
 from diagonalization import (
     calculate_multi_ris_reflection_matrices,
     generate_random_channel_matrix
@@ -39,7 +40,7 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
     for _ in range(num_symbols):
         H = generate_random_channel_matrix(N, K)
         Gs = [generate_random_channel_matrix(K, N) for _ in range(J)]
-        G = Gs[0]
+        G = random.choice(Gs)
         Fs = [generate_random_channel_matrix(K, N) for _ in range(M)]
         B = generate_random_channel_matrix(K, K)
         Cs = [generate_random_channel_matrix(N, N) for _ in range(M-1)]
@@ -69,7 +70,7 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
 
         H2 = generate_random_channel_matrix(N, K)
         Gs2 = [generate_random_channel_matrix(K, N) for _ in range(J)]
-        G2 = Gs2[0]
+        G2 = random.choice(Gs2)
         Fs2 = [generate_random_channel_matrix(K, N) for _ in range(M)]
         Cs2 = [generate_random_channel_matrix(N, N) for _ in range(M-1)]
         Ps2, _ = calculate_multi_ris_reflection_matrices(
