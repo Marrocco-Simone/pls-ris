@@ -182,10 +182,10 @@ def plot_ber_curves():
             plt_name = f'SSK BER Performance with RIS (K={K}, N={N}, J={J}, M={M})'
             plt.figure(figsize=(10, 6))
             # plt.semilogy(snr_range_db, ber_theoretical, label='Theoretical Receiver')
-            plt.semilogy(snr_range_db, ber_simulated_receiver, label='Simulation Receiver')
-            plt.semilogy(snr_range_db, ber_simulated_eavesdropper, label=f'Simulation Eavesdropper')
             plt.semilogy(snr_range_db, ber_simulated_direct, label=f'Simulation Direct')
+            plt.semilogy(snr_range_db, ber_simulated_receiver, label='Simulation Receiver')
             plt.semilogy(snr_range_db, ber_simulated_receiver_double, label='Simulation Receiver Double RIS Source')
+            plt.semilogy(snr_range_db, ber_simulated_eavesdropper, label=f'Simulation Eavesdropper')
             plt.semilogy(snr_range_db, ber_simulated_eavesdropper_double, label=f'Simulation Eavesdropper Double RIS Source')
             plt.grid(True)
             plt.xlabel('SNR (dB)')
