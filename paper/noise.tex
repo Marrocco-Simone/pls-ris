@@ -174,4 +174,8 @@ We can consider now the problem of solving
   || G'P_MH - [G'P_MH]_{diag} || ^2 = 0
 \end{equation}
 
-Which can be solved as before. If we have multiple $G_j$, it will be enough to calculate all the $G'_j$ and proceed as before, allowing us to combine these properties in more complicated scenarios.
+Which can be solved as before.
+\footnote{It is also possible to set up randomly the last $M-1$ RIS and calculate the first one using $G$ and $H'=C_1P_2C_2...P_M$. The properties still holds.}
+\footnote{Estimate the channel gains $G$ and $H$, based on \cite{8879620}, could be more difficult, given that we do not have full controll on $P=P_1C_1...P_M$ anymore. We can however estimate directly $G'$ by keeping the same random $P_1, ..., P_{M-1}$ in both the acknowlegdment round and the message trasmission round, and just modify $P_M$ after estimating $G'$ and $H$ to correctly deliver the message.}
+
+If we have multiple $G_j$, it will be enough to calculate all the $G'_j$ and proceed as before, allowing us to combine these properties in more complicated scenarios.
