@@ -169,7 +169,7 @@ def main():
         plt.ylabel("Secrecy Rate (bits/s/Hz)")
         plt.title(plt_name)
         plt.grid()
-        plt.savefig(f"./simulations/results/{plt_name}.png")
+        plt.savefig(f"./simulations/results/{plt_name}.png", dpi=300, format='png')
         print(f"Saved {plt_name}.png\n\n")
         
     except ValueError as e:

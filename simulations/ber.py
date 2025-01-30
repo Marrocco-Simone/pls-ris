@@ -192,7 +192,7 @@ def plot_ber_curves():
             plt.ylabel('Bit Error Rate (BER)')
             plt.title(plt_name)
             plt.legend()
-            plt.savefig(f"./simulations/results/{plt_name}.png")
+            plt.savefig(f"./simulations/results/{plt_name}.png", dpi=300, format='png')
             print(f"Saved {plt_name}.png\n\n")
 
 if __name__ == "__main__":
