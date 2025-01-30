@@ -43,6 +43,7 @@
 *.synctex.gz
 *.fls
 *.fdb_latexmk
+*.synctex
 
 # TeX Live specific files
 texlive/*
