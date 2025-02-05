@@ -114,6 +114,36 @@ class HeatmapGenerator:
         plt.ylabel('Y (meters)')
         plt.show()
 
+    def _line_intersects_building(self, x1: float, y1: float, x2: float, y2: float) -> bool:
+        """
+        Check if line between two points intersects any building.
+        Uses line segment intersection algorithm.
+        """
+        def ccw(A: tuple, B: tuple, C: tuple) -> bool:
+            """Returns True if points are counter-clockwise oriented"""
+            return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
+
+        def intersect(A: tuple, B: tuple, C: tuple, D: tuple) -> bool:
+            """Returns True if line segments AB and CD intersect"""
+            return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
+
+        # Check each building
+        for bx, by, bw, bh in self.buildings:
+            # Check intersection with each edge of building
+            building_corners = [
+                (bx, by), (bx + bw, by),
+                (bx + bw, by + bh), (bx, by + bh)
+            ]
+            
+            # Check each edge of the building
+            for i in range(4):
+                if intersect(
+                    (x1, y1), (x2, y2),
+                    building_corners[i], building_corners[(i + 1) % 4]
+                ):
+                    return True
+        return False
+
     def calculate_distance_from_points(self, points: List[str] = None) -> np.ndarray:
         """
         Calculate the minimum distance from each grid cell to the specified points.
@@ -136,6 +166,9 @@ class HeatmapGenerator:
                 min_distance = float('inf')
                 for label in points:
                     px, py = self.points[label]
+                    if self._line_intersects_building(x, y, px, py):
+                        continue
+
                     distance = np.sqrt((x - px)**2 + (y - py)**2)
                     min_distance = min(min_distance, distance)
                 
@@ -201,9 +234,9 @@ if __name__ == "__main__":
         return np.sqrt((x - ax)**2 + (y - ay)**2)
     
     # Apply the function and visualize
-    heatmap.apply_function(distance_from_center)
-    heatmap.visualize()
+    # heatmap.apply_function(distance_from_center)
+    # heatmap.visualize()
 
-    # distances = heatmap.calculate_distance_from_points()
-    # heatmap.grid = distances
-    # heatmap.visualize(cmap='coolwarm')
+    distances = heatmap.calculate_distance_from_points(['T'])
+    heatmap.grid = distances
+    heatmap.visualize(cmap='coolwarm')
