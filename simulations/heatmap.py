@@ -179,19 +179,17 @@ if __name__ == "__main__":
     H = calculate_mimo_channel_gain(d, L, K)
     
     print("\nChannel Gain Matrix:")
-    print(np.abs(H))  # Print magnitude of complex channel gains
+    print(np.abs(H))  
 
-    # Create a 20x20 meter area
     heatmap = HeatmapGenerator(20, 20)
     
-    # Add some example buildings
-    heatmap.add_building(5, 5, 3, 4)   # 3x4 building at (5,5)
-    heatmap.add_building(12, 8, 4, 6)  # 4x6 building at (12,8)
+    heatmap.add_building(0, 12, 8, 8)  
+    heatmap.add_building(12, 0, 8, 8)
 
     # Add points of interest
-    heatmap.add_point('A', 3, 3)
-    heatmap.add_point('B', 15, 15)
-    heatmap.add_point('C', 8, 12)
+    heatmap.add_point('T', 10, 3)
+    heatmap.add_point('R', 15, 10)
+    heatmap.add_point('P', 7.5, 11.5)
     
     # Define a sample function (distance from center)
     def distance_from_center(x: int, y: int) -> float:
@@ -206,6 +204,6 @@ if __name__ == "__main__":
     heatmap.apply_function(distance_from_center)
     heatmap.visualize()
 
-    distances = heatmap.calculate_distance_from_points()
-    heatmap.grid = distances
-    heatmap.visualize(cmap='coolwarm')
+    # distances = heatmap.calculate_distance_from_points()
+    # heatmap.grid = distances
+    # heatmap.visualize(cmap='coolwarm')
