@@ -17,6 +17,8 @@ class HeatmapGenerator:
         self.height = height
         self.grid = np.zeros((height, width))
         self.buildings = []
+        # * Dictionary to store points with their labels and coordinates
+        self.points = {}
 
     def add_building(self, x: int, y: int, width: int, height: int):
         """
@@ -32,6 +34,32 @@ class HeatmapGenerator:
         # * Mark building area as NaN to exclude from heatmap
         self.grid[y:y+height, x:x+width] = np.nan
 
+    def add_point(self, label: str, x: float, y: float):
+        """
+        Add a point of interest to the map with a specific label.
+        
+        Args:
+            label: Label for the point (e.g., 'A', 'B', 'Source 1')
+            x: X coordinate of the point
+            y: Y coordinate of the point
+        """
+        if not (0 <= x < self.width and 0 <= y < self.height):
+            raise ValueError(f"Point {label} coordinates ({x}, {y}) are outside the map boundaries")
+        self.points[label] = (x, y)
+
+    def get_point_coordinates(self, label: str) -> Tuple[float, float]:
+        """
+        Get the coordinates of a specific point by its label.
+        
+        Args:
+            label: The label of the point
+        Returns:
+            Tuple of (x, y) coordinates
+        """
+        if label not in self.points:
+            raise KeyError(f"Point {label} not found")
+        return self.points[label]
+
     def apply_function(self, func: Callable[[int, int], float]):
         """
         Apply a custom function to calculate values for each point in the grid.
@@ -42,16 +70,19 @@ class HeatmapGenerator:
         """
         for y in range(self.height):
             for x in range(self.width):
-                if not np.isnan(self.grid[y, x]):  # * Skip buildings
+                if not np.isnan(self.grid[y, x]):  # Skip buildings
                     self.grid[y, x] = func(x, y)
 
-    def visualize(self, cmap='viridis', show_buildings=True):
+    def visualize(self, cmap='viridis', show_buildings=True, show_points=True, point_color='red', label_offset=(0.3, 0.3)):
         """
-        Visualize the heatmap with optional building outlines.
+        Visualize the heatmap with optional building outlines and points of interest.
         
         Args:
             cmap: Matplotlib colormap name
             show_buildings: Whether to show building outlines
+            show_points: Whether to show points of interest
+            point_color: Color for the points
+            label_offset: Offset for point labels (x, y)
         """
         plt.figure(figsize=(10, 8))
         
@@ -70,11 +101,47 @@ class HeatmapGenerator:
                         [y-0.5, y-0.5, y+h-0.5, y+h-0.5, y-0.5],
                         'r-', linewidth=2)
         
+        # Plot points of interest
+        if show_points and self.points:
+            for label, (x, y) in self.points.items():
+                plt.plot(x, y, 'o', color=point_color, markersize=8)
+                plt.text(x + label_offset[0], y + label_offset[1], label,
+                        color=point_color, fontweight='bold')
+        
         plt.grid(True)
-        plt.title('Heatmap with Buildings')
+        plt.title('Heatmap with Buildings and Points')
         plt.xlabel('X (meters)')
         plt.ylabel('Y (meters)')
         plt.show()
+
+    def calculate_distance_from_points(self, points: List[str] = None) -> np.ndarray:
+        """
+        Calculate the minimum distance from each grid cell to the specified points.
+        
+        Args:
+            points: List of point labels to consider. If None, use all points.
+        Returns:
+            Grid of distances
+        """
+        if points is None:
+            points = list(self.points.keys())
+        
+        distances = np.full_like(self.grid, np.inf)
+        
+        for y in range(self.height):
+            for x in range(self.width):
+                if np.isnan(self.grid[y, x]):  # Skip buildings
+                    continue
+                    
+                min_distance = float('inf')
+                for label in points:
+                    px, py = self.points[label]
+                    distance = np.sqrt((x - px)**2 + (y - py)**2)
+                    min_distance = min(min_distance, distance)
+                
+                distances[y, x] = min_distance
+                
+        return distances
 
 def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07 , k = 2) -> tuple[np.ndarray, float]:
     """
@@ -120,12 +187,25 @@ if __name__ == "__main__":
     # Add some example buildings
     heatmap.add_building(5, 5, 3, 4)   # 3x4 building at (5,5)
     heatmap.add_building(12, 8, 4, 6)  # 4x6 building at (12,8)
+
+    # Add points of interest
+    heatmap.add_point('A', 3, 3)
+    heatmap.add_point('B', 15, 15)
+    heatmap.add_point('C', 8, 12)
     
     # Define a sample function (distance from center)
-    def sample_function(x: int, y: int) -> float:
+    def distance_from_center(x: int, y: int) -> float:
         center_x, center_y = 10, 10
         return np.sqrt((x - center_x)**2 + (y - center_y)**2)
     
+    def distance_from_a(x, y):
+        ax, ay = heatmap.get_point_coordinates('A')
+        return np.sqrt((x - ax)**2 + (y - ay)**2)
+    
     # Apply the function and visualize
-    heatmap.apply_function(sample_function)
+    heatmap.apply_function(distance_from_center)
     heatmap.visualize()
+
+    distances = heatmap.calculate_distance_from_points()
+    heatmap.grid = distances
+    heatmap.visualize(cmap='coolwarm')
