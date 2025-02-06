@@ -3,6 +3,17 @@ import matplotlib.pyplot as plt
 # * pip install PyQt6
 import PyQt6
 from typing import List, Tuple, Callable
+from diagonalization import (
+  generate_random_channel_matrix, 
+  calculate_multi_ris_reflection_matrices, 
+  unify_ris_reflection_matrices
+)
+from secrecy import (
+    snr_db_to_sigma_sq,
+)
+from ber import (
+    simulate_ssk_transmission_reflection
+)
 
 class HeatmapGenerator:
     def __init__(self, width: int, height: int):
@@ -69,8 +80,9 @@ class HeatmapGenerator:
             func: Function that takes (x, y) coordinates and returns a value
         """
         for y in range(self.height):
+            print(f"Processing row {y+1}/{self.height}")
             for x in range(self.width):
-                if not np.isnan(self.grid[y, x]):  # Skip buildings
+                if not np.isnan(self.grid[y, x]):
                     self.grid[y, x] = func(x, y)
 
     def visualize(self, cmap='viridis', show_buildings=True, show_points=True, point_color='red', label_offset=(0.3, 0.3)):
@@ -182,55 +194,60 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07 , k = 2) ->
     --------
     H : Complex channel gain matrix of shape (K, L)
     """
-    free_space_path_loss = (4 * np.pi / lam) ** 2 * d ** k
+    # free_space_path_loss = (4 * np.pi / lam) ** 2 * d ** k
+    # magnitude = np.sqrt(1 / free_space_path_loss)
+    # phase_shift = d * 2 * np.pi / lam
+    # H = np.array([[magnitude * np.exp(1j * phase_shift) for _ in range(L)] for _ in range(K)])
 
-    magnitude = np.sqrt(1 / free_space_path_loss)
-    phase_shift = d * 2 * np.pi / lam
-
-    H = np.array([[magnitude * np.exp(1j * phase_shift) for _ in range(L)] for _ in range(K)])
+    H = generate_random_channel_matrix(K, L)
     
     return H
 
-# Example usage:
 if __name__ == "__main__":
-    # Parameters
-    d = 100  # meters
-    L = 4  # number of transmit antennas
-    K = 4  # number of receive antennas
-    
-    # Calculate channel gains
-    H = calculate_mimo_channel_gain(d, L, K)
-    
-    print("\nChannel Gain Matrix:")
-    print(np.abs(H))  
+    N = 16    # * Number of reflecting elements
+    K = 2     # * Number of antennas
+    J = 1     # * Number of receivers
+    M = 1     # * Number of RIS surfaces
+    eta = 0.9 # * Reflection efficiency
 
     heatmap = HeatmapGenerator(20, 20)
     
     heatmap.add_building(0, 12, 8, 8)  
     heatmap.add_building(12, 0, 8, 8)
 
-    # Add points of interest
-    heatmap.add_point('T', 10, 3)
-    heatmap.add_point('R', 15, 10)
-    heatmap.add_point('P', 7.5, 11.5)
-    
-    # Define a sample function (distance from center)
-    def distance_from_center(x: int, y: int) -> float:
-        center_x, center_y = 10, 10
-        return np.sqrt((x - center_x)**2 + (y - center_y)**2)
-    
-    def distance_from_a(x, y):
-        ax, ay = heatmap.get_point_coordinates('A')
-        return np.sqrt((x - ax)**2 + (y - ay)**2)
-    
-    # Apply the function and visualize
-    # heatmap.apply_function(distance_from_center)
-    # heatmap.visualize()
+    tx, ty = 10 , 3
+    rx, ry = 15, 10
+    px, py = 8, 12
+    heatmap.add_point('T', tx, ty)
+    heatmap.add_point('R', rx, ry)
+    heatmap.add_point('P', px, py)
 
-    distances = heatmap.calculate_distance_from_point('T')
-    heatmap.grid = distances
-    heatmap.visualize()
+    distances_from_T = heatmap.calculate_distance_from_point('T')
+    distances_from_P = heatmap.calculate_distance_from_point('P')
 
-    distances = heatmap.calculate_distance_from_point('P')
-    heatmap.grid = distances
+    H = calculate_mimo_channel_gain(distances_from_P[tx, ty], K, N)
+    G = calculate_mimo_channel_gain(distances_from_P[rx, ry], N, K)
+    Ps, _ = calculate_multi_ris_reflection_matrices(
+            K, N, J, M, [G], H, eta, []
+        )
+    P = unify_ris_reflection_matrices(Ps, [])
+
+    snr_db = 10
+    sigma_sq = snr_db_to_sigma_sq(snr_db)
+    num_symbols=1000
+    def calculate_ber_per_point(x: int, y: int) -> float:
+        F = calculate_mimo_channel_gain(distances_from_P[x, y], N, K)
+        if x == rx and y == ry:
+            F = G
+        effective_channel = F @ P @ H
+        errors = 0
+        for _ in range(num_symbols):
+            x = np.zeros(K)
+            x[np.random.randint(K)] = 1
+            if not simulate_ssk_transmission_reflection(x, effective_channel, sigma_sq):
+                errors += 1
+        ber = errors / num_symbols
+        return ber
+
+    heatmap.apply_function(calculate_ber_per_point)
     heatmap.visualize()
