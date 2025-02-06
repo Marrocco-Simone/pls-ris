@@ -101,7 +101,7 @@ class HeatmapGenerator:
         masked_grid = np.ma.masked_invalid(self.grid)
         
         plt.imshow(masked_grid, cmap=cmap, origin='lower')
-        plt.colorbar(label='Value')
+        plt.colorbar(label='BER')
         
         if show_buildings:
             for building in self.buildings:
@@ -117,7 +117,7 @@ class HeatmapGenerator:
                         color=point_color, fontweight='bold')
         
         plt.grid(True)
-        plt.title('Heatmap with Buildings and Points')
+        plt.title('Heatmap of BER of the signal from T reflected by RIS')
         plt.xlabel('X (meters)')
         plt.ylabel('Y (meters)')
         plt.show()
