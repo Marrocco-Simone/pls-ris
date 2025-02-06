@@ -98,14 +98,11 @@ class HeatmapGenerator:
         """
         plt.figure(figsize=(10, 8))
         
-        # Create masked array to handle NaN values
         masked_grid = np.ma.masked_invalid(self.grid)
         
-        # Plot heatmap
         plt.imshow(masked_grid, cmap=cmap, origin='lower')
         plt.colorbar(label='Value')
         
-        # Draw building outlines
         if show_buildings:
             for building in self.buildings:
                 x, y, w, h = building
@@ -113,7 +110,6 @@ class HeatmapGenerator:
                         [y-0.5, y-0.5, y+h-0.5, y+h-0.5, y-0.5],
                         'r-', linewidth=2)
         
-        # Plot points of interest
         if show_points and self.points:
             for label, (x, y) in self.points.items():
                 plt.plot(x, y, 'o', color=point_color, markersize=8)
@@ -194,18 +190,26 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07 , k = 2) ->
     --------
     H : Complex channel gain matrix of shape (K, L)
     """
-    # free_space_path_loss = (4 * np.pi / lam) ** 2 * d ** k
-    # magnitude = np.sqrt(1 / free_space_path_loss)
-    # phase_shift = d * 2 * np.pi / lam
-    # H = np.array([[magnitude * np.exp(1j * phase_shift) for _ in range(L)] for _ in range(K)])
-
-    H = generate_random_channel_matrix(K, L)
+    delta = lam / 2
+    H = np.zeros((K, L), dtype=complex)
+    for i in range(K):
+        for j in range(L):
+            dx = (j - (L-1)/2) * delta 
+            dy = (i - (K-1)/2) * delta
+            dij = np.sqrt(d**2 + (dx-dy)**2) 
+            
+            free_space_path_loss = (4 * np.pi / lam) ** 2 * dij ** k
+            magnitude = np.sqrt(1 / free_space_path_loss)
+            phase_shift = dij * 2 * np.pi / lam
+            
+            H[i,j] = magnitude * np.exp(1j * phase_shift)
     
+    return generate_random_channel_matrix(K, L)
     return H
 
 if __name__ == "__main__":
     N = 16    # * Number of reflecting elements
-    K = 2     # * Number of antennas
+    K = 4     # * Number of antennas
     J = 1     # * Number of receivers
     M = 1     # * Number of RIS surfaces
     eta = 0.9 # * Reflection efficiency
@@ -217,7 +221,7 @@ if __name__ == "__main__":
 
     tx, ty = 10 , 3
     rx, ry = 15, 10
-    px, py = 8, 12
+    px, py = 8, 11
     heatmap.add_point('T', tx, ty)
     heatmap.add_point('R', rx, ry)
     heatmap.add_point('P', px, py)
