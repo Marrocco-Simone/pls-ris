@@ -127,15 +127,12 @@ class HeatmapGenerator:
             """Returns True if line segments AB and CD intersect"""
             return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
 
-        # Check each building
         for bx, by, bw, bh in self.buildings:
-            # Check intersection with each edge of building
             building_corners = [
                 (bx, by), (bx + bw, by),
                 (bx + bw, by + bh), (bx, by + bh)
             ]
             
-            # Check each edge of the building
             for i in range(4):
                 if intersect(
                     (x1, y1), (x2, y2),
@@ -144,35 +141,28 @@ class HeatmapGenerator:
                     return True
         return False
 
-    def calculate_distance_from_points(self, points: List[str] = None) -> np.ndarray:
+    def calculate_distance_from_point(self, point: str) -> np.ndarray:
         """
-        Calculate the minimum distance from each grid cell to the specified points.
+        Calculate the minimum distance from each grid cell to the specified point.
         
         Args:
-            points: List of point labels to consider. If None, use all points.
+            point: point labels to consider
         Returns:
             Grid of distances
         """
-        if points is None:
-            points = list(self.points.keys())
-        
         distances = np.full_like(self.grid, np.inf)
         
         for y in range(self.height):
             for x in range(self.width):
-                if np.isnan(self.grid[y, x]):  # Skip buildings
+                if np.isnan(self.grid[y, x]):
+                    continue
+
+                px, py = self.points[point]
+                if self._line_intersects_building(x, y, px, py):
                     continue
                     
-                min_distance = float('inf')
-                for label in points:
-                    px, py = self.points[label]
-                    if self._line_intersects_building(x, y, px, py):
-                        continue
-
-                    distance = np.sqrt((x - px)**2 + (y - py)**2)
-                    min_distance = min(min_distance, distance)
-                
-                distances[y, x] = min_distance
+                distance = np.sqrt((x - px)**2 + (y - py)**2)                
+                distances[y, x] = distance
                 
         return distances
 
@@ -237,6 +227,10 @@ if __name__ == "__main__":
     # heatmap.apply_function(distance_from_center)
     # heatmap.visualize()
 
-    distances = heatmap.calculate_distance_from_points(['T'])
+    distances = heatmap.calculate_distance_from_point('T')
     heatmap.grid = distances
-    heatmap.visualize(cmap='coolwarm')
+    heatmap.visualize()
+
+    distances = heatmap.calculate_distance_from_point('P')
+    heatmap.grid = distances
+    heatmap.visualize()
