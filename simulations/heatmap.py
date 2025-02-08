@@ -6,7 +6,8 @@ from typing import List, Tuple, Callable
 from diagonalization import (
   generate_random_channel_matrix, 
   calculate_multi_ris_reflection_matrices, 
-  unify_ris_reflection_matrices
+  unify_ris_reflection_matrices,
+  verify_multi_ris_diagonalization
 )
 from secrecy import (
     snr_db_to_sigma_sq,
@@ -101,7 +102,7 @@ class HeatmapGenerator:
         
         masked_grid = np.ma.masked_invalid(self.grid)
         
-        plt.imshow(masked_grid, cmap=cmap, origin='lower')
+        plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=0.0, vmax=1.0)
         plt.colorbar(label='BER')
         
         if show_buildings:
@@ -250,6 +251,9 @@ if __name__ == "__main__":
         )
     P = unify_ris_reflection_matrices(Ps, [])
 
+    diagonalization_results = verify_multi_ris_diagonalization([P], [G], H, [])
+    assert all(diagonalization_results)
+
     snr_db = 10
     sigma_sq = snr_db_to_sigma_sq(snr_db)
     num_symbols=1000
@@ -261,11 +265,26 @@ if __name__ == "__main__":
         F = calculate_mimo_channel_gain(distance_from_P, N, K)
         effective_channel = F @ P @ H
         errors = 0
+        if x == rx and y == ry:
+            assert distance_from_T == np.inf
+            print("Distance from R to T is infinity")
+            assert np.allclose(effective_channel, G @ P @ H)
+            print("Effective channel is equal to G @ P @ H")
+
+            print(f"Distance from P: {distance_from_P}")
+            print(f"Distance from T: {distance_from_T}")
+            print("BER calculation for point R")
+            
         for _ in range(num_symbols):
-            x = np.zeros(K)
-            x[np.random.randint(K)] = 1
-            if (distance_from_T is not np.inf and not simulate_ssk_transmission_direct(x, B, effective_channel, sigma_sq)) or (distance_from_T is np.inf and not simulate_ssk_transmission_reflection(x, effective_channel, sigma_sq)):
-                errors += 1
+            signal = np.zeros(K)
+            signal[np.random.randint(K)] = 1
+
+            if distance_from_T == np.inf:
+                if not simulate_ssk_transmission_reflection(signal, effective_channel, sigma_sq):
+                    errors += 1
+            else:
+                if not simulate_ssk_transmission_direct(signal, B, effective_channel, sigma_sq):
+                    errors += 1
         ber = errors / num_symbols
         return ber
 
