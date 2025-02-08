@@ -174,6 +174,15 @@ class HeatmapGenerator:
                 distances[y, x] = distance
                 
         return distances
+    
+    # static method that given a distance matrix, visualize a heatmap grid of the distances by creating a HeatmapGenerator object
+    @staticmethod
+    def visualize_distance_matrix(distances: np.ndarray, cmap='viridis'):
+        height, width = distances.shape
+        heatmap = HeatmapGenerator(width, height)
+        heatmap.grid = distances
+        heatmap.visualize(cmap=cmap, show_buildings=False, show_points=False)
+    
 
 def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07 , k = 2) -> tuple[np.ndarray, float]:
     """
@@ -261,4 +270,6 @@ if __name__ == "__main__":
         return ber
 
     heatmap.apply_function(calculate_ber_per_point)
+    # HeatmapGenerator.visualize_distance_matrix(distances_from_T)
+    # HeatmapGenerator.visualize_distance_matrix(distances_from_P)
     heatmap.visualize()
