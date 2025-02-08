@@ -12,7 +12,8 @@ from secrecy import (
     snr_db_to_sigma_sq,
 )
 from ber import (
-    simulate_ssk_transmission_reflection
+    simulate_ssk_transmission_reflection,
+    simulate_ssk_transmission_direct
 )
 
 class HeatmapGenerator:
@@ -159,13 +160,13 @@ class HeatmapGenerator:
             Grid of distances
         """
         distances = np.full_like(self.grid, np.inf)
+        px, py = self.points[point]
         
         for y in range(self.height):
             for x in range(self.width):
                 if np.isnan(self.grid[y, x]):
                     continue
 
-                px, py = self.points[point]
                 if self._line_intersects_building(x, y, px, py):
                     continue
                     
@@ -190,8 +191,13 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07 , k = 2) ->
     --------
     H : Complex channel gain matrix of shape (K, L)
     """
+    # return generate_random_channel_matrix(K, L)
     delta = lam / 2
     H = np.zeros((K, L), dtype=complex)
+
+    if d == np.inf:
+        return H
+
     for i in range(K):
         for j in range(L):
             dx = (j - (L-1)/2) * delta 
@@ -202,14 +208,13 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07 , k = 2) ->
             magnitude = np.sqrt(1 / free_space_path_loss)
             phase_shift = dij * 2 * np.pi / lam
             
-            H[i,j] = magnitude * np.exp(1j * phase_shift)
+            H[i,j] = magnitude * np.exp(1j * phase_shift) * 1e4
     
-    return generate_random_channel_matrix(K, L)
     return H
 
 if __name__ == "__main__":
     N = 16    # * Number of reflecting elements
-    K = 4     # * Number of antennas
+    K = 2     # * Number of antennas
     J = 1     # * Number of receivers
     M = 1     # * Number of RIS surfaces
     eta = 0.9 # * Reflection efficiency
@@ -229,8 +234,8 @@ if __name__ == "__main__":
     distances_from_T = heatmap.calculate_distance_from_point('T')
     distances_from_P = heatmap.calculate_distance_from_point('P')
 
-    H = calculate_mimo_channel_gain(distances_from_P[tx, ty], K, N)
-    G = calculate_mimo_channel_gain(distances_from_P[rx, ry], N, K)
+    H = calculate_mimo_channel_gain(distances_from_P[ty, tx], K, N)
+    G = calculate_mimo_channel_gain(distances_from_P[ry, rx], N, K)
     Ps, _ = calculate_multi_ris_reflection_matrices(
             K, N, J, M, [G], H, eta, []
         )
@@ -240,15 +245,17 @@ if __name__ == "__main__":
     sigma_sq = snr_db_to_sigma_sq(snr_db)
     num_symbols=1000
     def calculate_ber_per_point(x: int, y: int) -> float:
-        F = calculate_mimo_channel_gain(distances_from_P[x, y], N, K)
-        if x == rx and y == ry:
-            F = G
+        distance_from_T = distances_from_T[y, x]
+        B = calculate_mimo_channel_gain(distance_from_T, K, K)
+
+        distance_from_P = distances_from_P[y, x]
+        F = calculate_mimo_channel_gain(distance_from_P, N, K)
         effective_channel = F @ P @ H
         errors = 0
         for _ in range(num_symbols):
             x = np.zeros(K)
             x[np.random.randint(K)] = 1
-            if not simulate_ssk_transmission_reflection(x, effective_channel, sigma_sq):
+            if (distance_from_T is not np.inf and not simulate_ssk_transmission_direct(x, B, effective_channel, sigma_sq)) or (distance_from_T is np.inf and not simulate_ssk_transmission_reflection(x, effective_channel, sigma_sq)):
                 errors += 1
         ber = errors / num_symbols
         return ber
