@@ -273,6 +273,10 @@ if __name__ == "__main__":
 
     H = calculate_mimo_channel_gain(distances_from_P[ty, tx], K, N)
     G = calculate_mimo_channel_gain(distances_from_P[ry, rx], N, K)
+    print("Channel matrix from transmitter to RIS")
+    print(np.round(np.abs(H), 2))
+    print("Channel matrix from RIS to receiver")
+    print(np.round(np.abs(G), 2))
     Ps, _ = calculate_multi_ris_reflection_matrices(
             K, N, J, M, [G], H, eta, []
         )
@@ -304,14 +308,20 @@ if __name__ == "__main__":
             print(f"Distance from T: {distance_from_T}")
             print("BER calculation for point R")
             print("Effective channel matrix GPH")
-            print(np.round(np.abs(effective_channel), 2))
+            print(np.round(np.abs(effective_channel), 10))
             print("Example of message transmission")
             print("Signal sent from T")
             signal = np.zeros(K)
             signal[np.random.randint(K)] = 1
             print(np.round(np.abs(signal), 2))
+            signal = effective_channel @ signal
+            print("Signal received at P without noise")
+            print(np.round(np.abs(signal), 2))
+            noise = create_random_noise_vector(K, sigma_sq)
+            print("Noise added at T")
+            print(np.round(np.abs(noise), 2))
             print("Signal received at R")
-            signal = effective_channel @ signal + create_random_noise_vector(K, sigma_sq)
+            signal = signal + noise
             print(np.round(np.abs(signal), 2))
             print("----- End Point R")
             print()
