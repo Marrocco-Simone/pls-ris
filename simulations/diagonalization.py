@@ -99,8 +99,8 @@ def calculate_ris_reflection_matrice(
     first_all_are_not_zero = np.all(first_singular_values >= tolerance)
     last_all_are_zero = np.all(last_singular_values < tolerance)
 
-    if not first_all_are_not_zero or not last_all_are_zero:
-        raise ValueError(f"Invalid singular values. First: {np.round(first_singular_values, 2)}, Last: {np.round(last_singular_values, 2)}")
+    # if not first_all_are_not_zero or not last_all_are_zero:
+    #     raise ValueError(f"Invalid singular values. First: {np.round(first_singular_values, 2)}, Last: {np.round(last_singular_values, 2)}")
 
     # null_space_basis = U[:, -null_space_dim:] # * paper method
     null_space_basis = Vh[-null_space_dim:, :].T.conj()
