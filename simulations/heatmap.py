@@ -11,6 +11,7 @@ from diagonalization import (
 )
 from secrecy import (
     snr_db_to_sigma_sq,
+    create_random_noise_vector
 )
 from ber import (
     simulate_ssk_transmission_reflection,
@@ -185,6 +186,41 @@ class HeatmapGenerator:
         heatmap.visualize(cmap=cmap, show_buildings=False, show_points=False)
     
 
+def calculate_free_space_path_loss(d: float, lam: float, k = 2) -> float:
+    """
+    Calculate free space path loss between transmitter and receiver
+    
+    Parameters:
+    -----------
+    d : Distance between transmitter and receiver in meters
+    lam : Wavelength of the signal
+    k : Exponent of path loss model (default 2)
+        
+    Returns:
+    --------
+    Free space path loss in dB
+    """
+    return (4 * np.pi / lam) ** 2 * d ** k
+
+def calculate_unit_spatial_signature(incidence: float, K: int, delta: float):
+    """
+    Calculate the unit spatial signature vector for a given angle of incidence
+
+    Parameters:
+    -----------
+    incidence : Angle of incidence in radians
+    K : Number of antennas
+    delta : Distance between antennas in meters
+
+    Returns:
+    --------
+    Unit spatial signature vector of shape (K, 1)
+    """
+    directional_cosine = np.cos(incidence)
+    e = np.array([(1 / np.sqrt(K)) * np.exp(-1j * 2 * np.pi * (k - 1) * delta * directional_cosine) for k in range(K)])
+    return e.reshape(-1, 1)
+
+use_random_channel = False
 def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07 , k = 2) -> tuple[np.ndarray, float]:
     """
     Calculate MIMO channel gains between transmitter and receiver
@@ -201,25 +237,17 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07 , k = 2) ->
     --------
     H : Complex channel gain matrix of shape (K, L)
     """
-    # return generate_random_channel_matrix(K, L)
+    if use_random_channel: return generate_random_channel_matrix(K, L)
+    if d == np.inf or d == 0:
+        return np.zeros((K, L), dtype=complex)
+
     delta = lam / 2
-    H = np.zeros((K, L), dtype=complex)
+    a = 1 / np.sqrt(calculate_free_space_path_loss(d, lam))
+    c = a * np.sqrt(L * K) * np.exp(-1j * 2 * np.pi * d / lam)
+    e_r = calculate_unit_spatial_signature(0, K, delta)
+    e_t = calculate_unit_spatial_signature(0, L, delta)
+    H = c * (e_r @ e_t.T.conj())
 
-    if d == np.inf:
-        return H
-
-    for i in range(K):
-        for j in range(L):
-            dx = (j - (L-1)/2) * delta 
-            dy = (i - (K-1)/2) * delta
-            dij = np.sqrt(d**2 + (dx-dy)**2) 
-            
-            free_space_path_loss = (4 * np.pi / lam) ** 2 * dij ** k
-            magnitude = np.sqrt(1 / free_space_path_loss)
-            phase_shift = dij * 2 * np.pi / lam
-            
-            H[i,j] = magnitude * np.exp(1j * phase_shift) * 1e4
-    
     return H
 
 if __name__ == "__main__":
@@ -265,7 +293,9 @@ if __name__ == "__main__":
         F = calculate_mimo_channel_gain(distance_from_P, N, K)
         effective_channel = F @ P @ H
         errors = 0
-        if x == rx and y == ry:
+        if not use_random_channel and x == rx and y == ry:
+            print()
+            print("----- Point R")
             assert distance_from_T == np.inf
             print("Distance from R to T is infinity")
             assert np.allclose(effective_channel, G @ P @ H)
@@ -274,6 +304,18 @@ if __name__ == "__main__":
             print(f"Distance from P: {distance_from_P}")
             print(f"Distance from T: {distance_from_T}")
             print("BER calculation for point R")
+            print("Effective channel matrix GPH")
+            print(np.round(np.abs(effective_channel), 2))
+            print("Example of message transmission")
+            print("Signal sent from T")
+            signal = np.zeros(K)
+            signal[np.random.randint(K)] = 1
+            print(np.round(np.abs(signal), 2))
+            print("Signal received at R")
+            signal = effective_channel @ signal + create_random_noise_vector(K, sigma_sq)
+            print(np.round(np.abs(signal), 2))
+            print("----- End Point R")
+            print()
             
         for _ in range(num_symbols):
             signal = np.zeros(K)
