@@ -311,19 +311,19 @@ def print_low_array(v: np.ndarray) -> str:
 
 if __name__ == "__main__":
     N = 16    # * Number of reflecting elements
-    K = 2     # * Number of antennas
+    K = 4     # * Number of antennas
     J = 1     # * Number of receivers
     M = 1     # * Number of RIS surfaces
     eta = 0.9 # * Reflection efficiency
 
     heatmap = HeatmapGenerator(20, 20)
     
-    heatmap.add_building(0, 12, 8, 8)  
-    heatmap.add_building(12, 0, 8, 8)
+    heatmap.add_building(0, 10, 7, 10)  
+    heatmap.add_building(8, 0, 12, 8)
 
-    tx, ty = 10 , 3
+    tx, ty = 3 , 3
     rx, ry = 15, 10
-    px, py = 8, 11
+    px, py = 7, 9
     heatmap.add_point('T', tx, ty)
     heatmap.add_point('R', rx, ry)
     heatmap.add_point('P', px, py)
