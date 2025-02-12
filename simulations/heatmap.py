@@ -220,10 +220,10 @@ def calculate_unit_spatial_signature(incidence: float, K: int, delta: float):
     e = np.array([(1 / np.sqrt(K)) * np.exp(-1j * 2 * np.pi * (k - 1) * delta * directional_cosine) for k in range(K)])
     return e.reshape(-1, 1)
 
-def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07 , k = 2) -> tuple[np.ndarray, float]:
+def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07, k = 2) -> tuple[np.ndarray, float]:
     """
     Calculate MIMO channel gains between transmitter and receiver
-    
+
     Parameters:
     -----------
     d : Distance between transmitter and receiver in meters
@@ -231,7 +231,7 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07 , k = 2) ->
     K : Number of receive antennas
     lam : Wavelength of the signal (default 5G = 70mm)
     k : Exponent of path loss model (default 2)
-        
+
     Returns:
     --------
     H : Complex channel gain matrix of shape (K, L)
@@ -311,7 +311,7 @@ if __name__ == "__main__":
     assert all(diagonalization_results)
 
     snr_db = 10
-    num_symbols=10000
+    num_symbols=1000
     def calculate_ber_per_point(x: int, y: int) -> float:
         distance_from_T = distances_from_T[y, x]
         B = calculate_mimo_channel_gain(distance_from_T, K, K)
