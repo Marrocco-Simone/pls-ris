@@ -322,7 +322,7 @@ if __name__ == "__main__":
     heatmap.add_building(8, 0, 12, 8)
 
     tx, ty = 3 , 3
-    rx, ry = 15, 10
+    rx, ry = 16, 11
     px, py = 7, 9
     heatmap.add_point('T', tx, ty)
     heatmap.add_point('R', rx, ry)
