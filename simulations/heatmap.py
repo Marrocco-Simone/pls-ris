@@ -220,6 +220,38 @@ def calculate_unit_spatial_signature(incidence: float, K: int, delta: float):
     e = np.array([(1 / np.sqrt(K)) * np.exp(-1j * 2 * np.pi * (k - 1) * delta * directional_cosine) for k in range(K)])
     return e.reshape(-1, 1)
 
+def generate_rice_matrix(L: int, K: int, nu: float, sigma = 1.0) -> np.ndarray:
+    """
+    Generate a Ricean channel matrix for a given number of transmit and receive antennas
+
+    Parameters:
+    -----------
+    L : Number of transmit antennas
+    K : Number of receive antennas
+    nu : Mean magnitude of each matrix element
+    sigma : Standard deviation of the complex Gaussian noise
+
+    Returns:
+    --------
+    Ricean channel matrix of shape (K, L)
+    """
+    return np.random.normal(nu/np.sqrt(2), sigma, (K, L)) + 1j * np.random.normal(nu/np.sqrt(2), sigma, (K, L))
+
+def generate_rice_faiding_channel(L: int, K: int, ratio: float, total_power = 1.0) -> np.ndarray:
+    """
+    Generate a Ricean fading channel matrix for a given number of transmit and receive antennas
+
+    Parameters:
+    -----------
+    L : Number of transmit antennas
+    K : Number of receive antennas
+    ratio : Ratio of directed path compared to the other paths
+    total_power : Total power from all paths
+    """
+    nu = np.sqrt(ratio * total_power / (1 + ratio))
+    sigma = np.sqrt(total_power / (2 * (1 + ratio)))
+    return generate_rice_matrix(L, K, nu, sigma)
+
 def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07, k = 2) -> tuple[np.ndarray, float]:
     """
     Calculate MIMO channel gains between transmitter and receiver
@@ -249,6 +281,9 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07, k = 2) -> 
     e_t = calculate_unit_spatial_signature(0, L, delta)
     H = c * (e_r @ e_t.T.conj())
 
+    ratio = 0.6
+    total_power = 1.0
+    H = H * generate_rice_faiding_channel(L, K, ratio, total_power)
     return H
 
 def calculate_channel_power(H: np.ndarray) -> float:
