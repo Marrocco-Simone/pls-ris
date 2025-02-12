@@ -251,6 +251,29 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07 , k = 2) ->
 
     return H
 
+def calculate_channel_power(H: np.ndarray) -> float:
+    '''
+    Calculate the channel power of a given channel matrix H
+
+    Parameters:
+    -----------
+    H : Complex channel matrix of shape (K, L)
+
+    Returns:
+    --------
+    Channel power
+    '''
+    # return np.linalg.norm(H) ** 2
+    columns, rows = H.shape
+    power = 0
+    for i in range(columns):
+        h_i = H[i, :]
+        power += np.linalg.norm(h_i) ** 2
+    return power / columns
+
+def print_low_array(v: np.ndarray) -> str:
+    return print(np.array2string(np.abs(v), formatter={'float_kind':lambda x: '{:.1e}'.format(x)}))
+
 if __name__ == "__main__":
     N = 16    # * Number of reflecting elements
     K = 2     # * Number of antennas
@@ -276,9 +299,9 @@ if __name__ == "__main__":
     H = calculate_mimo_channel_gain(distances_from_P[ty, tx], K, N)
     G = calculate_mimo_channel_gain(distances_from_P[ry, rx], N, K)
     print("Channel matrix from transmitter to RIS")
-    print(np.round(np.abs(H), 2))
+    print_low_array(H)
     print("Channel matrix from RIS to receiver")
-    print(np.round(np.abs(G), 2))
+    print_low_array(G)
     Ps, _ = calculate_multi_ris_reflection_matrices(
             K, N, J, M, [G], H, eta, []
         )
@@ -288,8 +311,7 @@ if __name__ == "__main__":
     assert all(diagonalization_results)
 
     snr_db = 10
-    sigma_sq = snr_db_to_sigma_sq(snr_db)
-    num_symbols=1000
+    num_symbols=10000
     def calculate_ber_per_point(x: int, y: int) -> float:
         distance_from_T = distances_from_T[y, x]
         B = calculate_mimo_channel_gain(distance_from_T, K, K)
@@ -313,16 +335,17 @@ if __name__ == "__main__":
             print("Signal sent from T")
             signal = np.zeros(K)
             signal[np.random.randint(K)] = 1
-            print(np.round(np.abs(signal), 2))
+            print_low_array(signal)
             signal = effective_channel @ signal
             print("Signal received at P without noise")
-            print(np.round(np.abs(signal), 2))
+            print_low_array(signal)
+            sigma_sq = snr_db_to_sigma_sq(snr_db, calculate_channel_power(effective_channel))
             noise = create_random_noise_vector(K, sigma_sq)
-            print("Noise added at T")
-            print(np.round(np.abs(noise), 2))
+            print("Noise added to signal")
+            print_low_array(noise)
             print("Signal received at R")
             signal = signal + noise
-            print(np.round(np.abs(signal), 2))
+            print_low_array(signal)
             print("----- End Point R")
             print()
             
@@ -330,11 +353,13 @@ if __name__ == "__main__":
             signal = np.zeros(K)
             signal[np.random.randint(K)] = 1
 
+            sigma_sq = snr_db_to_sigma_sq(snr_db, calculate_channel_power(effective_channel))
             if distance_from_T == np.inf:
                 if not simulate_ssk_transmission_reflection(signal, effective_channel, sigma_sq):
                     errors += 1
             else:
-                if not simulate_ssk_transmission_direct(signal, B, effective_channel, sigma_sq):
+                sigma_sq_B = snr_db_to_sigma_sq(snr_db, calculate_channel_power(B))
+                if not simulate_ssk_transmission_direct(signal, B, effective_channel, sigma_sq_B, sigma_sq_effective_channel=sigma_sq):
                     errors += 1
         ber = errors / num_symbols
         return ber
