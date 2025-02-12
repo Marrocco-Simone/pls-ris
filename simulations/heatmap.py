@@ -34,6 +34,20 @@ class HeatmapGenerator:
         # * Dictionary to store points with their labels and coordinates
         self.points = {}
 
+    @staticmethod
+    def copy_from(other: 'HeatmapGenerator') -> 'HeatmapGenerator':
+        """
+        Copy the grid and points from another HeatmapGenerator object.
+        
+        Args:
+            other: Another HeatmapGenerator object
+        """
+        new_heatmap = HeatmapGenerator(other.width, other.height)
+        new_heatmap.grid = np.copy(other.grid)
+        new_heatmap.buildings = other.buildings.copy()
+        new_heatmap.points = other.points.copy()
+        return new_heatmap
+
     def add_building(self, x: int, y: int, width: int, height: int):
         """
         Add a building to the map. Buildings are excluded from the heatmap calculation.
@@ -88,9 +102,9 @@ class HeatmapGenerator:
                 if not np.isnan(self.grid[y, x]):
                     self.grid[y, x] = func(x, y)
 
-    def visualize(self, cmap='viridis', show_buildings=True, show_points=True, point_color='red', label_offset=(0.3, 0.3)):
+    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='red', label_offset=(0.3, 0.3), vmin=None, vmax=None):
         """
-        Visualize the heatmap with optional building outlines and points of interest.
+        Visualize the ber_heatmap with optional building outlines and points of interest.
         
         Args:
             cmap: Matplotlib colormap name
@@ -103,7 +117,7 @@ class HeatmapGenerator:
         
         masked_grid = np.ma.masked_invalid(self.grid)
         
-        plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=0.0, vmax=1.0)
+        plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=vmin, vmax=vmax)
         plt.colorbar(label='BER')
         
         if show_buildings:
@@ -120,7 +134,7 @@ class HeatmapGenerator:
                         color=point_color, fontweight='bold')
         
         plt.grid(True)
-        plt.title('Heatmap of BER of the signal from T reflected by RIS')
+        plt.title(title)
         plt.xlabel('X (meters)')
         plt.ylabel('Y (meters)')
         plt.show()
@@ -177,7 +191,6 @@ class HeatmapGenerator:
                 
         return distances
     
-    # static method that given a distance matrix, visualize a heatmap grid of the distances by creating a HeatmapGenerator object
     @staticmethod
     def visualize_distance_matrix(distances: np.ndarray, cmap='viridis'):
         height, width = distances.shape
@@ -316,20 +329,23 @@ if __name__ == "__main__":
     M = 1     # * Number of RIS surfaces
     eta = 0.9 # * Reflection efficiency
 
-    heatmap = HeatmapGenerator(20, 20)
+    ber_heatmap = HeatmapGenerator(20, 20)
     
-    heatmap.add_building(0, 10, 7, 10)  
-    heatmap.add_building(8, 0, 12, 8)
+    ber_heatmap.add_building(0, 10, 7, 10)  
+    ber_heatmap.add_building(8, 0, 12, 8)
 
     tx, ty = 3 , 3
     rx, ry = 16, 11
     px, py = 7, 9
-    heatmap.add_point('T', tx, ty)
-    heatmap.add_point('R', rx, ry)
-    heatmap.add_point('P', px, py)
+    ber_heatmap.add_point('T', tx, ty)
+    ber_heatmap.add_point('R', rx, ry)
+    ber_heatmap.add_point('P', px, py)
 
-    distances_from_T = heatmap.calculate_distance_from_point('T')
-    distances_from_P = heatmap.calculate_distance_from_point('P')
+    P_power_heatmap = HeatmapGenerator.copy_from(ber_heatmap)
+    T_power_heatmap = HeatmapGenerator.copy_from(ber_heatmap)
+
+    distances_from_T = ber_heatmap.calculate_distance_from_point('T')
+    distances_from_P = ber_heatmap.calculate_distance_from_point('P')
 
     H = calculate_mimo_channel_gain(distances_from_P[ty, tx], K, N)
     G = calculate_mimo_channel_gain(distances_from_P[ry, rx], N, K)
@@ -350,10 +366,13 @@ if __name__ == "__main__":
     def calculate_ber_per_point(x: int, y: int) -> float:
         distance_from_T = distances_from_T[y, x]
         B = calculate_mimo_channel_gain(distance_from_T, K, K)
+        T_power_heatmap.grid[y, x] = calculate_channel_power(B)
 
         distance_from_P = distances_from_P[y, x]
         F = G if x == rx and y == ry else calculate_mimo_channel_gain(distance_from_P, N, K)
         effective_channel = F @ P @ H
+        P_power_heatmap.grid[y, x] = calculate_channel_power(effective_channel)
+        
         errors = 0
         if x == rx and y == ry:
             print()
@@ -383,7 +402,7 @@ if __name__ == "__main__":
             print_low_array(signal)
             print("----- End Point R")
             print()
-            
+      
         for _ in range(num_symbols):
             signal = np.zeros(K)
             signal[np.random.randint(K)] = 1
@@ -399,7 +418,9 @@ if __name__ == "__main__":
         ber = errors / num_symbols
         return ber
 
-    heatmap.apply_function(calculate_ber_per_point)
+    ber_heatmap.apply_function(calculate_ber_per_point)
     # HeatmapGenerator.visualize_distance_matrix(distances_from_T)
     # HeatmapGenerator.visualize_distance_matrix(distances_from_P)
-    heatmap.visualize()
+    ber_heatmap.visualize('Heatmap of BER of the signal from T reflected by RIS P', vmin=0.0, vmax=1.0)
+    # T_power_heatmap.visualize('Heatmap of channel power from T')
+    # P_power_heatmap.visualize('Heatmap of channel power from reflection by P')
