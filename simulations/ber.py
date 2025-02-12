@@ -19,9 +19,14 @@ def simulate_ssk_transmission_reflection(x, effective_channel, sigma_sq):
     
     return detected_idx == true_idx
 
-def simulate_ssk_transmission_direct(x, B, effective_channel, sigma_sq):
-    noise = create_random_noise_vector(len(x), sigma_sq)
-    y = (B + effective_channel) @ x + noise 
+def simulate_ssk_transmission_direct(x, B, effective_channel, sigma_sq_B, sigma_sq_effective_channel):
+    if sigma_sq_effective_channel is None:
+        sigma_sq_effective_channel = sigma_sq_B
+
+    noise_B = create_random_noise_vector(len(x), sigma_sq_B)
+    noise_effective_channel = create_random_noise_vector(len(x), sigma_sq_effective_channel)
+    
+    y = (B + effective_channel) @ x + noise_B + noise_effective_channel
     distances = np.array([np.linalg.norm(y - B[:, i]) for i in range(B.shape[1])])
     detected_idx = np.argmin(distances)
     true_idx = np.argmax(x)

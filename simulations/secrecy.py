@@ -25,9 +25,9 @@ def create_random_noise_vector(K: int, sigma_sq: float) -> np.ndarray:
     
     return mu
 
-def snr_db_to_sigma_sq(snr_db):
+def snr_db_to_sigma_sq(snr_db, path_gain = 1):
     snr_linear = 10**(snr_db/10)
-    sigma_sq = 1/snr_linear
+    sigma_sq = path_gain / snr_linear
     return sigma_sq
 
 ######## Secrecy Rate Calculation ########
