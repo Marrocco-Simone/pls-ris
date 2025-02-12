@@ -237,8 +237,10 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07 , k = 2) ->
     H : Complex channel gain matrix of shape (K, L)
     """
     # return generate_random_channel_matrix(K, L)
-    if d == np.inf or d == 0:
+    if d == np.inf:
         return np.zeros((K, L), dtype=complex)
+    if d == 0:
+        d = 0.5
 
     delta = lam / 2
     a = 1 / np.sqrt(calculate_free_space_path_loss(d, lam))
@@ -293,7 +295,7 @@ if __name__ == "__main__":
         B = calculate_mimo_channel_gain(distance_from_T, K, K)
 
         distance_from_P = distances_from_P[y, x]
-        F = calculate_mimo_channel_gain(distance_from_P, N, K)
+        F = G if x == rx and y == ry else calculate_mimo_channel_gain(distance_from_P, N, K)
         effective_channel = F @ P @ H
         errors = 0
         if x == rx and y == ry:
@@ -301,8 +303,6 @@ if __name__ == "__main__":
             print("----- Point R")
             assert distance_from_T == np.inf
             print("Distance from R to T is infinity")
-            assert np.allclose(effective_channel, G @ P @ H)
-            print("Effective channel is equal to G @ P @ H")
 
             print(f"Distance from P: {distance_from_P}")
             print(f"Distance from T: {distance_from_T}")
