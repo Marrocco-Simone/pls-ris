@@ -265,7 +265,7 @@ def generate_rice_faiding_channel(L: int, K: int, ratio: float, total_power = 1.
     sigma = np.sqrt(total_power / (2 * (1 + ratio)))
     return generate_rice_matrix(L, K, nu, sigma)
 
-def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07, k = 2) -> tuple[np.ndarray, float]:
+def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.08, k = 2) -> tuple[np.ndarray, float]:
     """
     Calculate MIMO channel gains between transmitter and receiver
 
@@ -288,7 +288,7 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.07, k = 2) -> 
         d = 0.5
 
     delta = lam / 2
-    a = 1 / np.sqrt(calculate_free_space_path_loss(d, lam))
+    a = 1 / np.sqrt(calculate_free_space_path_loss(d, lam, k))
     c = a * np.sqrt(L * K) * np.exp(-1j * 2 * np.pi * d / lam)
     e_r = calculate_unit_spatial_signature(0, K, delta)
     e_t = calculate_unit_spatial_signature(0, L, delta)
@@ -324,7 +324,7 @@ def print_low_array(v: np.ndarray) -> str:
 
 if __name__ == "__main__":
     N = 16    # * Number of reflecting elements
-    K = 4     # * Number of antennas
+    K = 2     # * Number of antennas
     J = 1     # * Number of receivers
     M = 1     # * Number of RIS surfaces
     eta = 0.9 # * Reflection efficiency
@@ -353,13 +353,7 @@ if __name__ == "__main__":
     print_low_array(H)
     print("Channel matrix from RIS to receiver")
     print_low_array(G)
-    Ps, _ = calculate_multi_ris_reflection_matrices(
-            K, N, J, M, [G], H, eta, []
-        )
-    P = unify_ris_reflection_matrices(Ps, [])
 
-    diagonalization_results = verify_multi_ris_diagonalization([P], [G], H, [])
-    assert all(diagonalization_results)
 
     snr_db = 10
     num_symbols=1000
@@ -370,6 +364,10 @@ if __name__ == "__main__":
 
         distance_from_P = distances_from_P[y, x]
         F = G if x == rx and y == ry else calculate_mimo_channel_gain(distance_from_P, N, K)
+        Ps, _ = calculate_multi_ris_reflection_matrices(
+            K, N, J, M, [G], H, eta, []
+        )
+        P = unify_ris_reflection_matrices(Ps, [])
         effective_channel = F @ P @ H
         P_power_heatmap.grid[y, x] = calculate_channel_power(effective_channel)
         
@@ -404,6 +402,12 @@ if __name__ == "__main__":
             print()
       
         for _ in range(num_symbols):
+            Ps, _ = calculate_multi_ris_reflection_matrices(
+                K, N, J, M, [G], H, eta, []
+            )
+            P = unify_ris_reflection_matrices(Ps, [])
+            effective_channel = F @ P @ H
+
             signal = np.zeros(K)
             signal[np.random.randint(K)] = 1
 
