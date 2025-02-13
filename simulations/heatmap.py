@@ -322,7 +322,7 @@ def calculate_channel_power(H: np.ndarray) -> float:
 def print_low_array(v: np.ndarray) -> str:
     return print(np.array2string(np.abs(v), formatter={'float_kind':lambda x: '{:.1e}'.format(x)}))
 
-if __name__ == "__main__":
+def one_reflection_simulation():
     N = 16    # * Number of reflecting elements
     K = 4     # * Number of antennas
     J = 1     # * Number of receivers
@@ -391,8 +391,7 @@ if __name__ == "__main__":
         return ber
 
     ber_heatmap.apply_function(calculate_ber_per_point)
-    # HeatmapGenerator.visualize_distance_matrix(distances_from_T)
-    # HeatmapGenerator.visualize_distance_matrix(distances_from_P)
     ber_heatmap.visualize('Heatmap of BER of the signal from T reflected by RIS P', vmin=0.0, vmax=1.0)
-    # T_power_heatmap.visualize('Heatmap of channel power from T')
-    # P_power_heatmap.visualize('Heatmap of channel power from reflection by P')
+
+if __name__ == "__main__":
+    one_reflection_simulation()
