@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import random
+from typing import Callable
 from diagonalization import (
     calculate_multi_ris_reflection_matrices,
     generate_random_channel_matrix
@@ -11,10 +12,7 @@ from secrecy import (
     unify_ris_reflection_matrices
 )
 
-def simulate_ssk_transmission_reflection(K, effective_channel, sigma_sq):
-    if effective_channel.shape != (K, K):
-        raise ValueError(f"Effective channel shape must be ({K}, {K}), but got {effective_channel.shape}")
-    
+def simulate_ssk_transmission(K: int, sigma_sq: float, calculate_detected_id: Callable[[np.ndarray, np.ndarray], float]):
     n_bits = int(np.log2(K))
     if 2**n_bits != K:
         raise ValueError(f"K must be a power of 2, got {K}")
@@ -27,40 +25,35 @@ def simulate_ssk_transmission_reflection(K, effective_channel, sigma_sq):
     x[true_idx] = 1
 
     noise = create_random_noise_vector(K, sigma_sq)
-    y = effective_channel @ x + noise 
-    detected_idx = np.argmax(np.abs(y)**2)
+    detected_idx = calculate_detected_id(x, noise)
     
     detected_bits = np.array(list(bit_mappings[detected_idx])).astype(int)
     errors = np.sum(detected_bits != true_bits)
     return errors / n_bits
 
-def simulate_ssk_transmission_direct(K, B, effective_channel, sigma_sq):
+def simulate_ssk_transmission_reflection(K: int, effective_channel: np.ndarray, sigma_sq: float):
+    if effective_channel.shape != (K, K):
+        raise ValueError(f"Reflection: Effective channel shape must be ({K}, {K}), but got {effective_channel.shape}")
+
+    def calculate_detected_id(x: np.ndarray, noise: np.ndarray):
+        y = effective_channel @ x + noise
+        return np.argmax(np.abs(y)**2)
+    
+    return simulate_ssk_transmission(K, sigma_sq, calculate_detected_id)
+
+def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: np.ndarray, sigma_sq: float):
     if B.shape != (K, K):
-        raise ValueError(f"B shape must be ({K}, {K}), but got {B.shape}")
+        raise ValueError(f"Direct: B shape must be ({K}, {K}), but got {B.shape}")
     
     if effective_channel.shape != (K, K):
-        raise ValueError(f"Effective channel shape must be ({K}, {K}), but got {effective_channel.shape}")
-    
-    n_bits = int(np.log2(K))
-    if 2**n_bits != K:
-        raise ValueError(f"K must be a power of 2, got {K}")
-    bit_mappings = np.array([format(i, f'0{n_bits}b') for i in range(K)])    
-    true_bits = np.random.randint(0, 2, n_bits)
-    true_bits_str = ''.join(map(str, true_bits))
-    true_idx = np.where(bit_mappings == true_bits_str)[0][0]
+        raise ValueError(f"Direct: Effective channel shape must be ({K}, {K}), but got {effective_channel.shape}")
 
-    x = np.zeros(K)
-    x[true_idx] = 1
-
-    noise = create_random_noise_vector(K, sigma_sq)
+    def calculate_detected_id(x: np.ndarray, noise: np.ndarray):
+        y = (B + effective_channel) @ x + noise
+        distances = np.array([np.linalg.norm(y - B[:, i]) for i in range(B.shape[1])])
+        return np.argmin(distances)
     
-    y = (B + effective_channel) @ x + noise
-    distances = np.array([np.linalg.norm(y - B[:, i]) for i in range(B.shape[1])])
-    detected_idx = np.argmin(distances)
-    
-    detected_bits = np.array(list(bit_mappings[detected_idx])).astype(int)
-    errors = np.sum(detected_bits != true_bits)
-    return errors / n_bits
+    return simulate_ssk_transmission(K, sigma_sq, calculate_detected_id)
 
 def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
     sigma_sq = snr_db_to_sigma_sq(snr_db)
