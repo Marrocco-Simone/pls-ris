@@ -370,10 +370,6 @@ if __name__ == "__main__":
 
         distance_from_P = distances_from_P[y, x]
         F = G if x == rx and y == ry else calculate_mimo_channel_gain(distance_from_P, N, K)
-        Ps, _ = calculate_multi_ris_reflection_matrices(
-            K, N, J, M, [G], H, eta, []
-        )
-        P = unify_ris_reflection_matrices(Ps, [])
         effective_channel = F @ P @ H
         P_power_heatmap.grid[y, x] = calculate_channel_power(effective_channel)
         
