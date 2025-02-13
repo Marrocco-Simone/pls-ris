@@ -11,7 +11,13 @@ from secrecy import (
     unify_ris_reflection_matrices
 )
 
-def simulate_ssk_transmission_reflection(x, effective_channel, sigma_sq):
+def simulate_ssk_transmission_reflection(K, effective_channel, sigma_sq):
+    if effective_channel.shape != (K, K):
+        raise ValueError(f"Effective channel shape must be ({K}, {K}), but got {effective_channel.shape}")
+
+    x = np.zeros(K)
+    x[np.random.randint(K)] = 1
+
     noise = create_random_noise_vector(len(x), sigma_sq)
     y = effective_channel @ x + noise 
     detected_idx = np.argmax(np.abs(y)**2)
@@ -19,7 +25,16 @@ def simulate_ssk_transmission_reflection(x, effective_channel, sigma_sq):
     
     return detected_idx == true_idx
 
-def simulate_ssk_transmission_direct(x, B, effective_channel, sigma_sq_B, sigma_sq_effective_channel):
+def simulate_ssk_transmission_direct(K, B, effective_channel, sigma_sq_B, sigma_sq_effective_channel):
+    if B.shape != (K, K):
+        raise ValueError(f"B shape must be ({K}, {K}), but got {B.shape}")
+    
+    if effective_channel.shape != (K, K):
+        raise ValueError(f"Effective channel shape must be ({K}, {K}), but got {effective_channel.shape}")
+
+    x = np.zeros(K)
+    x[np.random.randint(K)] = 1
+
     if sigma_sq_effective_channel is None:
         sigma_sq_effective_channel = sigma_sq_B
 
@@ -54,9 +69,6 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
         )
         P = unify_ris_reflection_matrices(Ps, Cs)
 
-        x = np.zeros(K)
-        x[np.random.randint(K)] = 1
-
         effective_channel_receiver = G @ P @ H
         effective_channel_eavesdropper = np.zeros((K, K), dtype=np.complex128) # F @ P @ H
         for i in range(M):
@@ -64,13 +76,13 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
             effective_channel_eavesdropper += Fs[i] @ P_to_i @ H
         effective_channel_direct = np.zeros((K, K))
 
-        if not simulate_ssk_transmission_reflection(x, effective_channel_receiver, sigma_sq):
+        if not simulate_ssk_transmission_reflection(K, effective_channel_receiver, sigma_sq):
             errors_receiver += 1
         
-        if not simulate_ssk_transmission_direct(x, B, effective_channel_eavesdropper, sigma_sq):
+        if not simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper, sigma_sq):
             errors_eavesdropper += 1
 
-        if not simulate_ssk_transmission_direct(x, B, effective_channel_direct, sigma_sq):
+        if not simulate_ssk_transmission_direct(K, B, effective_channel_direct, sigma_sq):
             errors_direct += 1
 
         H2 = generate_random_channel_matrix(N, K)
@@ -92,9 +104,9 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
         effective_channel_receiver_double = effective_channel_receiver + effective_channel_receiver_2
         effective_channel_eavesdropper_double = effective_channel_eavesdropper + effective_channel_eavesdropper_2
 
-        if not simulate_ssk_transmission_reflection(x, effective_channel_receiver_double, sigma_sq):
+        if not simulate_ssk_transmission_reflection(K, effective_channel_receiver_double, sigma_sq):
             errors_receiver_double += 1
-        if not simulate_ssk_transmission_direct(x, B, effective_channel_eavesdropper_double, sigma_sq):
+        if not simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper_double, sigma_sq):
             errors_eavesdropper_double += 1
     
     result_receiver = errors_receiver / num_symbols
