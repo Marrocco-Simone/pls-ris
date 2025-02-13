@@ -324,7 +324,7 @@ def print_low_array(v: np.ndarray) -> str:
 
 if __name__ == "__main__":
     N = 16    # * Number of reflecting elements
-    K = 2     # * Number of antennas
+    K = 4     # * Number of antennas
     J = 1     # * Number of receivers
     M = 1     # * Number of RIS surfaces
     eta = 0.9 # * Reflection efficiency
