@@ -349,11 +349,17 @@ if __name__ == "__main__":
 
     H = calculate_mimo_channel_gain(distances_from_P[ty, tx], K, N)
     G = calculate_mimo_channel_gain(distances_from_P[ry, rx], N, K)
-    print("Channel matrix from transmitter to RIS")
-    print_low_array(H)
-    print("Channel matrix from RIS to receiver")
-    print_low_array(G)
-
+    print(f"Channel matrix from transmitter to RIS: Power {calculate_channel_power(H):.1e}")
+    # print_low_array(H)
+    print(f"Channel matrix from RIS to receiver: Power {calculate_channel_power(G):.1e}")
+    # print_low_array(G)
+    Ps, _ = calculate_multi_ris_reflection_matrices(
+        K, N, J, M, [G], H, eta, []
+    )
+    P = unify_ris_reflection_matrices(Ps, [])
+    print(f"Reflection matrix: Power {calculate_channel_power(P):.1e}")
+    print(f"Effective channel matrix: Power {calculate_channel_power(G @ P @ H):.1e}")
+    print()
 
     snr_db = 10
     num_symbols=1000
@@ -372,35 +378,6 @@ if __name__ == "__main__":
         P_power_heatmap.grid[y, x] = calculate_channel_power(effective_channel)
         
         errors = 0
-        if x == rx and y == ry:
-            print()
-            print("----- Point R")
-            assert distance_from_T == np.inf
-            print("Distance from R to T is infinity")
-
-            print(f"Distance from P: {distance_from_P}")
-            print(f"Distance from T: {distance_from_T}")
-            print("BER calculation for point R")
-            print("Effective channel matrix GPH")
-            print(np.round(np.abs(effective_channel), 10))
-            print("Example of message transmission")
-            print("Signal sent from T")
-            signal = np.zeros(K)
-            signal[np.random.randint(K)] = 1
-            print_low_array(signal)
-            signal = effective_channel @ signal
-            print("Signal received at P without noise")
-            print_low_array(signal)
-            sigma_sq = snr_db_to_sigma_sq(snr_db, calculate_channel_power(effective_channel))
-            noise = create_random_noise_vector(K, sigma_sq)
-            print("Noise added to signal")
-            print_low_array(noise)
-            print("Signal received at R")
-            signal = signal + noise
-            print_low_array(signal)
-            print("----- End Point R")
-            print()
-      
         for _ in range(num_symbols):
             Ps, _ = calculate_multi_ris_reflection_matrices(
                 K, N, J, M, [G], H, eta, []
