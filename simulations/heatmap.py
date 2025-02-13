@@ -408,14 +408,12 @@ if __name__ == "__main__":
             P = unify_ris_reflection_matrices(Ps, [])
             effective_channel = F @ P @ H
 
-            sigma_sq = snr_db_to_sigma_sq(snr_db, calculate_channel_power(effective_channel))
+            power = calculate_channel_power(B) if distance_from_T != np.inf else calculate_channel_power(effective_channel)
+            sigma_sq = snr_db_to_sigma_sq(snr_db, power)
             if distance_from_T == np.inf:
-                if not simulate_ssk_transmission_reflection(K, effective_channel, sigma_sq):
-                    errors += 1
+                errors += simulate_ssk_transmission_reflection(K, effective_channel, sigma_sq)
             else:
-                sigma_sq_B = snr_db_to_sigma_sq(snr_db, calculate_channel_power(B))
-                if not simulate_ssk_transmission_direct(K, B, effective_channel, sigma_sq_B, sigma_sq_effective_channel=sigma_sq):
-                    errors += 1
+                errors += simulate_ssk_transmission_direct(K, B, effective_channel, sigma_sq)
         ber = errors / num_symbols
         return ber
 
