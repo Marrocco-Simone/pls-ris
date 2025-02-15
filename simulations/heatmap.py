@@ -212,7 +212,7 @@ def calculate_free_space_path_loss(d: float, lam: float, k = 2) -> float:
     --------
     Free space path loss in dB
     """
-    return (4 * np.pi / lam) ** 2 * d ** k
+    return 1 / np.sqrt((4 * np.pi / lam) ** 2 * d ** k)
 
 def calculate_unit_spatial_signature(incidence: float, K: int, delta: float):
     """
@@ -287,7 +287,7 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.08, k = 2) -> 
         d = 0.5
 
     delta = lam / 2
-    a = 1 / np.sqrt(calculate_free_space_path_loss(d, lam, k))
+    a = calculate_free_space_path_loss(d, lam, k)
     c = a * np.sqrt(L * K) * np.exp(-1j * 2 * np.pi * d / lam)
     e_r = calculate_unit_spatial_signature(0, K, delta)
     e_t = calculate_unit_spatial_signature(0, L, delta)
