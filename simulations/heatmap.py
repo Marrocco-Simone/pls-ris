@@ -322,7 +322,7 @@ def print_low_array(v: np.ndarray) -> str:
     return print(np.array2string(np.abs(v), formatter={'float_kind':lambda x: '{:.1e}'.format(x)}))
 
 def one_reflection_simulation():
-    N = 16    # * Number of reflecting elements
+    N = 25    # * Number of reflecting elements
     K = 4     # * Number of antennas
     eta = 0.9 # * Reflection efficiency
 
@@ -332,30 +332,28 @@ def one_reflection_simulation():
     ber_heatmap.add_building(8, 0, 12, 8)
 
     tx, ty = 3 , 3
-    rx, ry = 16, 11
     px, py = 7, 9
     ber_heatmap.add_point('T', tx, ty)
-    ber_heatmap.add_point('R', rx, ry)
     ber_heatmap.add_point('P', px, py)
 
-    P_power_heatmap = HeatmapGenerator.copy_from(ber_heatmap)
-    T_power_heatmap = HeatmapGenerator.copy_from(ber_heatmap)
+    rs = [(16, 11), (8, 18)]
+    for i, (rx, ry) in enumerate(rs):
+        ber_heatmap.add_point(f'R{i+1}', rx, ry)
+    J = len(rs)
 
     distances_from_T = ber_heatmap.calculate_distance_from_point('T')
     distances_from_P = ber_heatmap.calculate_distance_from_point('P')
 
     H = calculate_mimo_channel_gain(distances_from_P[ty, tx], K, N)
-    G = calculate_mimo_channel_gain(distances_from_P[ry, rx], N, K)
+    Gs = [calculate_mimo_channel_gain(distances_from_P[ry, rx], N, K) for ry, rx in rs]
     print(f"Channel matrix from transmitter to RIS: Power {calculate_channel_power(H):.1e}")
-    # print_low_array(H)
-    print(f"Channel matrix from RIS to receiver: Power {calculate_channel_power(G):.1e}")
-    # print_low_array(G)
+    print(f"Channel matrix from RIS to receiver: Power {calculate_channel_power(Gs[0]):.1e}")
     Ps, _ = calculate_multi_ris_reflection_matrices(
-        K, N, 1, 1, [G], H, eta, []
+        K, N, J, 1, Gs, H, eta, []
     )
     P = unify_ris_reflection_matrices(Ps, [])
     print(f"Reflection matrix: Power {calculate_channel_power(P):.1e}")
-    print(f"Effective channel matrix: Power {calculate_channel_power(G @ P @ H):.1e}")
+    print(f"Effective channel matrix: Power {calculate_channel_power(Gs[0] @ P @ H):.1e}")
     print()
 
     snr_db = 10
@@ -363,17 +361,17 @@ def one_reflection_simulation():
     def calculate_ber_per_point(x: int, y: int) -> float:
         distance_from_T = distances_from_T[y, x]
         B = calculate_mimo_channel_gain(distance_from_T, K, K)
-        T_power_heatmap.grid[y, x] = calculate_channel_power(B)
 
         distance_from_P = distances_from_P[y, x]
-        F = G if x == rx and y == ry else calculate_mimo_channel_gain(distance_from_P, N, K)
-        effective_channel = F @ P @ H
-        P_power_heatmap.grid[y, x] = calculate_channel_power(effective_channel)
+        F = calculate_mimo_channel_gain(distance_from_P, N, K)
+        for i in range(J):
+            if x == rs[i][0] and y == rs[i][1]:
+                F = Gs[i]
         
         errors = 0
         for _ in range(num_symbols):
             Ps, _ = calculate_multi_ris_reflection_matrices(
-                K, N, 1, 1, [G], H, eta, []
+                K, N, J, 1, Gs, H, eta, []
             )
             P = unify_ris_reflection_matrices(Ps, [])
             effective_channel = F @ P @ H
@@ -388,7 +386,7 @@ def one_reflection_simulation():
         return ber
 
     ber_heatmap.apply_function(calculate_ber_per_point)
-    ber_heatmap.visualize('Heatmap of BER of the signal from T reflected by RIS P', vmin=0.0, vmax=1.0)
+    ber_heatmap.visualize('Heatmap of BER of the signal from T reflected by RIS P', vmin=0.0)
 
 def multiple_reflection_simulation():
     N = 16    # * Number of reflecting elements
@@ -499,5 +497,5 @@ def multiple_reflection_simulation():
     ber_heatmap.visualize('Heatmap of BER of the signal from T reflected by RIS P', vmin=0.0, vmax=1.0)
 
 if __name__ == "__main__":
-    # one_reflection_simulation()
-    multiple_reflection_simulation()
+    one_reflection_simulation()
+    # multiple_reflection_simulation()
