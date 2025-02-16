@@ -18,6 +18,8 @@ from ber import (
     simulate_ssk_transmission_direct
 )
 
+num_symbols=100
+
 class HeatmapGenerator:
     def __init__(self, width: int, height: int):
         """
@@ -198,20 +200,21 @@ class HeatmapGenerator:
         heatmap.grid = distances
         heatmap.visualize('Distances map', cmap=cmap, show_buildings=False, show_points=False)    
 
-def calculate_free_space_path_loss(d: float, lam: float, k = 2) -> float:
+def calculate_free_space_path_loss(d: float, lam = 0.08, k = 2) -> float:
     """
     Calculate free space path loss between transmitter and receiver
     
     Parameters:
     -----------
     d : Distance between transmitter and receiver in meters
-    lam : Wavelength of the signal
+    lam : Wavelength of the signal (default 5G = 80mm)
     k : Exponent of path loss model (default 2)
         
     Returns:
     --------
     Free space path loss in dB
     """
+    if d == 0: d = 0.01
     return 1 / np.sqrt((4 * np.pi / lam) ** 2 * d ** k)
 
 def calculate_unit_spatial_signature(incidence: float, K: int, delta: float):
@@ -273,7 +276,7 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.08, k = 2) -> 
     d : Distance between transmitter and receiver in meters
     L : Number of transmit antennas
     K : Number of receive antennas
-    lam : Wavelength of the signal (default 5G = 70mm)
+    lam : Wavelength of the signal (default 5G = 80mm)
     k : Exponent of path loss model (default 2)
 
     Returns:
@@ -287,8 +290,9 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.08, k = 2) -> 
         d = 0.5
 
     delta = lam / 2
-    a = calculate_free_space_path_loss(d, lam, k)
-    c = a * np.sqrt(L * K) * np.exp(-1j * 2 * np.pi * d / lam)
+    # a = calculate_free_space_path_loss(d, lam, k)
+    c = np.sqrt(L * K) * np.exp(-1j * 2 * np.pi * d / lam)
+    # c = a * c
     e_r = calculate_unit_spatial_signature(0, K, delta)
     e_t = calculate_unit_spatial_signature(0, L, delta)
     H = c * (e_r @ e_t.T.conj())
@@ -343,6 +347,7 @@ def one_reflection_simulation():
 
     distances_from_T = ber_heatmap.calculate_distance_from_point('T')
     distances_from_P = ber_heatmap.calculate_distance_from_point('P')
+    distance_T_P = distances_from_P[ty, tx]
 
     H = calculate_mimo_channel_gain(distances_from_P[ty, tx], K, N)
     Gs = [calculate_mimo_channel_gain(distances_from_P[ry, rx], N, K) for ry, rx in rs]
@@ -357,10 +362,9 @@ def one_reflection_simulation():
     print()
 
     snr_db = 10
-    num_symbols=1000
     def calculate_ber_per_point(x: int, y: int) -> float:
         distance_from_T = distances_from_T[y, x]
-        B = calculate_mimo_channel_gain(distance_from_T, K, K)
+        B = calculate_mimo_channel_gain(distance_from_T, K, K) * calculate_free_space_path_loss(distance_from_T)
 
         distance_from_P = distances_from_P[y, x]
         F = calculate_mimo_channel_gain(distance_from_P, N, K)
@@ -374,7 +378,7 @@ def one_reflection_simulation():
                 K, N, J, 1, Gs, H, eta, []
             )
             P = unify_ris_reflection_matrices(Ps, [])
-            effective_channel = F @ P @ H
+            effective_channel = F @ P @ H * calculate_free_space_path_loss(distance_T_P + distance_from_P)
 
             power = calculate_channel_power(B) if distance_from_T != np.inf else calculate_channel_power(effective_channel)
             sigma_sq = snr_db_to_sigma_sq(snr_db, power)
@@ -396,9 +400,10 @@ def multiple_reflection_simulation():
     ber_heatmap = HeatmapGenerator(20, 20)
     
     ber_heatmap.add_building(0, 10, 10, 10)  
-    ber_heatmap.add_building(5, 0, 15, 8)
+    # ber_heatmap.add_building(5, 0, 15, 8)
+    ber_heatmap.add_building(2, 4, 7, 1)
 
-    tx, ty = 1 , 3
+    tx, ty = 1 , 1
     ber_heatmap.add_point('T', tx, ty)
 
     ps = [(0, 9), (10, 9)]
@@ -417,6 +422,9 @@ def multiple_reflection_simulation():
     H = calculate_mimo_channel_gain(distances_from_Ps[0][ty, tx], K, N)
     Gs = [calculate_mimo_channel_gain(distances_from_Ps[1][ry, rx], N, K) for ry, rx in rs]
     C = calculate_mimo_channel_gain(distances_from_Ps[0][ps[1][1], ps[1][0]], N, N)
+
+    distance_T_P1 = distances_from_Ps[0][ty, tx]
+    distance_P1_P2 = distances_from_Ps[1][ps[0][1], ps[0][0]]
     
     print(f"Channel matrix from transmitter to RIS: Power {calculate_channel_power(H):.1e}")
     print(f"Channel matrix from RIS to receiver: Power {calculate_channel_power(Gs[0]):.1e}")
@@ -429,10 +437,9 @@ def multiple_reflection_simulation():
     print()
 
     snr_db = 10
-    num_symbols=100
     def calculate_ber_per_point(x: int, y: int) -> float:
         distance_from_T = distances_from_T[y, x]
-        B = calculate_mimo_channel_gain(distance_from_T, K, K)
+        B = calculate_mimo_channel_gain(distance_from_T, K, K)  * calculate_free_space_path_loss(distance_from_T)
 
         distance_from_Ps = [distances_from_Ps[i][y, x] for i in range(M)]
         Fs = [calculate_mimo_channel_gain(distance_from_Ps[i], N, K) for i in range(M)]
@@ -446,7 +453,10 @@ def multiple_reflection_simulation():
                 K, N, J, M, Gs, H, eta, [C]
             )
             P = unify_ris_reflection_matrices(Ps, [C])
-            effective_channel = Fs[0] @ Ps[0] @ H + Fs[1] @ P @ H
+            effective_channel = (
+                Fs[0] @ Ps[0] @ H  * calculate_free_space_path_loss(distance_from_Ps[0] + distance_T_P1) + 
+                Fs[1] @ P @ H  * calculate_free_space_path_loss(distance_from_Ps[1] + distance_T_P1 + distance_P1_P2)
+            )
 
             power = calculate_channel_power(B) if distance_from_T != np.inf else calculate_channel_power(effective_channel)
             sigma_sq = snr_db_to_sigma_sq(snr_db, power)
@@ -461,5 +471,5 @@ def multiple_reflection_simulation():
     ber_heatmap.visualize('Heatmap of BER of the signal from T reflected by RIS P', vmin=0.0)
 
 if __name__ == "__main__":
-    # one_reflection_simulation()
+    one_reflection_simulation()
     multiple_reflection_simulation()
