@@ -146,7 +146,9 @@ class HeatmapGenerator:
         plt.title(title)
         plt.xlabel('X (meters)')
         plt.ylabel('Y (meters)')
-        plt.show()
+        # plt.show()
+        plt.savefig(f"./simulations/results/{title}.png", dpi=300, format='png')
+        print(f"Saved {title}.png\n\n")
 
     def _line_intersects_building(self, x1: float, y1: float, x2: float, y2: float) -> bool:
         """
@@ -397,7 +399,7 @@ def one_reflection_simulation():
         return ber
 
     ber_heatmap.apply_function(calculate_ber_per_point)
-    ber_heatmap.visualize('Heatmap of BER of the signal from T reflected by RIS P', vmin=0.0)
+    ber_heatmap.visualize(f'Heatmap of BER of the signal from T and reflected by RIS P (K = {K})', vmin=0.0)
 
 def multiple_reflection_simulation():
     N = 16    # * Number of reflecting elements
@@ -475,7 +477,7 @@ def multiple_reflection_simulation():
         return ber
 
     ber_heatmap.apply_function(calculate_ber_per_point)
-    ber_heatmap.visualize('Heatmap of BER of the signal from T reflected by RIS P', vmin=0.0)
+    ber_heatmap.visualize(f'Heatmap of BER of the signal from T and reflected by RISs P1, P2 (K = {K})', vmin=0.0)
 
 if __name__ == "__main__":
     one_reflection_simulation()
