@@ -18,7 +18,7 @@ from ber import (
     simulate_ssk_transmission_direct
 )
 
-num_symbols=100
+num_symbols=1000
 
 class HeatmapGenerator:
     def __init__(self, width: int, height: int):
@@ -134,6 +134,13 @@ class HeatmapGenerator:
                 plt.plot(x, y, 'o', color=point_color, markersize=8)
                 plt.text(x + label_offset[0], y + label_offset[1], label,
                         color=point_color, fontweight='bold')
+            # * plot a line between all points if the lines is not crossing a building
+            for label1, (x1, y1) in self.points.items():
+                for label2, (x2, y2) in self.points.items():
+                    if label1 == label2: continue
+                    if label1[0] == 'R' and label2[0] == 'R': continue
+                    if self._line_intersects_building(x1, y1, x2, y2): continue
+                    plt.plot([x1, x2], [y1, y2], 'k--', alpha=0.5)
         
         plt.grid(True)
         plt.title(title)
