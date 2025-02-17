@@ -54,13 +54,5 @@ __pycache__/
 simulations/results/*.png
 
 # Pdf I need
-!Reconfigurable_Intelligent_Surface_Reflection_Design_Against_Passive_Eavesdropping.pdf
-!Space_shift_keying_modulation_for_MIMO_channels.pdf
-!Cascaded Channel_Estimation_for_Large_Intelligent_Metasurface_Assisted_Massive_MIMO.pdf
-!Linear_Precoding_for_Finite-Alphabet_Signaling_Over_MIMOME_Wiretap_Channels.pdf
-!Fundamentals_Wireless_Communication_chapter7.pdf
-!Fundamentals_Wireless_Communication_complete.pdf
-!An_Improved_Path-Loss_Model_for_Reconfigurable-Intelligent-Surface-Aided_Wireless_Communications_and_Experimental_Validation.pdf
-!Generalized_space_shift_keying_modulation_for_MIMO_channels.pdf
-!Path_Loss_in_Reconfigurable_Intelligent_Surface-Enabled_Channels.pdf
+!documents/*.pdf
 !frontespizio-tesi-lm-disi-word_signed_signed.pdf
