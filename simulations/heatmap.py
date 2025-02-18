@@ -104,7 +104,7 @@ class HeatmapGenerator:
                 if not np.isnan(self.grid[y, x]):
                     self.grid[y, x] = func(x, y)
 
-    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='red', label_offset=(0.3, 0.3), vmin=None, vmax=None):
+    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='red', label_offset=(0.3, 0.3), vmin=None, vmax=None, log_scale=False):
         """
         Visualize the ber_heatmap with optional building outlines and points of interest.
         
@@ -117,7 +117,8 @@ class HeatmapGenerator:
         """
         plt.figure(figsize=(10, 8))
         
-        masked_grid = np.ma.masked_invalid(self.grid)
+        masked_grid = np.ma.masked_invalid(self.grid if not log_scale else np.log10(self.grid))
+        if log_scale: title += ' (log scale)'
         
         plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=vmin, vmax=vmax)
         plt.colorbar(label='BER')
@@ -456,6 +457,7 @@ def ber_heatmap_reflection_simulation(
     ber_heatmap.apply_function(calculate_ber_per_point)
     title = f'Heatmap of BER with {M} RIS(s) (K = {K})'
     ber_heatmap.visualize(title, vmin=0.0, vmax=1.0)
+    ber_heatmap.visualize(title, log_scale=True)
 
 def main():
     # * One reflection simulation
