@@ -131,6 +131,7 @@ class HeatmapGenerator:
         
         if show_points and self.points:
             for label, (x, y) in self.points.items():
+                if label[0] == 'R': label += f" ({self.grid[int(y), int(x)]:.2f})"
                 plt.plot(x, y, 'o', color=point_color, markersize=8)
                 plt.text(x + label_offset[0], y + label_offset[1], label,
                         color=point_color, fontweight='bold')
@@ -345,7 +346,7 @@ def ber_heatmap_reflection_simulation(
     K: int = 2,
     eta: float = 0.9,
     snr_db: int = 10,
-    num_symbols: int = 1000
+    num_symbols: int = 100
 ):
     """
     Run RIS reflection simulation with given parameters
