@@ -454,7 +454,7 @@ def ber_heatmap_reflection_simulation(
 
     ber_heatmap.apply_function(calculate_ber_per_point)
     title = f'Heatmap of BER with {M} RIS(s) (K = {K})'
-    ber_heatmap.visualize(title, vmin=0.0)
+    ber_heatmap.visualize(title, vmin=0.0, vmax=1.0)
 
 def main():
     # * One reflection simulation
