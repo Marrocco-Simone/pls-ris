@@ -21,17 +21,22 @@ from ber import (
 num_symbols=10000
 
 class HeatmapGenerator:
-    def __init__(self, width: int, height: int):
+    def __init__(self, width: int, height: int, resolution: float = 0.5):
         """
         Initialize the heatmap generator with given dimensions.
-        
         Args:
             width: Width of the area in meters
             height: Height of the area in meters
+            resolution: Resolution in meters per grid cell (e.g., 0.5 for half-meter resolution)
         """
         self.width = width
         self.height = height
-        self.grid = np.zeros((height, width))
+        self.resolution = resolution
+        
+        # * Calculate grid dimensions based on resolution
+        self.grid_width = int(width / resolution)
+        self.grid_height = int(height / resolution)
+        self.grid = np.zeros((self.grid_height, self.grid_width))
         self.buildings = []
         # * Dictionary to store points with their labels and coordinates
         self.points = {}
@@ -44,11 +49,25 @@ class HeatmapGenerator:
         Args:
             other: Another HeatmapGenerator object
         """
-        new_heatmap = HeatmapGenerator(other.width, other.height)
+        new_heatmap = HeatmapGenerator(other.width, other.height, other.resolution)
         new_heatmap.grid = np.copy(other.grid)
         new_heatmap.buildings = other.buildings.copy()
         new_heatmap.points = other.points.copy()
         return new_heatmap
+    
+    def _meters_to_grid(self, x: float, y: float) -> Tuple[int, int]:
+        """Convert meter coordinates to grid coordinates"""
+        return (
+            int(x / self.resolution),
+            int(y / self.resolution)
+        )
+
+    def _grid_to_meters(self, grid_x: int, grid_y: int) -> Tuple[float, float]:
+        """Convert grid coordinates to meter coordinates"""
+        return (
+            grid_x * self.resolution,
+            grid_y * self.resolution
+        )
 
     def add_building(self, x: int, y: int, width: int, height: int):
         """
@@ -61,8 +80,12 @@ class HeatmapGenerator:
             height: Height of the building in meters
         """
         self.buildings.append((x, y, width, height))
+        grid_x, grid_y = self._meters_to_grid(x, y)
+        grid_width = int(width / self.resolution)
+        grid_height = int(height / self.resolution)
+        
         # * Mark building area as NaN to exclude from heatmap
-        self.grid[y:y+height, x:x+width] = np.nan
+        self.grid[grid_y:grid_y+grid_height, grid_x:grid_x+grid_width] = np.nan
 
     def add_point(self, label: str, x: float, y: float):
         """
@@ -98,13 +121,15 @@ class HeatmapGenerator:
         Args:
             func: Function that takes (x, y) coordinates and returns a value
         """
-        for y in range(self.height):
-            print(f"Processing row {y+1}/{self.height}")
-            for x in range(self.width):
-                if not np.isnan(self.grid[y, x]):
-                    self.grid[y, x] = func(x, y)
+        for grid_y in range(self.grid_height):
+            print(f"Processing row {grid_y * self.resolution}/{self.grid_height * self.resolution}")
+            for grid_x in range(self.grid_width):
+                if not np.isnan(self.grid[grid_y, grid_x]):
+                    # * Convert grid coordinates to meters for the function
+                    x, y = self._grid_to_meters(grid_x, grid_y)
+                    self.grid[grid_y, grid_x] = func(x, y)
 
-    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='red', label_offset=(0.3, 0.3), vmin=None, vmax=None, log_scale=False, label='BER'):
+    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='red', label_offset=(0.3, 0.3), vmin=None, vmax=None, log_scale=False, label='BER', show_receivers_values=False):
         """
         Visualize the ber_heatmap with optional building outlines and points of interest.
         
@@ -131,19 +156,26 @@ class HeatmapGenerator:
         else:
             masked_grid = np.ma.masked_invalid(self.grid)
         
-        plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=vmin, vmax=vmax)
+        extent = [0, self.width, 0, self.height]
+        plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=vmin, vmax=vmax, extent=extent)
         plt.colorbar(label=label)
         
         if show_buildings:
             for building in self.buildings:
                 x, y, w, h = building
-                plt.plot([x-0.5, x+w-0.5, x+w-0.5, x-0.5, x-0.5],
-                        [y-0.5, y-0.5, y+h-0.5, y+h-0.5, y-0.5],
-                        'r-', linewidth=2)
+                centre_factor = 0.5 * self.resolution
+                x_array = [x, x+w, x+w, x, x]
+                # x_array = [x - centre_factor for x in x_array]
+                y_array = [y, y, y+h, y+h, y]
+                # y_array = [y - centre_factor for y in y_array]
+                plt.plot(x_array, y_array,'r-', linewidth=2)
         
         if show_points and self.points:
             for label, (x, y) in self.points.items():
-                if label[0] == 'R': label += f" ({self.grid[int(y), int(x)]:.2f})"
+                if label[0] == 'R' and show_receivers_values:
+                    grid_x, grid_y = self._meters_to_grid(x, y)
+                    value = self.grid[grid_y, grid_x]
+                    label += f" ({value:.2f})"
                 plt.plot(x, y, 'o', color=point_color, markersize=8)
                 plt.text(x + label_offset[0], y + label_offset[1], label,
                         color=point_color, fontweight='bold')
@@ -203,25 +235,26 @@ class HeatmapGenerator:
         distances = np.full_like(self.grid, np.inf)
         px, py = self.points[point]
         
-        for y in range(self.height):
-            for x in range(self.width):
-                if np.isnan(self.grid[y, x]):
+        for grid_y in range(self.grid_height):
+            for grid_x in range(self.grid_width):
+                if np.isnan(self.grid[grid_y, grid_x]):
                     continue
-
+                    
+                x, y = self._grid_to_meters(grid_x, grid_y)
                 if self._line_intersects_building(x, y, px, py):
                     continue
                     
-                distance = np.sqrt((x - px)**2 + (y - py)**2)                
-                distances[y, x] = distance
+                distance = np.sqrt((x - px)**2 + (y - py)**2)
+                distances[grid_y, grid_x] = distance
                 
         return distances
     
     @staticmethod
-    def visualize_distance_matrix(distances: np.ndarray, cmap='viridis'):
+    def visualize_distance_matrix(title: str, distances: np.ndarray, cmap='viridis'):
         height, width = distances.shape
         heatmap = HeatmapGenerator(width, height)
         heatmap.grid = distances
-        heatmap.visualize('Distances map', cmap=cmap, show_buildings=False, show_points=False)    
+        heatmap.visualize(title, cmap=cmap, show_buildings=False, show_points=True)    
 
 def calculate_free_space_path_loss(d: float, lam = 0.08, k = 2) -> float:
     """
@@ -400,20 +433,31 @@ def ber_heatmap_reflection_simulation(
         ber_heatmap.add_point(f'R{i+1}', rx, ry)
 
     distances_from_T = ber_heatmap.calculate_distance_from_point('T')
+    # HeatmapGenerator.visualize_distance_matrix('Distance from Transmitter', distances_from_T)
     distances_from_Ps = [ber_heatmap.calculate_distance_from_point(f'P{i+1}') for i in range(M)]
+    # for m in range(M):
+    #     HeatmapGenerator.visualize_distance_matrix(f'Distance from RIS {m+1}', distances_from_Ps[m])
 
     power_heatmap_from_T = HeatmapGenerator.copy_from(ber_heatmap)
     power_heatmap_from_Ps = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
 
-    H = calculate_mimo_channel_gain(distances_from_Ps[0][ty, tx], K, N)
+    tx_grid_y, tx_grid_x = ber_heatmap._meters_to_grid(tx, ty)
+    H = calculate_mimo_channel_gain(distances_from_Ps[0][tx_grid_y, tx_grid_x], K, N)
+
     if M > 1:
-        Gs = [calculate_mimo_channel_gain(distances_from_Ps[-1][ry, rx], N, K) for ry, rx in receivers]
+        receiver_grid_coords = [(ber_heatmap._meters_to_grid(rx, ry)) for rx, ry in receivers]
+        Gs = [calculate_mimo_channel_gain(distances_from_Ps[-1][ry, rx], N, K) 
+              for ry, rx in receiver_grid_coords]
+
+        ris_grid_coords = [ber_heatmap._meters_to_grid(px, py) for px, py in ris_points]
         Cs = [calculate_mimo_channel_gain(
-            distances_from_Ps[i+1][ris_points[i][1], ris_points[i][0]], 
+            distances_from_Ps[i+1][ris_grid_coords[i][1], ris_grid_coords[i][0]], 
             N, N
         ) for i in range(M-1)]
     else:
-        Gs = [calculate_mimo_channel_gain(distances_from_Ps[0][ry, rx], N, K) for ry, rx in receivers]
+        receiver_grid_coords = [(ber_heatmap._meters_to_grid(rx, ry)) for rx, ry in receivers]
+        Gs = [calculate_mimo_channel_gain(distances_from_Ps[0][ry, rx], N, K) 
+              for ry, rx in receiver_grid_coords]
         Cs = []
 
     print(f"Channel matrix from transmitter to RIS: Power {calculate_channel_power(H):.1e}")
@@ -438,12 +482,14 @@ def ber_heatmap_reflection_simulation(
             )
 
     def calculate_ber_per_point(x: int, y: int) -> float:
-        distance_from_T = distances_from_T[y, x]
+        grid_x, grid_y = ber_heatmap._meters_to_grid(x, y)
+        distance_from_T = distances_from_T[grid_y, grid_x]
         B = calculate_mimo_channel_gain(distance_from_T, K, K) * calculate_free_space_path_loss(distance_from_T)
         B_power = calculate_channel_power(B)
-        power_heatmap_from_T.grid[y, x] = B_power
+        power_heatmap_from_T.grid[grid_y, grid_x] = B_power
 
-        distances_from_Ps_current = [distances_from_Ps[i][y, x] for i in range(M)]
+        distances_from_Ps_current = [distances_from_Ps[i][grid_y, grid_x] for i in range(M)]
+        
         Fs = [calculate_mimo_channel_gain(d, N, K) for d in distances_from_Ps_current]
         
         # * Override channel matrices for receiver positions
@@ -476,10 +522,12 @@ def ber_heatmap_reflection_simulation(
                     new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss
                 elif path_loss_calculation_type == 'active_ris':
                     total_path_loss = calculate_free_space_path_loss(distances_from_Ps_current[i])
-                    new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss    
+                    new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss 
+                else: 
+                    raise ValueError(f"Invalid path loss calculation type: {path_loss_calculation_type}")   
 
                 new_effective_channel_power = calculate_channel_power(new_effective_channel)
-                power_heatmap_from_Ps[i].grid[y, x] += new_effective_channel_power / num_symbols # * Take the mean power
+                power_heatmap_from_Ps[i].grid[grid_y, grid_x] += new_effective_channel_power / num_symbols # * Take the mean power
 
                 effective_channel += new_effective_channel
             power = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel) 
@@ -494,8 +542,8 @@ def ber_heatmap_reflection_simulation(
 
     ber_heatmap.apply_function(calculate_ber_per_point)
     title = f'BER Heatmap with {M} RIS(s) (K = {K}, SNR = {snr_db} dB) [Path Loss: {path_loss_calculation_type}]'
-    ber_heatmap.visualize(title, vmin=0.0, vmax=1.0, label='BER')
-    ber_heatmap.visualize(title, log_scale=True, vmax=0.0, label='BER')
+    ber_heatmap.visualize(title, vmin=0.0, vmax=1.0, label='BER', show_receivers_values=True)
+    ber_heatmap.visualize(title, log_scale=True, vmax=0.0, label='BER', show_receivers_values=True)
 
     power_heatmap_from_T.visualize(title + ' Channel Power from Transmitter', log_scale=True, vmax=0.0, label='Power (dB)')
     for i in range(M):
@@ -510,7 +558,7 @@ def main():
     ]
     transmitter_single = (3, 3)
     ris_points_single = [(7, 9)]
-    receivers_single = [(16, 11), (8, 18)]
+    receivers_single = [(16, 11), (10, 18)]
     
     for path_loss_calculation_type in PATH_LOSS_TYPES:
         ber_heatmap_reflection_simulation(
