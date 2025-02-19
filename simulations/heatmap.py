@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 # * pip install PyQt6
 import PyQt6
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Literal
 from diagonalization import (
   generate_random_channel_matrix, 
   calculate_multi_ris_reflection_matrices, 
@@ -336,6 +336,7 @@ def calculate_channel_power(H: np.ndarray) -> float:
 def print_low_array(v: np.ndarray) -> str:
     return print(np.array2string(np.abs(v), formatter={'float_kind':lambda x: '{:.1e}'.format(x)}))
 
+PATH_LOSS_TYPES = ('sum', 'product', 'active_ris')
 def ber_heatmap_reflection_simulation(
     width: int,
     height: int,
@@ -347,7 +348,8 @@ def ber_heatmap_reflection_simulation(
     K: int = 2,
     eta: float = 0.9,
     snr_db: int = 10,
-    num_symbols: int = 100
+    num_symbols: int = 100,
+    path_loss_calculation_type: Literal['sum', 'product', 'active_ris'] = 'sum'
 ):
     """
     Run RIS reflection simulation with given parameters
@@ -364,6 +366,10 @@ def ber_heatmap_reflection_simulation(
         eta: Reflection efficiency
         snr_db: Signal-to-noise ratio in dB
         num_symbols: Number of symbols to simulate
+        path_loss_calculation_type: Type of path loss calculation. 
+        - 'sum' means summing all distances to calculate one single path loss;
+        - 'product' means multiplying all path losses of each distances;
+        - 'active_ris' means only the last RIS distance is considered
     """
     ber_heatmap = HeatmapGenerator(width, height)
     
@@ -441,8 +447,19 @@ def ber_heatmap_reflection_simulation(
                 else:
                     P_to_i = unify_ris_reflection_matrices(Ps[:i+1], Cs[:i])
                 
-                total_distance = sum(ris_path_distances[:i+1]) + distances_from_Ps_current[i]
-                effective_channel += Fs[i] @ P_to_i @ H * calculate_free_space_path_loss(total_distance)
+                if path_loss_calculation_type == 'sum':
+                    total_distance = sum(ris_path_distances[:i+1]) + distances_from_Ps_current[i]
+                    total_path_loss = calculate_free_space_path_loss(total_distance)
+                    effective_channel += Fs[i] @ P_to_i @ H * total_path_loss
+                elif path_loss_calculation_type == 'product':
+                    total_path_loss = 1
+                    for j in range(i+1):
+                        total_path_loss *= calculate_free_space_path_loss(ris_path_distances[j])
+                    total_path_loss *= calculate_free_space_path_loss(distances_from_Ps_current[i])
+                    effective_channel += Fs[i] @ P_to_i @ H * total_path_loss
+                elif path_loss_calculation_type == 'active_ris':
+                    total_path_loss = calculate_free_space_path_loss(distances_from_Ps_current[i])
+                    effective_channel += Fs[i] @ P_to_i @ H * total_path_loss     
 
             power = calculate_channel_power(B) if distance_from_T != np.inf else calculate_channel_power(effective_channel)
             sigma_sq = snr_db_to_sigma_sq(snr_db, power)
@@ -455,7 +472,7 @@ def ber_heatmap_reflection_simulation(
         return errors / num_symbols
 
     ber_heatmap.apply_function(calculate_ber_per_point)
-    title = f'Heatmap of BER with {M} RIS(s) (K = {K})'
+    title = f'BER Heatmap with {M} RIS(s) (K = {K}, SNR = {snr_db} dB) [Path Loss: {path_loss_calculation_type}]'
     ber_heatmap.visualize(title, vmin=0.0, vmax=1.0)
     ber_heatmap.visualize(title, log_scale=True)
 
@@ -469,16 +486,18 @@ def main():
     ris_points_single = [(7, 9)]
     receivers_single = [(16, 11), (8, 18)]
     
-    ber_heatmap_reflection_simulation(
-        width=20,
-        height=20,
-        buildings=buildings_single,
-        transmitter=transmitter_single,
-        ris_points=ris_points_single,
-        receivers=receivers_single,
-        N=25,
-        K=4,
-    )
+    for path_loss_calculation_type in PATH_LOSS_TYPES:
+        ber_heatmap_reflection_simulation(
+            width=20,
+            height=20,
+            buildings=buildings_single,
+            transmitter=transmitter_single,
+            ris_points=ris_points_single,
+            receivers=receivers_single,
+            N=25,
+            K=4,
+            path_loss_calculation_type=path_loss_calculation_type
+        )
 
     # * Multiple reflection simulation
     buildings_multiple = [
@@ -489,16 +508,18 @@ def main():
     ris_points_multiple = [(0, 9), (10, 9)]
     receivers_multiple = [(16, 14), (12, 18)]
     
-    ber_heatmap_reflection_simulation(
-        width=20,
-        height=20,
-        buildings=buildings_multiple,
-        transmitter=transmitter_multiple,
-        ris_points=ris_points_multiple,
-        receivers=receivers_multiple,
-        N=16,
-        K=2,
-    )
+    for path_loss_calculation_type in PATH_LOSS_TYPES:
+        ber_heatmap_reflection_simulation(
+            width=20,
+            height=20,
+            buildings=buildings_multiple,
+            transmitter=transmitter_multiple,
+            ris_points=ris_points_multiple,
+            receivers=receivers_multiple,
+            N=16,
+            K=2,
+            path_loss_calculation_type=path_loss_calculation_type
+        )
 
 if __name__ == "__main__":
     main()
