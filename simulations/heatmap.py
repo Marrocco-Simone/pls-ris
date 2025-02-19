@@ -18,7 +18,7 @@ from ber import (
     simulate_ssk_transmission_direct
 )
 
-num_symbols=1000
+num_symbols=10000
 
 class HeatmapGenerator:
     def __init__(self, width: int, height: int):
@@ -104,7 +104,7 @@ class HeatmapGenerator:
                 if not np.isnan(self.grid[y, x]):
                     self.grid[y, x] = func(x, y)
 
-    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='red', label_offset=(0.3, 0.3), vmin=None, vmax=None, log_scale=False):
+    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='red', label_offset=(0.3, 0.3), vmin=None, vmax=None, log_scale=False, label='BER'):
         """
         Visualize the ber_heatmap with optional building outlines and points of interest.
         
@@ -114,8 +114,12 @@ class HeatmapGenerator:
             show_points: Whether to show points of interest
             point_color: Color for the points
             label_offset: Offset for point labels (x, y)
-        """
-        plt.figure(figsize=(10, 8))
+            vmin: Minimum value for the color scale
+            vmax: Maximum value for the color scale
+            log_scale: Whether to use log scale for color scale
+            label: Label for the color
+            """
+        figure = plt.figure(figsize=(10, 8))
         
         if log_scale:
             # * Add small offset to zero values before taking log
@@ -128,7 +132,7 @@ class HeatmapGenerator:
             masked_grid = np.ma.masked_invalid(self.grid)
         
         plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=vmin, vmax=vmax)
-        plt.colorbar(label='BER')
+        plt.colorbar(label=label)
         
         if show_buildings:
             for building in self.buildings:
@@ -158,6 +162,7 @@ class HeatmapGenerator:
         # plt.show()
         plt.savefig(f"./simulations/results/{title}.png", dpi=300, format='png')
         print(f"Saved {title}.png")
+        plt.close(figure)
 
     def _line_intersects_building(self, x1: float, y1: float, x2: float, y2: float) -> bool:
         """
@@ -397,6 +402,9 @@ def ber_heatmap_reflection_simulation(
     distances_from_T = ber_heatmap.calculate_distance_from_point('T')
     distances_from_Ps = [ber_heatmap.calculate_distance_from_point(f'P{i+1}') for i in range(M)]
 
+    power_heatmap_from_T = HeatmapGenerator.copy_from(ber_heatmap)
+    power_heatmap_from_Ps = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
+
     H = calculate_mimo_channel_gain(distances_from_Ps[0][ty, tx], K, N)
     if M > 1:
         Gs = [calculate_mimo_channel_gain(distances_from_Ps[-1][ry, rx], N, K) for ry, rx in receivers]
@@ -432,6 +440,8 @@ def ber_heatmap_reflection_simulation(
     def calculate_ber_per_point(x: int, y: int) -> float:
         distance_from_T = distances_from_T[y, x]
         B = calculate_mimo_channel_gain(distance_from_T, K, K) * calculate_free_space_path_loss(distance_from_T)
+        B_power = calculate_channel_power(B)
+        power_heatmap_from_T.grid[y, x] = B_power
 
         distances_from_Ps_current = [distances_from_Ps[i][y, x] for i in range(M)]
         Fs = [calculate_mimo_channel_gain(d, N, K) for d in distances_from_Ps_current]
@@ -457,18 +467,22 @@ def ber_heatmap_reflection_simulation(
                 if path_loss_calculation_type == 'sum':
                     total_distance = sum(ris_path_distances[:i+1]) + distances_from_Ps_current[i]
                     total_path_loss = calculate_free_space_path_loss(total_distance)
-                    effective_channel += Fs[i] @ P_to_i @ H * total_path_loss
+                    new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss
                 elif path_loss_calculation_type == 'product':
                     total_path_loss = 1
                     for j in range(i+1):
                         total_path_loss *= calculate_free_space_path_loss(ris_path_distances[j])
                     total_path_loss *= calculate_free_space_path_loss(distances_from_Ps_current[i])
-                    effective_channel += Fs[i] @ P_to_i @ H * total_path_loss
+                    new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss
                 elif path_loss_calculation_type == 'active_ris':
                     total_path_loss = calculate_free_space_path_loss(distances_from_Ps_current[i])
-                    effective_channel += Fs[i] @ P_to_i @ H * total_path_loss     
+                    new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss    
 
-            power = calculate_channel_power(B) if distance_from_T != np.inf else calculate_channel_power(effective_channel)
+                new_effective_channel_power = calculate_channel_power(new_effective_channel)
+                power_heatmap_from_Ps[i].grid[y, x] += new_effective_channel_power / num_symbols # * Take the mean power
+
+                effective_channel += new_effective_channel
+            power = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel) 
             sigma_sq = snr_db_to_sigma_sq(snr_db, power)
             
             if distance_from_T == np.inf:
@@ -480,8 +494,12 @@ def ber_heatmap_reflection_simulation(
 
     ber_heatmap.apply_function(calculate_ber_per_point)
     title = f'BER Heatmap with {M} RIS(s) (K = {K}, SNR = {snr_db} dB) [Path Loss: {path_loss_calculation_type}]'
-    ber_heatmap.visualize(title, vmin=0.0, vmax=1.0)
-    ber_heatmap.visualize(title, log_scale=True)
+    ber_heatmap.visualize(title, vmin=0.0, vmax=1.0, label='BER')
+    ber_heatmap.visualize(title, log_scale=True, vmax=0.0, label='BER')
+
+    power_heatmap_from_T.visualize(title + ' Channel Power from Transmitter', log_scale=True, vmax=0.0, label='Power (dB)')
+    for i in range(M):
+        power_heatmap_from_Ps[i].visualize(title + f' Channel Power from RIS {i+1}', log_scale=True, vmax=0.0, label='Power (dB)')
     print('\n')
 
 def main():
