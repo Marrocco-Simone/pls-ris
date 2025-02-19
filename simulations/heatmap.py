@@ -117,8 +117,15 @@ class HeatmapGenerator:
         """
         plt.figure(figsize=(10, 8))
         
-        masked_grid = np.ma.masked_invalid(self.grid if not log_scale else np.log10(self.grid))
-        if log_scale: title += ' (log scale)'
+        if log_scale:
+            # * Add small offset to zero values before taking log
+            grid_for_log = np.copy(self.grid)
+            min_nonzero = np.min(grid_for_log[grid_for_log > 0])
+            grid_for_log[grid_for_log == 0] = min_nonzero / num_symbols
+            masked_grid = np.ma.masked_invalid(np.log10(grid_for_log))
+            title += ' (log scale)'
+        else:
+            masked_grid = np.ma.masked_invalid(self.grid)
         
         plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=vmin, vmax=vmax)
         plt.colorbar(label='BER')
@@ -150,7 +157,7 @@ class HeatmapGenerator:
         plt.ylabel('Y (meters)')
         # plt.show()
         plt.savefig(f"./simulations/results/{title}.png", dpi=300, format='png')
-        print(f"Saved {title}.png\n\n")
+        print(f"Saved {title}.png")
 
     def _line_intersects_building(self, x1: float, y1: float, x2: float, y2: float) -> bool:
         """
@@ -475,6 +482,7 @@ def ber_heatmap_reflection_simulation(
     title = f'BER Heatmap with {M} RIS(s) (K = {K}, SNR = {snr_db} dB) [Path Loss: {path_loss_calculation_type}]'
     ber_heatmap.visualize(title, vmin=0.0, vmax=1.0)
     ber_heatmap.visualize(title, log_scale=True)
+    print('\n')
 
 def main():
     # * One reflection simulation
