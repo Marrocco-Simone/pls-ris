@@ -539,11 +539,11 @@ def ber_heatmap_reflection_simulation(
     ber_heatmap.apply_function(calculate_ber_per_point)
     title = f'BER Heatmap with {M} RIS(s) (K = {K}, SNR = {snr_db} dB) [Path Loss: {path_loss_calculation_type}]'
     ber_heatmap.visualize(title, vmin=0.0, vmax=1.0, label='BER', show_receivers_values=True)
-    ber_heatmap.visualize(title, log_scale=True, vmax=0.0, label='BER', show_receivers_values=True)
+    ber_heatmap.visualize(title, log_scale=True, vmin=-10.0, vmax=0.0, label='BER', show_receivers_values=True)
 
-    power_heatmap_from_T.visualize(title + ' Channel Power from Transmitter', log_scale=True, vmax=0.0, label='Power (dB)')
+    power_heatmap_from_T.visualize(title + ' Channel Power from Transmitter', log_scale=True, vmin=-10.0, vmax=0.0, label='Power (dB)')
     for i in range(M):
-        power_heatmap_from_Ps[i].visualize(title + f' Channel Power from RIS {i+1}', log_scale=True, vmax=0.0, label='Power (dB)')
+        power_heatmap_from_Ps[i].visualize(title + f' Channel Power from RIS {i+1}', log_scale=True, vmin=-10.0, vmax=0.0, label='Power (dB)')
     print('\n')
 
 def main():
