@@ -129,7 +129,7 @@ class HeatmapGenerator:
                     x, y = self._grid_to_meters(grid_x, grid_y)
                     self.grid[grid_y, grid_x] = func(x, y)
 
-    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='red', label_offset=(0.3, 0.3), vmin=None, vmax=None, log_scale=False, label='BER', show_receivers_values=False):
+    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='red', vmin=None, vmax=None, log_scale=False, label='BER', show_receivers_values=False):
         """
         Visualize the ber_heatmap with optional building outlines and points of interest.
         
@@ -138,7 +138,6 @@ class HeatmapGenerator:
             show_buildings: Whether to show building outlines
             show_points: Whether to show points of interest
             point_color: Color for the points
-            label_offset: Offset for point labels (x, y)
             vmin: Minimum value for the color scale
             vmax: Maximum value for the color scale
             log_scale: Whether to use log scale for color scale
@@ -163,29 +162,26 @@ class HeatmapGenerator:
         if show_buildings:
             for building in self.buildings:
                 x, y, w, h = building
-                centre_factor = 0.5 * self.resolution
                 x_array = [x, x+w, x+w, x, x]
-                # x_array = [x - centre_factor for x in x_array]
                 y_array = [y, y, y+h, y+h, y]
-                # y_array = [y - centre_factor for y in y_array]
                 plt.plot(x_array, y_array,'r-', linewidth=2)
         
         if show_points and self.points:
+            c = 0.5 * self.resolution
             for label, (x, y) in self.points.items():
                 if label[0] == 'R' and show_receivers_values:
                     grid_x, grid_y = self._meters_to_grid(x, y)
                     value = self.grid[grid_y, grid_x]
                     label += f" ({value:.2f})"
-                plt.plot(x, y, 'o', color=point_color, markersize=8)
-                plt.text(x + label_offset[0], y + label_offset[1], label,
-                        color=point_color, fontweight='bold')
+                plt.plot(x + c, y + c, 'o', color=point_color, markersize=6)
+                plt.text(x + 2 * c, y + 2 * c, label, color=point_color, fontweight='bold')
             # * plot a line between all points if the lines is not crossing a building
             for label1, (x1, y1) in self.points.items():
                 for label2, (x2, y2) in self.points.items():
                     if label1 == label2: continue
                     if label1[0] == 'R' and label2[0] == 'R': continue
                     if self._line_intersects_building(x1, y1, x2, y2): continue
-                    plt.plot([x1, x2], [y1, y2], 'k--', alpha=0.5)
+                    plt.plot([x1 + c, x2 + c], [y1 + c, y2 + c], 'k--', alpha=0.5)
         
         plt.grid(True)
         plt.title(title)
