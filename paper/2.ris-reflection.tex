@@ -49,7 +49,7 @@ and the solutions of $p$ can be found in the null space of $W$. Using singular v
   W = R \Sigma V^H \footnote{An hermitian transpose of $V$ ($V^H$), means we fist transpose the matrix ($V \rightarrow V^T$), then take the conjugate of every element (so invert the sign of the immaginary part).}
 \end{equation}
 
-With SVD, we have $\Sigma = diag(\sigma) \in C^{NxN}$ a diagonal matrix. the first $rank(W) = K^2-K$ elements of $\sigma$ are non-zero, while the last $nullity(W) = N - (K^2-K)$ elements are zero. \footnote{\url{https://math.stackexchange.com/questions/1771013/how-is-the-null-space-related-to-singular-value-decomposition}}
+With SVD, we have $\Sigma = diag(\sigma) \in C^{NxN}$ a diagonal matrix. the first $rank(W) = K^2-K$ elements of $\sigma$ are non-zero, while the last $nullity(W) = N - (K^2-K)$ elements are zero \cite{svd}.
 
 Given a more generic $A \in \C^{mxn} = R' \Sigma' V'^H$, we have the column vectors of $R'$ being an orthonormal span of $C^m$, and the row vectors of $V'$ being an orthonormal span of $C^n$.
 
