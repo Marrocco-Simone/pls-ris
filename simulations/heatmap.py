@@ -18,7 +18,7 @@ from ber import (
     simulate_ssk_transmission_direct
 )
 
-num_symbols=10000
+num_symbols=100
 
 class HeatmapGenerator:
     def __init__(self, width: int, height: int, resolution: float = 0.5):
@@ -385,11 +385,11 @@ def ber_heatmap_reflection_simulation(
     transmitter: Tuple[int, int],
     ris_points: List[Tuple[int, int]],
     receivers: List[Tuple[int, int]],
+    num_symbols: int,
     N: int = 16,
     K: int = 2,
     eta: float = 0.9,
     snr_db: int = 10,
-    num_symbols: int = 100,
     path_loss_calculation_type: Literal['sum', 'product', 'active_ris'] = 'sum'
 ):
     """
@@ -412,6 +412,7 @@ def ber_heatmap_reflection_simulation(
         - 'product' means multiplying all path losses of each distances;
         - 'active_ris' means only the last RIS distance is considered
     """
+    print(f"Called function with num_symbols = {num_symbols}")
     ber_heatmap = HeatmapGenerator(width, height)
     
     for building in buildings:
@@ -566,7 +567,8 @@ def main():
             receivers=receivers_single,
             N=25,
             K=4,
-            path_loss_calculation_type=path_loss_calculation_type
+            path_loss_calculation_type=path_loss_calculation_type,
+            num_symbols=num_symbols
         )
 
     # * Multiple reflection simulation
@@ -588,7 +590,8 @@ def main():
             receivers=receivers_multiple,
             N=16,
             K=2,
-            path_loss_calculation_type=path_loss_calculation_type
+            path_loss_calculation_type=path_loss_calculation_type,
+            num_symbols=num_symbols
         )
 
 if __name__ == "__main__":
