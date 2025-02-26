@@ -62,6 +62,7 @@ With multiple RIS in series, the eavesdropper get a worse signal because of the 
 
 Combining all together, our properties still hold strong.
 
+\newpage
 \subsection{BER realistic scenario simulation}
 
 We can now simulate our framework in a realistic scenario. We first need to model the channel gain $H$ and the path loss, based on the distance between the actors. We will define $\lambda$ as the wavelenght of the signal, and $d$ as the distance between two actors.
@@ -112,7 +113,7 @@ We begin by modeling the free space path loss \cite{Free_space_path_loss} betwee
 \begin{equation}
   PL = ((4 \pi / \lambda)^2 d^k)^{-\frac{1}{2}}
 \end{equation}
-where $k$ is equal to $2$ when the antennas are isontropic \textbf{(TODO explanation)}
+where $k$ is equal to $2$ when the antennas are isontropic % \textbf{(TODO explanation)}
 
 For a direct LOS communication between the transmitter and another actor (either a legitimate receiver or an eavesdropper), the signal received from input $x$ would be
 
@@ -124,22 +125,31 @@ Given a reflected signal with channel gain $GPH$, where
 \begin{itemize}
   \item $G$ is the communication transmitter-RIS
   \item $H$ is the communication RIS-actors
-  \item $P$ is the RIS \textbf{(TODO explanation)}
+  \item $P$ is the RIS % \textbf{(TODO explanation)}
 \end{itemize}
 we have two different LOS communications. We have different way of calculating the total path loss:
 \begin{itemize}
+  \item we consider the RISs to be active, meaning they amplify the signal received before reflecting it and so they negate the path loss reduction. The signal received would be $y = PL_H * GPHx$. In case of multiple RISs, only the last connection path loss is considered. We will call this as a \textit{active path loss}
   \item we consider two separate path losses, one for each LOS. The signal received would be $y = PL_G * PL_H * GPHx$. In case of multiple RISs, we multiply the path loss of all connections. We will call this as a \textit{product path loss}
   \item we consider one single path loss from the sum of the two distances ($d = d_{t-RIS} + d_{RIS-r}$). The signal received would be $y = PL_{G+H} * GPHx$. In case of multiple RISs, we add all the distances. We will call this as a \textit{sum path loss}
-  \item we consider the RISs to be active, meaning they amplify the signal received before reflecting it and so they negate the path loss reduction. The signal received would be $y = PL_H * GPHx$. In case of multiple RISs, only the last connection path loss is considered. We will call this as a \textit{active path loss}
 \end{itemize}
 
 We will see how these different considerations vary the results and the efficacy of the proposed framework.
+\begin{itemize}
+  \item with \textit{active path loss}, the RIS channel power is of the same order of magnitude as the transmitter channel power, so the direct signal receives significant noise
+  \item with \textit{product path loss}, the RIS channel power is orders of magnitude smaller. The message remains hidden in areas without direct line of sight to the transmitter
+  \item with \textit{sum path loss}, the disturbance effect is still visible, although less effective. It also the one with the results most similar to the theoretical simulation we made in the previous section.
+\end{itemize}
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.8\linewidth]{imgs/heatmap-simulations/1 RIS(s) (K = 4, SNR = 10) [Path Loss_ active_ris] BER Heatmap (log scale).png}
-  \caption{1 RIS(s) (K = 4, SNR = 10) [Path Loss: active ris] BER Heatmap (log scale)}
-\end{figure}
+The graphs below show some example situations, and prove our framework does also work in more realistic situations. Below, we used $\lambda = 0.08m, \tau = 0.6, \xi = 1, \eta = 0.9, SNR = 10db, K = 2, N = 16$. Each square represent an actor receiveing the signal (an eavesdropper, or a legitimate receiver if shown), with its own BER.
+
+\newpage
+
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.8\linewidth]{imgs/heatmap-simulations/1 RIS(s) (K = 4, SNR = 10) [Path Loss_ active_ris] BER Heatmap (log scale).png}
+%   \caption{1 RIS(s) (K = 4, SNR = 10) [Path Loss: active ris] BER Heatmap (log scale)}
+% \end{figure}
 
 \begin{figure}[H]
   \centering
@@ -159,11 +169,11 @@ We will see how these different considerations vary the results and the efficacy
   \caption{1 RIS(s) (K = 4, SNR = 10) [Path Loss: active ris] Channel Power from Transmitter (log scale)}
 \end{figure}
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.8\linewidth]{imgs/heatmap-simulations/1 RIS(s) (K = 4, SNR = 10) [Path Loss_ product] BER Heatmap (log scale).png}
-  \caption{1 RIS(s) (K = 4, SNR = 10) [Path Loss: product] BER Heatmap (log scale)}
-\end{figure}
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.8\linewidth]{imgs/heatmap-simulations/1 RIS(s) (K = 4, SNR = 10) [Path Loss_ product] BER Heatmap (log scale).png}
+%   \caption{1 RIS(s) (K = 4, SNR = 10) [Path Loss: product] BER Heatmap (log scale)}
+% \end{figure}
 
 \begin{figure}[H]
   \centering
@@ -183,11 +193,11 @@ We will see how these different considerations vary the results and the efficacy
   \caption{1 RIS(s) (K = 4, SNR = 10) [Path Loss: product] Channel Power from Transmitter (log scale)}
 \end{figure}
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.8\linewidth]{imgs/heatmap-simulations/1 RIS(s) (K = 4, SNR = 10) [Path Loss_ sum] BER Heatmap (log scale).png}
-  \caption{1 RIS(s) (K = 4, SNR = 10) [Path Loss: sum] BER Heatmap (log scale)}
-\end{figure}
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.8\linewidth]{imgs/heatmap-simulations/1 RIS(s) (K = 4, SNR = 10) [Path Loss_ sum] BER Heatmap (log scale).png}
+%   \caption{1 RIS(s) (K = 4, SNR = 10) [Path Loss: sum] BER Heatmap (log scale)}
+% \end{figure}
 
 \begin{figure}[H]
   \centering
@@ -207,11 +217,11 @@ We will see how these different considerations vary the results and the efficacy
   \caption{1 RIS(s) (K = 4, SNR = 10) [Path Loss: sum] Channel Power from Transmitter (log scale)}
 \end{figure}
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.8\linewidth]{imgs/heatmap-simulations/2 RIS(s) (K = 2, SNR = 10) [Path Loss_ active_ris] BER Heatmap (log scale).png}
-  \caption{2 RIS(s) (K = 2, SNR = 10) [Path Loss: active ris] BER Heatmap (log scale)}
-\end{figure}
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.8\linewidth]{imgs/heatmap-simulations/2 RIS(s) (K = 2, SNR = 10) [Path Loss_ active_ris] BER Heatmap (log scale).png}
+%   \caption{2 RIS(s) (K = 2, SNR = 10) [Path Loss: active ris] BER Heatmap (log scale)}
+% \end{figure}
 
 \begin{figure}[H]
   \centering
@@ -237,11 +247,11 @@ We will see how these different considerations vary the results and the efficacy
   \caption{2 RIS(s) (K = 2, SNR = 10) [Path Loss: active ris] Channel Power from Transmitter (log scale)}
 \end{figure}
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.8\linewidth]{imgs/heatmap-simulations/2 RIS(s) (K = 2, SNR = 10) [Path Loss_ product] BER Heatmap (log scale).png}
-  \caption{2 RIS(s) (K = 2, SNR = 10) [Path Loss: product] BER Heatmap (log scale)}
-\end{figure}
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.8\linewidth]{imgs/heatmap-simulations/2 RIS(s) (K = 2, SNR = 10) [Path Loss_ product] BER Heatmap (log scale).png}
+%   \caption{2 RIS(s) (K = 2, SNR = 10) [Path Loss: product] BER Heatmap (log scale)}
+% \end{figure}
 
 \begin{figure}[H]
   \centering
@@ -267,11 +277,11 @@ We will see how these different considerations vary the results and the efficacy
   \caption{2 RIS(s) (K = 2, SNR = 10) [Path Loss: product] Channel Power from Transmitter (log scale)}
 \end{figure}
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.8\linewidth]{imgs/heatmap-simulations/2 RIS(s) (K = 2, SNR = 10) [Path Loss_ sum] BER Heatmap (log scale).png}
-  \caption{2 RIS(s) (K = 2, SNR = 10) [Path Loss: sum] BER Heatmap (log scale)}
-\end{figure}
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.8\linewidth]{imgs/heatmap-simulations/2 RIS(s) (K = 2, SNR = 10) [Path Loss_ sum] BER Heatmap (log scale).png}
+%   \caption{2 RIS(s) (K = 2, SNR = 10) [Path Loss: sum] BER Heatmap (log scale)}
+% \end{figure}
 
 \begin{figure}[H]
   \centering
