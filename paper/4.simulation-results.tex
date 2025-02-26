@@ -2,6 +2,8 @@
 
 We can now test more complex setups by doing Bit Error Rate (BER) analysis.
 
+\subsection{BER stocastic simulation}
+
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{imgs/complex-situation.png}
@@ -17,7 +19,7 @@ We will show simulation results for different combinations of ($M, J$), both wit
 
 The direct link and the eavesdropper will try to understand the message by following the instructions on \cite{5165332}, while the receivers will try to understand it by following the instructions on \cite{9328149}.
 
-\subsection{Single RIS reflection (M=1)}
+\subsubsection{Single RIS reflection (M=1)}
 
 \begin{figure}[H]
   \centering
@@ -39,7 +41,7 @@ Combining two different RIS in parallel (\textit{Double RIS Source}) gives bette
 
 Increasing the number of receivers does not influence the result of our framework: the receivers still get a good signal depending on the SNR, while the eavesdropper is not getting an advantage in understanding the message.
 
-\subsection{Double RIS reflection (M=2)}
+\subsubsection{Double RIS reflection (M=2)}
 
 \begin{figure}[H]
   \centering
@@ -49,7 +51,7 @@ Increasing the number of receivers does not influence the result of our framewor
 \end{figure}
 
 With multiple RIS in series, the eavesdropper get a worse signal because of the double interference of the 2 RIS.
-\textbf{(TODO: Why the receiver is getting a better signal? Should it not be worse? Check normalization of the signal)}
+% \textbf{(TODO: Why the receiver is getting a better signal? Should it not be worse? Check normalization of the signal)}
 
 \begin{figure}[H]
   \centering
@@ -59,3 +61,76 @@ With multiple RIS in series, the eavesdropper get a worse signal because of the 
 \end{figure}
 
 Combining all together, our properties still hold strong.
+
+\subsection{BER realistic scenario simulation}
+
+We can now simulate our framework in a realistic scenario. We first need to model the channel gain $H$ and the path loss, based on the distance between the actors. We will define $\lambda$ as the wavelenght of the signal, and $d$ as the distance between two actors.
+
+\subsubsection{Channel gain calculation}
+
+We model the Rician fading \cite{Rician_fading} matrix $\Xi$, to consider possible fading due to multipath interference. Using the Shape Parameter $\tau$, defined as the ratio of the power contributions by line-of-sight path to the remaining multipaths, and the Scale parameter $\xi$, defined as the total power received in all paths, we can calculate
+
+\begin{equation}
+  \nu^2 = \frac{\tau \xi}{1 + \tau}
+\end{equation}
+\begin{equation}
+  \sigma^2 = \frac{\xi}{2(1 + \tau)}
+\end{equation}
+
+and we can generate $\Xi$ by creating a random complex matrix where the real and the imaginary values are extracted from a gaussian distribution $C(\frac{\nu}{\sqrt{2}}, \sigma)$ \cite{Rice_distribution}
+
+Then, given an actor $r$ with $n_r$ antennas disposed as a \textit{uniform linear array}, we can define the \textit{unit spatial signature in the directonal cosine $\Omega = cos \phi$} \cite{Fundamentals_Wireless_Communication_chapter7} as
+
+\begin{equation}
+  e_r(\Omega) = \frac{1}{\sqrt{n_r}}
+  \begin{bmatrix}
+    1                                \\
+    exp(-j2\pi\Delta\Omega)          \\
+    exp(-j2\pi2\Delta\Omega)         \\
+    \vdots                           \\
+    exp(-j2\pi(n_r - 1)\Delta\Omega) \\
+  \end{bmatrix}
+\end{equation}
+
+where
+\begin{itemize}
+  \item $\Delta$ is the distance between the antennas (usually $\lambda / 2$)
+  \item $\phi$ is the angle of incidence of the line-of-sight onto the actor antenna
+\end{itemize}
+
+and we can model the channel gain matrix \cite{Fundamentals_Wireless_Communication_chapter7} as
+
+\begin{equation}
+  H = \Xi \odot \sqrt{n_t n_r} exp(-j2 \pi d / \lambda) e_r(\Omega_r) e_t(\Omega_t)^H
+\end{equation}
+
+This equation can be used both for a direct transmission between two actors, or between an actor and a RIS.
+
+\subsubsection{Path loss calculation}
+
+We begin by modeling the free space path loss \cite{Free_space_path_loss} between two points as
+\begin{equation}
+  PL = ((4 \pi / \lambda)^2 d^k)^{-\frac{1}{2}}
+\end{equation}
+where $k$ is equal to $2$ when the antennas are isontropic \textbf{(TODO explanation)}
+
+For a direct LOS communication between the transmitter and another actor (either a legitimate receiver or an eavesdropper), the signal received from input $x$ would be
+
+\begin{equation}
+  y = PL_B * Bx
+\end{equation}
+
+Given a reflected signal with channel gain $GPH$, where
+\begin{itemize}
+  \item $G$ is the communication transmitter-RIS
+  \item $H$ is the communication RIS-actors
+  \item $P$ is the RIS \textbf{(TODO explanation)}
+\end{itemize}
+we have two different LOS communications. We have different way of calculating the total path loss:
+\begin{itemize}
+  \item we consider two separate path losses, one for each LOS. The signal received would be $y = PL_G * PL_H * GPHx$. In case of multiple RISs, we multiply the path loss of all connections. We will call this as a \textit{product path loss}
+  \item we consider one single path loss from the sum of the two distances ($d = d_{t-RIS} + d_{RIS-r}$). The signal received would be $y = PL_{G+H} * GPHx$. In case of multiple RISs, we add all the distances. We will call this as a \textit{sum path loss}
+  \item we consider the RISs to be active, meaning they amplify the signal received before reflecting it and so they negate the path loss reduction. The signal received would be $y = PL_H * GPHx$. In case of multiple RISs, only the last connection path loss is considered. We will call this as a \textit{active path loss}
+\end{itemize}
+
+We will see how these different considerations vary the results and the efficacy of the proposed framework.
