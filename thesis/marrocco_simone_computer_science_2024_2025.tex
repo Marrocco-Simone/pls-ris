@@ -30,10 +30,39 @@
 \usepackage[utf8x]{inputenc} % Linux (unicode package is required);
 %\usepackage[applemac]{inputenc} % Mac.
 
+\usepackage{cite}
+\usepackage{graphicx}
+\usepackage{algorithmic}
+\usepackage{amsmath}
+\usepackage{amsfonts} % for "\mathbb" macro
+\usepackage[caption=false,font=normalsize,labelfont=sf,textfont=sf]{subfig}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{listings}
+% Customizing lstlisting to mimic verbatim
+\lstset{
+  basicstyle=\ttfamily,
+  breaklines=true, % Allows line breaks
+  postbreak=\mbox{\space}, % Optional: mark line breaks
+  escapeinside={(@}{@)}, % Define escape characters
+}
+
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+
 \singlespacing
 
 % italian language
 %\usepackage[italian]{babel}
+
+
+\let\subsubsection\subsection
+\let\subsection\section
+\let\section\chapter
 
 \begin{document}
 
@@ -93,12 +122,14 @@
 % to
 %   X   Title
 
-\titleformat{\chapter}
-{\normalfont\Huge\bfseries}{\thechapter}{1em}{}
+% ! THIS TWO LINES CRASH THE ENTIRE CODE
+% \titleformat{\chapter}
+% {\normalfont\Huge\bfseries}{\thechapter}{1em}{}
 
 \titlespacing*{\chapter}{0pt}{0.59in}{0.02in}
 \titlespacing*{\section}{0pt}{0.20in}{0.02in}
 \titlespacing*{\subsection}{0pt}{0.10in}{0.02in}
+\titlespacing*{\subsubsection}{0pt}{0.7in}{0.02in}
 
 % summary / abstract
 \input{abstract}
@@ -120,13 +151,15 @@
 %
 % \input or \include
 %
-\input{chapter1}
-\input{chapter2}
-\input{chapter3}
+% \input{chapter1}
+% \input{chapter2}
+% \input{chapter3}
 %\input{chapter4}
 
+\input{start}
 
-\endgroup
+
+% \endgroup
 
 
 % bibliography - bibtex format
@@ -135,7 +168,7 @@
 \addcontentsline{toc}{chapter}{Bibliography}
 % alphabetical order of authors
 \bibliographystyle{plain}
-\bibliography{biblio}
+\bibliography{references}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Nota
@@ -172,10 +205,10 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-\titleformat{\chapter}
-{\normalfont\Huge\bfseries}{Appendix \thechapter}{1em}{}
-% Appendix / attachment section - optional
-\appendix
-\input{attachments}
+% \titleformat{\chapter}
+% {\normalfont\Huge\bfseries}{Appendix \thechapter}{1em}{}
+% % Appendix / attachment section - optional
+% \appendix
+% \input{attachments}
 
 \end{document}
