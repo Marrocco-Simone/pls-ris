@@ -11,13 +11,13 @@ We will start from the paper \textit{Reconfigurable Intelligent Surface: Reflect
 
 In \cite{9328149}, the authors studied how to use RISs to allow communications between two users without LOS, while making the signal undeciphrable for eavesdroppers. We call $L$ the transmitter's antennas, $K$ the receiver's antennas, $M$ the eavesdropper's antenna, and $N$ the RIS reflecting elements. We assume $L \ge K \ge 2$.
 
-We define $H \in \C^{NxL}$ the channel response from the transmitter to the RIS, $G \in \C^{KxN}$ the channel response from the RIS to the receiver, $P = diag\{p\} \in \C^{NxN}$ a diagonal matrix in which the $n$th diagonal element represents the reﬂection coefﬁcient of the $n$th unit at the RIS.
+We define $H \in \C^{NxL}$ the channel response \footnote{A channel response for a MIMO communication is a matrix made of complex number, where the position $i,j$ indicates the signal received from antenna $j$ to antenna $i$} from the transmitter to the RIS, $G \in \C^{KxN}$ the channel response from the RIS to the receiver, $P = diag\{p\} \in \C^{NxN}$ a diagonal matrix in which the $n$th diagonal element represents the reﬂection coefﬁcient of the $n$th unit at the RIS.
 
 The objective is making the receiver's final signal $GPH$ a diagonal matrix, while making every possible eavesdropper's final signal a full matrix.
 
-We will leave for now the technical details of why this would achieve secrecy for the legitimate users to the original paper, and will just focus on the mathematics behind the calculation. It is possible to read more in the paper \textit{Space shift keying modulation for MIMO channels} \cite{5165332}.
+We will leave for later the technical details of why this would achieve secrecy for the legitimate users or how the actors communicate with each others, and will just focus on the mathematics behind the calculation. It is possible to read more in the paper \textit{Space shift keying modulation for MIMO channels} \cite{5165332}, which we will summarize in a later chapter.
 
-Our final objective will be to generalize these calculations to $J$ receving users and multiple RISs used in parallel and in sequence.
+Our contribution to the field will be to generalize these calculations to $J$ receving users and $M$ RISs used in parallel and in sequence.
 
 Formally, the condition we want to satisfy is:
 
@@ -33,7 +33,10 @@ Given
   W = \sum_{i,j = 1, i \ne j}^{K} (g_{j,:} \odot h_i^T)^H (g_{j,:} \odot h_i^T)
 \end{equation}
 \begin{equation}
-  rank(W) = K(K-1), rank(W) - nullity(W) = N
+  rank(W) = K(K-1)
+\end{equation}
+\begin{equation}
+  rank(W) - nullity(W) = N
 \end{equation}
 \begin{equation}
   nullity(W) = N - (K^2 - K)

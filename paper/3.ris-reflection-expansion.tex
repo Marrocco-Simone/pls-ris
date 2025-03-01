@@ -2,7 +2,7 @@
 
 In real life scenarios, we deal with more than two communicating actors. We want to expand the findings of this paper by having it support multiple RISs in series and multiple receivers from the same transmitter. Once we have those, we can generalize it to also have receivers getting signals from multiple indipendent reflections of RISs.
 
-We will first, however, make some semplifications about the actors by having $L = K$ for all of them. We will still consider one transmitter, with $J \ge 1$ receivers.
+We will first, however, make some semplifications about the actors by having $L = K$ for all of them\footnote{We want the actors to be able to communicate with each other. Since the transmitter needs to have an equal or greater number of antenna than the receiver, but the roles may later switch, it follows that the number of antennas must be equal for the calculation. Using more antennas can still be done, by not considering the values coming from them (like the original paper did as well).}. We will still consider one transmitter, with $J \ge 1$ receivers.
 
 \subsection{Reflecting to multiple users}
 
@@ -38,7 +38,7 @@ We consider the case where the transmitter wants to send the signal to $J$ recei
 
 The problem we have now is that $W$ is not a square matrix anymore, so we cannot use the last $N - (K^2 - K)$ columns of $R$ to calculate the null space and $p$ with its linear combination. The null space would have dimension $N(W) \in \C^{JN x (N - (K^2 - K))}$, but we need $p \in C^N$.
 
-We can, however, use the the last $N - (K^2 - K)$ rows of $V^H$, then apply again the hermitian transposition to get our desired solution. Remember that $N(W)$ can also be calculated using the left singular matrix. Since now $W$ is not a square matrix, so $W \ne W^H$,
+We can, however, use the the last $N - (K^2 - K)$ rows of $V^H$, then apply again the hermitian transposition to get our desired solution. Remember that $N(W)$ can also be calculated using the left singular matrix. $W$ is not a square matrix, so $W \ne W^H$,
 
 \begin{equation}
   N(W) = \begin{bmatrix} v^H_{N - J(K^2 - K)} \\ ... \\ v^H_N \end{bmatrix} ^ H
@@ -59,13 +59,13 @@ We now can apply the same method as before
 
 \subsection{RISs in parallel}
 
-Given the previous property, it follows that we can use $M$ multiple RIS, each one reflecting the signal to $J$ multiple receivers. For the receiver $j \in [1, J]$, we have
+Given the previous property, it follows that we can use $M$ indipendent RIS, each one reflecting the signal to $J$ multiple receivers, and without LOS from each other. For the receiver $j \in [1, J]$, we have
 
 \begin{equation}
-  \sum_{m=1}^M G_j P_m H_m x = (\sum_{m=1}^M G_j P_m H_m) x =
+  \sum_{m=1}^M G_j P_m H_m x = (\sum_{m=1}^M G_j P_m H_m) x
 \end{equation}
 
-The sum of diagonal matrixes is still a diagonal matrix, so the property still holds.
+The sum of diagonal matrixes is still a diagonal matrix, so the property still holds. Remember that we only care about the indexes of the active antennas and not their values, so there is no problem in adding them together.
 
 \subsection{RISs in series}
 
@@ -81,7 +81,9 @@ We call $C_i \in \C^{NxN}$ the channel gain between $P_i$ and $P_{i+1}$. We need
   || GP_1C_1...P_MH - [GP_1C_1...P_MH]_{diag} || ^2 = 0
 \end{equation}
 
-We can generate $p_1, ..., p_{M-1}$ as random reflections, and calculate the last one based on the previous. An advantage we get is that eavesdroppers listening from a middle RIS will not be able to decipher the signal either. Given $r_i \in [0, 1]$ the absorption coefficient, and $\theta_i \in [0, 2\pi]$ the phase shift, we can choose them randomly for all RIS $p_m$ vectors, but the last one.
+We can generate $p_1, ..., p_{M-1}$ as random reflections, and calculate the last one based on the previous. An advantage we get is that eavesdroppers listening from a middle RIS will not be able to decipher the signal either.
+
+Given $r_i \in [0, 1]$ the absorption coefficient, and $\theta_i \in [0, 2\pi]$ the phase shift, we can choose them randomly for all RIS $p_m$ vectors, but the last one.
 
 \begin{equation}
   \forall m \in [1, M-1] : p_m[i] = \eta * r_i * e^{j\theta_i}
@@ -102,6 +104,13 @@ We can consider now the problem of solving
 Which can be solved as before.
 \footnote{It is also possible to set up randomly the last $M-1$ RIS and calculate the first one using $G$ and $H'=C_1P_2C_2...P_M$. The properties still holds.}
 \footnote{Estimate the channel gains $G$ and $H$, based on \cite{8879620}, could be more difficult, given that we do not have full controll on $P=P_1C_1...P_M$ anymore. We can however estimate directly $G'$ by keeping the same random $P_1, ..., P_{M-1}$ in both the acknowlegdment round and the message trasmission round, and just modify $P_M$ after estimating $G'$ and $H$ to correctly deliver the message.}
-\footnote{The receiver could also get the signal from all the RIS in series, if in the right position. For example, let's say it receives the signals $GP_1H_1x$ and $GP_1C_1P_2H_2x$. To solve this system, instead of setting $P_1$ randomly, we would need first to solve it using $G$ and $H_1$, then solve $P_2$ using $G'=GP_1C_1$ and $H_2$. The sum of the two signals would still be readable for the receiver correctly. While $P_1$ would not be random, the signal would still be undeciphrable for an eavesdropper receiving it.}
 
 If we have multiple $G_j$, it will be enough to calculate all the $G'_j$ and proceed as before, allowing us to combine these properties in more complicated scenarios.
+
+\subsection{Complex reflections}
+
+The receiver could also get the signal from all the RIS in series, if in the right position.
+
+For example, let's say it receives the signals $GP_1H_1x$ and $GP_1C_1P_2H_2x$. To solve this system, instead of setting $P_1$ randomly, we would need first to solve it using $G$ and $H_1$, then solve $P_2$ using $G'=GP_1C_1$ and $H_2$. The sum of the two signals would still be readable for the receiver correctly.
+
+While the calculations of $P_1$ depends on $G$ and $H_1$, the signal would still be random and undeciphrable for an eavesdropper receiving it.
