@@ -29,7 +29,8 @@ fi
 # Sort filenames and create start.tex with input commands
 sort "$temp_file" | while read -r filename; do
     if [ "$filename" != "abstract.tex" ]; then
-        echo "\\input{${filename%.*}}" >> ./thesis/start.tex
+        echo "\\input{${filename%.*}}
+\\newpage" >> ./thesis/start.tex
     fi
 done
 
