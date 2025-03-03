@@ -28,7 +28,9 @@ fi
 
 # Sort filenames and create start.tex with input commands
 sort "$temp_file" | while read -r filename; do
-    echo "\\input{${filename%.*}}" >> ./thesis/start.tex
+    if [ "$filename" != "abstract.tex" ]; then
+        echo "\\input{${filename%.*}}" >> ./thesis/start.tex
+    fi
 done
 
 # Replace section commands in copied tex files
