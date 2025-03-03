@@ -23,6 +23,7 @@ Formally, the condition we want to satisfy is:
 
 \begin{equation}
   || [GPH]_{:,1:K} - [[GPH]_{:,1:K}]_{diag} || ^2 = 0
+  \label{eq:diag_condition}
 \end{equation}
 
 Where $[GPH]_{:,1:K} \in \C^{KxK}$ denotes the first K columns of the matrix $GPH \in \C^{KxL}$.
@@ -42,7 +43,7 @@ Given
   nullity(W) = N - (K^2 - K)
 \end{equation}
 
-The formula (1) can be rewritten as
+The formula \eqref{eq:diag_condition} can be rewritten as
 
 \begin{equation}Wp = 0\end{equation}
 
