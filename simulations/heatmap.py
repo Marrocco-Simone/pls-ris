@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 # * pip install PyQt6
 import PyQt6
 from typing import List, Tuple, Callable, Literal
+import os
+import json
 from diagonalization import (
   generate_random_channel_matrix, 
   calculate_multi_ris_reflection_matrices, 
@@ -145,6 +147,29 @@ class HeatmapGenerator:
             show_receivers_values: Whether to show values at receiver points
             show_heatmap: Whether to show the heatmap values and legend
             """
+        # Make sure directories exist
+        os.makedirs("./simulations/results_pdf", exist_ok=True)
+        os.makedirs("./simulations/results_data", exist_ok=True)
+        
+        # Clean the title for use as a filename
+        clean_title = title.replace(' ', '_').replace('(', '').replace(')', '').replace('=', '').replace(',', '').replace('[', '').replace(']', '')
+        data_filename = f"./simulations/results_data/{clean_title}.npz"
+        
+        # Save the heatmap data
+        np.savez(
+            data_filename,
+            grid=self.grid,
+            width=self.width,
+            height=self.height,
+            resolution=self.resolution,
+            buildings=np.array(self.buildings),
+            points={k: np.array(v) for k, v in self.points.items()},
+            vmin=vmin,
+            vmax=vmax,
+            log_scale=log_scale
+        )
+        print(f"Saved data to {data_filename}")
+        
         figure = plt.figure(figsize=(10, 8))
         
         if log_scale and show_heatmap:
@@ -193,10 +218,35 @@ class HeatmapGenerator:
         plt.title(title)
         plt.xlabel('X (meters)')
         plt.ylabel('Y (meters)')
-        # plt.show()
-        plt.savefig(f"./simulations/results_pdf/{title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
-        print(f"Saved {title}.pdf")
+        plt.savefig(f"./simulations/results_pdf/{clean_title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
+        print(f"Saved {clean_title}.pdf")
         plt.close(figure)
+    
+    @classmethod
+    def from_saved_data(cls, filename: str):
+        """
+        Load a heatmap from a saved data file
+        
+        Args:
+            filename: Path to the saved data file
+        
+        Returns:
+            HeatmapGenerator: A new HeatmapGenerator with the loaded data
+        """
+        data = np.load(filename, allow_pickle=True)
+        width = data['width'].item()
+        height = data['height'].item()
+        resolution = data['resolution'].item()
+        
+        heatmap = cls(width, height, resolution)
+        heatmap.grid = data['grid']
+        heatmap.buildings = data['buildings'].tolist()
+        
+        # Convert points back from numpy arrays to tuples
+        points_dict = data['points'].item()
+        heatmap.points = {k: tuple(v) for k, v in points_dict.items()}
+        
+        return heatmap
 
     def _line_intersects_building(self, x1: float, y1: float, x2: float, y2: float) -> bool:
         """
@@ -396,7 +446,8 @@ def ber_heatmap_reflection_simulation(
     K: int = 2,
     eta: float = 0.9,
     snr_db: int = 10,
-    path_loss_calculation_type: Literal['sum', 'product', 'active_ris'] = 'sum'
+    path_loss_calculation_type: Literal['sum', 'product', 'active_ris'] = 'sum',
+    force_recompute: bool = False
 ):
     """
     Run RIS reflection simulation with given parameters
@@ -417,8 +468,24 @@ def ber_heatmap_reflection_simulation(
         - 'sum' means summing all distances to calculate one single path loss;
         - 'product' means multiplying all path losses of each distances;
         - 'active_ris' means only the last RIS distance is considered
+        force_recompute: If True, recompute even if data exists
     """
     print(f"Called function with num_symbols = {num_symbols}")
+    M = len(ris_points)
+    title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
+    clean_title = title.replace(' ', '_').replace('(', '').replace(')', '').replace('=', '').replace(',', '').replace('[', '').replace(']', '')
+    data_filename = f"./simulations/results_data/{clean_title}.npz"
+    
+    # Check if data already exists
+    if not force_recompute and os.path.exists(data_filename):
+        print(f"Data file {data_filename} already exists. Loading...")
+        ber_heatmap = HeatmapGenerator.from_saved_data(data_filename)
+        ber_heatmap.visualize(title + ' BER Heatmap', vmin=0.0, vmax=1.0, label='BER', show_receivers_values=True)
+        ber_heatmap.visualize(title + ' BER Heatmap', log_scale=True, vmin=-10.0, vmax=0.0, label='BER', show_receivers_values=True)
+        return
+    
+    os.makedirs("./simulations/results_data", exist_ok=True)
+    
     ber_heatmap = HeatmapGenerator(width, height)
     
     for building in buildings:

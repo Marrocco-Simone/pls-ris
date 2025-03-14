@@ -145,6 +145,64 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=100000):
         'eavesdropper_double': (result_eavesdropper_double, lower_eavesdropper_double, upper_eavesdropper_double)
     }
 
+def save_ber_data(filename, data):
+    """Save BER data to a numpy file"""
+    np.savez(
+        filename,
+        snr_range_db=data['snr_range_db'],
+        ber_receiver_mean=data['ber_receiver']['mean'],
+        ber_receiver_lower=data['ber_receiver']['lower'],
+        ber_receiver_upper=data['ber_receiver']['upper'],
+        ber_eavesdropper_mean=data['ber_eavesdropper']['mean'],
+        ber_eavesdropper_lower=data['ber_eavesdropper']['lower'],
+        ber_eavesdropper_upper=data['ber_eavesdropper']['upper'],
+        ber_direct_mean=data['ber_direct']['mean'],
+        ber_direct_lower=data['ber_direct']['lower'],
+        ber_direct_upper=data['ber_direct']['upper'],
+        ber_receiver_double_mean=data['ber_receiver_double']['mean'],
+        ber_receiver_double_lower=data['ber_receiver_double']['lower'],
+        ber_receiver_double_upper=data['ber_receiver_double']['upper'],
+        ber_eavesdropper_double_mean=data['ber_eavesdropper_double']['mean'],
+        ber_eavesdropper_double_lower=data['ber_eavesdropper_double']['lower'],
+        ber_eavesdropper_double_upper=data['ber_eavesdropper_double']['upper']
+    )
+    print(f"Data saved to {filename}")
+
+def load_ber_data(filename):
+    """Load BER data from a numpy file"""
+    try:
+        data = np.load(filename)
+        return {
+            'snr_range_db': data['snr_range_db'],
+            'ber_receiver': {
+                'mean': data['ber_receiver_mean'],
+                'lower': data['ber_receiver_lower'],
+                'upper': data['ber_receiver_upper']
+            },
+            'ber_eavesdropper': {
+                'mean': data['ber_eavesdropper_mean'],
+                'lower': data['ber_eavesdropper_lower'],
+                'upper': data['ber_eavesdropper_upper']
+            },
+            'ber_direct': {
+                'mean': data['ber_direct_mean'],
+                'lower': data['ber_direct_lower'],
+                'upper': data['ber_direct_upper']
+            },
+            'ber_receiver_double': {
+                'mean': data['ber_receiver_double_mean'],
+                'lower': data['ber_receiver_double_lower'],
+                'upper': data['ber_receiver_double_upper']
+            },
+            'ber_eavesdropper_double': {
+                'mean': data['ber_eavesdropper_double_mean'],
+                'lower': data['ber_eavesdropper_double_lower'],
+                'upper': data['ber_eavesdropper_double_upper']
+            }
+        }
+    except (FileNotFoundError, IOError):
+        return None
+
 def plot_ber_curves():
     N = 16    # * Number of reflecting elements
     K = 2     # * Number of antennas 
@@ -153,64 +211,93 @@ def plot_ber_curves():
     for J in range(1, 3):  # * Number of receivers
         for M in range(1, 3):  # * Number of RIS surfaces
             print(f"Processing J={J}, M={M}")
-            snr_range_db = np.arange(-10, 31, 2)
             
-            ber_receiver = {'mean': [], 'lower': [], 'upper': []}
-            ber_eavesdropper = {'mean': [], 'lower': [], 'upper': []}
-            ber_direct = {'mean': [], 'lower': [], 'upper': []}
-            ber_receiver_double = {'mean': [], 'lower': [], 'upper': []}
-            ber_eavesdropper_double = {'mean': [], 'lower': [], 'upper': []}
+            # Create data directory if it doesn't exist
+            import os
+            data_dir = "./simulations/data"
+            os.makedirs(data_dir, exist_ok=True)
             
-            for snr_db in snr_range_db:
-                results = calculate_ber_simulation(snr_db, K, N, J, M, eta)
+            data_filename = f"{data_dir}/ber_data_K{K}_N{N}_J{J}_M{M}.npz"
+            plot_data = load_ber_data(data_filename)
+            
+            if plot_data is None:
+                print(f"No existing data found. Running simulations...")
+                snr_range_db = np.arange(-10, 31, 2)
                 
-                ber_receiver['mean'].append(results['receiver'][0])
-                ber_receiver['lower'].append(results['receiver'][1])
-                ber_receiver['upper'].append(results['receiver'][2])
+                ber_receiver = {'mean': [], 'lower': [], 'upper': []}
+                ber_eavesdropper = {'mean': [], 'lower': [], 'upper': []}
+                ber_direct = {'mean': [], 'lower': [], 'upper': []}
+                ber_receiver_double = {'mean': [], 'lower': [], 'upper': []}
+                ber_eavesdropper_double = {'mean': [], 'lower': [], 'upper': []}
                 
-                ber_eavesdropper['mean'].append(results['eavesdropper'][0])
-                ber_eavesdropper['lower'].append(results['eavesdropper'][1])
-                ber_eavesdropper['upper'].append(results['eavesdropper'][2])
+                for snr_db in snr_range_db:
+                    results = calculate_ber_simulation(snr_db, K, N, J, M, eta)
+                    
+                    ber_receiver['mean'].append(results['receiver'][0])
+                    ber_receiver['lower'].append(results['receiver'][1])
+                    ber_receiver['upper'].append(results['receiver'][2])
+                    
+                    ber_eavesdropper['mean'].append(results['eavesdropper'][0])
+                    ber_eavesdropper['lower'].append(results['eavesdropper'][1])
+                    ber_eavesdropper['upper'].append(results['eavesdropper'][2])
+                    
+                    ber_direct['mean'].append(results['direct'][0])
+                    ber_direct['lower'].append(results['direct'][1])
+                    ber_direct['upper'].append(results['direct'][2])
+                    
+                    ber_receiver_double['mean'].append(results['receiver_double'][0])
+                    ber_receiver_double['lower'].append(results['receiver_double'][1])
+                    ber_receiver_double['upper'].append(results['receiver_double'][2])
+                    
+                    ber_eavesdropper_double['mean'].append(results['eavesdropper_double'][0])
+                    ber_eavesdropper_double['lower'].append(results['eavesdropper_double'][1])
+                    ber_eavesdropper_double['upper'].append(results['eavesdropper_double'][2])
+                    
+                    print(f"Processed SNR = {snr_db} dB:\t{results['receiver'][0]:.2f}\t{results['eavesdropper'][0]:.2f}\t{results['direct'][0]:.2f}")
                 
-                ber_direct['mean'].append(results['direct'][0])
-                ber_direct['lower'].append(results['direct'][1])
-                ber_direct['upper'].append(results['direct'][2])
-                
-                ber_receiver_double['mean'].append(results['receiver_double'][0])
-                ber_receiver_double['lower'].append(results['receiver_double'][1])
-                ber_receiver_double['upper'].append(results['receiver_double'][2])
-                
-                ber_eavesdropper_double['mean'].append(results['eavesdropper_double'][0])
-                ber_eavesdropper_double['lower'].append(results['eavesdropper_double'][1])
-                ber_eavesdropper_double['upper'].append(results['eavesdropper_double'][2])
-                
-                print(f"Processed SNR = {snr_db} dB:\t{results['receiver'][0]:.2f}\t{results['eavesdropper'][0]:.2f}\t{results['direct'][0]:.2f}")
+                # Save the data
+                plot_data = {
+                    'snr_range_db': snr_range_db,
+                    'ber_receiver': ber_receiver,
+                    'ber_eavesdropper': ber_eavesdropper,
+                    'ber_direct': ber_direct,
+                    'ber_receiver_double': ber_receiver_double,
+                    'ber_eavesdropper_double': ber_eavesdropper_double
+                }
+                save_ber_data(data_filename, plot_data)
+            else:
+                print(f"Loading existing data from {data_filename}")
 
             plt_name = f'SSK BER Performance with RIS (K={K}, N={N}, J={J}, M={M})'
             plt.figure(figsize=(10, 6))
             
-            plt.semilogy(snr_range_db, ber_direct['mean'], 'o-', label=f'Simulation Direct')
-            plt.fill_between(snr_range_db, ber_direct['lower'], ber_direct['upper'], alpha=0.2)
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_direct']['mean'], 'o-', label=f'Simulation Direct')
+            plt.fill_between(plot_data['snr_range_db'], plot_data['ber_direct']['lower'], plot_data['ber_direct']['upper'], alpha=0.2)
             
-            plt.semilogy(snr_range_db, ber_receiver['mean'], 's-', label='Simulation Receiver')
-            plt.fill_between(snr_range_db, ber_receiver['lower'], ber_receiver['upper'], alpha=0.2)
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_receiver']['mean'], 's-', label='Simulation Receiver')
+            plt.fill_between(plot_data['snr_range_db'], plot_data['ber_receiver']['lower'], plot_data['ber_receiver']['upper'], alpha=0.2)
             
-            plt.semilogy(snr_range_db, ber_receiver_double['mean'], '^-', label='Simulation Receiver Double RIS Source')
-            plt.fill_between(snr_range_db, ber_receiver_double['lower'], ber_receiver_double['upper'], alpha=0.2)
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_receiver_double']['mean'], '^-', label='Simulation Receiver Double RIS Source')
+            plt.fill_between(plot_data['snr_range_db'], plot_data['ber_receiver_double']['lower'], plot_data['ber_receiver_double']['upper'], alpha=0.2)
             
-            plt.semilogy(snr_range_db, ber_eavesdropper['mean'], 'x-', label=f'Simulation Eavesdropper')
-            plt.fill_between(snr_range_db, ber_eavesdropper['lower'], ber_eavesdropper['upper'], alpha=0.2)
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_eavesdropper']['mean'], 'x-', label=f'Simulation Eavesdropper')
+            plt.fill_between(plot_data['snr_range_db'], plot_data['ber_eavesdropper']['lower'], plot_data['ber_eavesdropper']['upper'], alpha=0.2)
             
-            plt.semilogy(snr_range_db, ber_eavesdropper_double['mean'], 'd-', label=f'Simulation Eavesdropper Double RIS Source')
-            plt.fill_between(snr_range_db, ber_eavesdropper_double['lower'], ber_eavesdropper_double['upper'], alpha=0.2)
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_eavesdropper_double']['mean'], 'd-', label=f'Simulation Eavesdropper Double RIS Source')
+            plt.fill_between(plot_data['snr_range_db'], plot_data['ber_eavesdropper_double']['lower'], plot_data['ber_eavesdropper_double']['upper'], alpha=0.2)
             
             plt.grid(True)
             plt.xlabel('SNR (dB)')
             plt.ylabel('Bit Error Rate (BER)')
             plt.title(plt_name)
             plt.legend()
-            plt.savefig(f"./simulations/results_pdf_ci/{plt_name}.pdf", dpi=300, format='pdf', bbox_inches='tight')
-            print(f"Saved {plt_name}.png\n\n")
+            
+            # Create results directory if it doesn't exist
+            results_dir = "./simulations/results_pdf_ci"
+            os.makedirs(results_dir, exist_ok=True)
+            
+            plt.savefig(f"{results_dir}/{plt_name}.pdf", dpi=300, format='pdf', bbox_inches='tight')
+            print(f"Saved {plt_name}.pdf\n\n")
 
 if __name__ == "__main__":
     plot_ber_curves()
