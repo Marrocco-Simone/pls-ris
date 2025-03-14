@@ -18,7 +18,7 @@ from ber import (
     simulate_ssk_transmission_direct
 )
 
-num_symbols=100
+num_symbols=1000000
 
 class HeatmapGenerator:
     def __init__(self, width: int, height: int, resolution: float = 0.5):
@@ -129,7 +129,7 @@ class HeatmapGenerator:
                     x, y = self._grid_to_meters(grid_x, grid_y)
                     self.grid[grid_y, grid_x] = func(x, y)
 
-    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='red', vmin=None, vmax=None, log_scale=False, label='BER', show_receivers_values=False):
+    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='red', vmin=None, vmax=None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True):
         """
         Visualize the ber_heatmap with optional building outlines and points of interest.
         
@@ -142,10 +142,12 @@ class HeatmapGenerator:
             vmax: Maximum value for the color scale
             log_scale: Whether to use log scale for color scale
             label: Label for the color
+            show_receivers_values: Whether to show values at receiver points
+            show_heatmap: Whether to show the heatmap values and legend
             """
         figure = plt.figure(figsize=(10, 8))
         
-        if log_scale:
+        if log_scale and show_heatmap:
             # * Add small offset to zero values before taking log
             grid_for_log = np.copy(self.grid)
             min_nonzero = np.min(grid_for_log[grid_for_log > 0])
@@ -156,8 +158,12 @@ class HeatmapGenerator:
             masked_grid = np.ma.masked_invalid(self.grid)
         
         extent = [0, self.width, 0, self.height]
-        plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=vmin, vmax=vmax, extent=extent)
-        plt.colorbar(label=label)
+        
+        if show_heatmap:
+            plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=vmin, vmax=vmax, extent=extent)
+            plt.colorbar(label=label)
+        else:
+            plt.imshow(np.ones_like(masked_grid), cmap='Greys', origin='lower', vmin=0, vmax=1, extent=extent, alpha=0.1)
         
         if show_buildings:
             for building in self.buildings:
@@ -169,7 +175,7 @@ class HeatmapGenerator:
         if show_points and self.points:
             c = 0.5 * self.resolution
             for label, (x, y) in self.points.items():
-                if label[0] == 'R' and show_receivers_values:
+                if label[0] == 'R' and show_receivers_values and show_heatmap:
                     grid_x, grid_y = self._meters_to_grid(x, y)
                     value = self.grid[grid_y, grid_x]
                     label += f" ({value:.2f})"
@@ -188,8 +194,8 @@ class HeatmapGenerator:
         plt.xlabel('X (meters)')
         plt.ylabel('Y (meters)')
         # plt.show()
-        plt.savefig(f"./simulations/results/{title}.png", dpi=300, format='png')
-        print(f"Saved {title}.png")
+        plt.savefig(f"./simulations/results_pdf/{title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
+        print(f"Saved {title}.pdf")
         plt.close(figure)
 
     def _line_intersects_building(self, x1: float, y1: float, x2: float, y2: float) -> bool:
@@ -438,6 +444,8 @@ def ber_heatmap_reflection_simulation(
     power_heatmap_from_T = HeatmapGenerator.copy_from(ber_heatmap)
     power_heatmap_from_Ps = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
 
+    ber_heatmap.visualize(f'{M} RIS(s) (K = {K}, SNR = {snr_db})', label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False)
+
     tx_grid_y, tx_grid_x = ber_heatmap._meters_to_grid(tx, ty)
     H = calculate_mimo_channel_gain(distances_from_Ps[0][tx_grid_y, tx_grid_x], K, N)
 
@@ -457,13 +465,13 @@ def ber_heatmap_reflection_simulation(
               for ry, rx in receiver_grid_coords]
         Cs = []
 
-    print(f"Channel matrix from transmitter to RIS: Power {calculate_channel_power(H):.1e}")
-    print(f"Channel matrix from RIS to receiver: Power {calculate_channel_power(Gs[0]):.1e}")
+    print(f"Channel matrix from transmitter to RIS: MAS {calculate_channel_power(H):.1e}")
+    print(f"Channel matrix from RIS to receiver: MAS {calculate_channel_power(Gs[0]):.1e}")
     
     Ps, _ = calculate_multi_ris_reflection_matrices(K, N, J, M, Gs, H, eta, Cs)
     P = unify_ris_reflection_matrices(Ps, Cs)
-    print(f"Reflection matrix: Power {calculate_channel_power(P):.1e}")
-    print(f"Effective channel matrix: Power {calculate_channel_power(Gs[0] @ P @ H):.1e}")
+    print(f"Reflection matrix: MAS {calculate_channel_power(P):.1e}")
+    print(f"Effective channel matrix: MAS {calculate_channel_power(Gs[0] @ P @ H):.1e}")
     print()
 
     # * Calculate cumulative path distances
@@ -542,9 +550,9 @@ def ber_heatmap_reflection_simulation(
     ber_heatmap.visualize(title + ' BER Heatmap', vmin=0.0, vmax=1.0, label='BER', show_receivers_values=True)
     ber_heatmap.visualize(title + ' BER Heatmap', log_scale=True, vmin=-10.0, vmax=0.0, label='BER', show_receivers_values=True)
 
-    power_heatmap_from_T.visualize(title + ' Channel Power from Transmitter', log_scale=True, vmin=-10.0, vmax=0.0, label='Power (dB)')
+    power_heatmap_from_T.visualize(title + ' Mean Antenna Strenght from Transmitter', log_scale=True, vmin=-10.0, vmax=0.0, label='log MAS')
     for i in range(M):
-        power_heatmap_from_Ps[i].visualize(title + f' Channel Power from RIS {i+1}', log_scale=True, vmin=-10.0, vmax=0.0, label='Power (dB)')
+        power_heatmap_from_Ps[i].visualize(title + f' Mean Antenna Strenght {i+1}', log_scale=True, vmin=-10.0, vmax=0.0, label='log MAS')
     print('\n')
 
 def main():

@@ -31,6 +31,29 @@ def simulate_ssk_transmission(K: int, sigma_sq: float, calculate_detected_id: Ca
     errors = np.sum(detected_bits != true_bits)
     return errors / n_bits
 
+def calculate_confidence_interval(error_rates, confidence=0.95):
+    """
+    Calculate the confidence interval for a list of error rates.
+    
+    Args:
+        error_rates: List of error rates from individual trials
+        confidence: Confidence level (default: 0.95 for 95% confidence interval)
+        
+    Returns:
+        tuple: (mean, lower_bound, upper_bound)
+    """
+    n = len(error_rates)
+    mean = np.mean(error_rates)
+    if n <= 1:
+        return mean, mean, mean
+    
+    z = 1.96 if confidence == 0.95 else -1 * np.sqrt(2) * np.log((1 - confidence) / 2)
+    
+    std_error = np.std(error_rates, ddof=1) / np.sqrt(n)
+    margin = z * std_error
+    
+    return mean, mean - margin, mean + margin
+
 def simulate_ssk_transmission_reflection(K: int, effective_channel: np.ndarray, sigma_sq: float):
     if effective_channel.shape != (K, K):
         raise ValueError(f"Reflection: Effective channel shape must be ({K}, {K}), but got {effective_channel.shape}")
@@ -55,14 +78,13 @@ def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: n
     
     return simulate_ssk_transmission(K, sigma_sq, calculate_detected_id)
 
-def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
+def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=100000):
     sigma_sq = snr_db_to_sigma_sq(snr_db)
-    errors_receiver = 0
-    errors_eavesdropper = 0
-    errors_direct = 0
-
-    errors_receiver_double = 0
-    errors_eavesdropper_double = 0
+    results_receiver = []
+    results_eavesdropper = []
+    results_direct = []
+    results_receiver_double = []
+    results_eavesdropper_double = []
     
     for _ in range(num_symbols):
         H = generate_random_channel_matrix(N, K)
@@ -83,9 +105,9 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
             effective_channel_eavesdropper += Fs[i] @ P_to_i @ H
         effective_channel_direct = np.zeros((K, K))
 
-        errors_receiver += simulate_ssk_transmission_reflection(K, effective_channel_receiver, sigma_sq)
-        errors_eavesdropper += simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper, sigma_sq)
-        errors_direct += simulate_ssk_transmission_direct(K, B, effective_channel_direct, sigma_sq)
+        results_receiver.append(simulate_ssk_transmission_reflection(K, effective_channel_receiver, sigma_sq))
+        results_eavesdropper.append(simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper, sigma_sq))
+        results_direct.append(simulate_ssk_transmission_direct(K, B, effective_channel_direct, sigma_sq))
 
         H2 = generate_random_channel_matrix(N, K)
         Gs2 = [generate_random_channel_matrix(K, N) for _ in range(J)]
@@ -106,16 +128,22 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=10000):
         effective_channel_receiver_double = effective_channel_receiver + effective_channel_receiver_2
         effective_channel_eavesdropper_double = effective_channel_eavesdropper + effective_channel_eavesdropper_2
 
-        errors_receiver_double += simulate_ssk_transmission_reflection(K, effective_channel_receiver_double, sigma_sq)
-        errors_eavesdropper_double += simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper_double, sigma_sq)
+        results_receiver_double.append(simulate_ssk_transmission_reflection(K, effective_channel_receiver_double, sigma_sq))
+        results_eavesdropper_double.append(simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper_double, sigma_sq))
     
-    result_receiver = errors_receiver / num_symbols
-    result_eavesdropper = errors_eavesdropper / num_symbols
-    result_direct = errors_direct / num_symbols
-    result_receiver_double = errors_receiver_double / num_symbols
-    result_eavesdropper_double = errors_eavesdropper_double / num_symbols
+    result_receiver, lower_receiver, upper_receiver = calculate_confidence_interval(results_receiver)
+    result_eavesdropper, lower_eavesdropper, upper_eavesdropper = calculate_confidence_interval(results_eavesdropper)
+    result_direct, lower_direct, upper_direct = calculate_confidence_interval(results_direct)
+    result_receiver_double, lower_receiver_double, upper_receiver_double = calculate_confidence_interval(results_receiver_double)
+    result_eavesdropper_double, lower_eavesdropper_double, upper_eavesdropper_double = calculate_confidence_interval(results_eavesdropper_double)
 
-    return result_receiver, result_eavesdropper, result_direct, result_receiver_double, result_eavesdropper_double
+    return {
+        'receiver': (result_receiver, lower_receiver, upper_receiver),
+        'eavesdropper': (result_eavesdropper, lower_eavesdropper, upper_eavesdropper),
+        'direct': (result_direct, lower_direct, upper_direct),
+        'receiver_double': (result_receiver_double, lower_receiver_double, upper_receiver_double),
+        'eavesdropper_double': (result_eavesdropper_double, lower_eavesdropper_double, upper_eavesdropper_double)
+    }
 
 def plot_ber_curves():
     N = 16    # * Number of reflecting elements
@@ -126,34 +154,62 @@ def plot_ber_curves():
         for M in range(1, 3):  # * Number of RIS surfaces
             print(f"Processing J={J}, M={M}")
             snr_range_db = np.arange(-10, 31, 2)
-            ber_simulated_receiver = []
-            ber_simulated_eavesdropper = []
-            ber_simulated_direct = []
-            ber_simulated_receiver_double = []
-            ber_simulated_eavesdropper_double = []
+            
+            ber_receiver = {'mean': [], 'lower': [], 'upper': []}
+            ber_eavesdropper = {'mean': [], 'lower': [], 'upper': []}
+            ber_direct = {'mean': [], 'lower': [], 'upper': []}
+            ber_receiver_double = {'mean': [], 'lower': [], 'upper': []}
+            ber_eavesdropper_double = {'mean': [], 'lower': [], 'upper': []}
             
             for snr_db in snr_range_db:
-                result_receiver, result_eavesdropper, result_direct,result_receiver_double, result_eavesdropper_double = calculate_ber_simulation(snr_db, K, N, J, M, eta)
-                ber_simulated_receiver.append(result_receiver)
-                ber_simulated_eavesdropper.append(result_eavesdropper)
-                ber_simulated_direct.append(result_direct)
-                ber_simulated_receiver_double.append(result_receiver_double)
-                ber_simulated_eavesdropper_double.append(result_eavesdropper_double)
-                print(f"Processed SNR = {snr_db} dB:\t{result_receiver:.2f}\t{result_eavesdropper:.2f}\t{result_direct:.2f}")
+                results = calculate_ber_simulation(snr_db, K, N, J, M, eta)
+                
+                ber_receiver['mean'].append(results['receiver'][0])
+                ber_receiver['lower'].append(results['receiver'][1])
+                ber_receiver['upper'].append(results['receiver'][2])
+                
+                ber_eavesdropper['mean'].append(results['eavesdropper'][0])
+                ber_eavesdropper['lower'].append(results['eavesdropper'][1])
+                ber_eavesdropper['upper'].append(results['eavesdropper'][2])
+                
+                ber_direct['mean'].append(results['direct'][0])
+                ber_direct['lower'].append(results['direct'][1])
+                ber_direct['upper'].append(results['direct'][2])
+                
+                ber_receiver_double['mean'].append(results['receiver_double'][0])
+                ber_receiver_double['lower'].append(results['receiver_double'][1])
+                ber_receiver_double['upper'].append(results['receiver_double'][2])
+                
+                ber_eavesdropper_double['mean'].append(results['eavesdropper_double'][0])
+                ber_eavesdropper_double['lower'].append(results['eavesdropper_double'][1])
+                ber_eavesdropper_double['upper'].append(results['eavesdropper_double'][2])
+                
+                print(f"Processed SNR = {snr_db} dB:\t{results['receiver'][0]:.2f}\t{results['eavesdropper'][0]:.2f}\t{results['direct'][0]:.2f}")
 
             plt_name = f'SSK BER Performance with RIS (K={K}, N={N}, J={J}, M={M})'
             plt.figure(figsize=(10, 6))
-            plt.semilogy(snr_range_db, ber_simulated_direct, label=f'Simulation Direct')
-            plt.semilogy(snr_range_db, ber_simulated_receiver, label='Simulation Receiver')
-            plt.semilogy(snr_range_db, ber_simulated_receiver_double, label='Simulation Receiver Double RIS Source')
-            plt.semilogy(snr_range_db, ber_simulated_eavesdropper, label=f'Simulation Eavesdropper')
-            plt.semilogy(snr_range_db, ber_simulated_eavesdropper_double, label=f'Simulation Eavesdropper Double RIS Source')
+            
+            plt.semilogy(snr_range_db, ber_direct['mean'], 'o-', label=f'Simulation Direct')
+            plt.fill_between(snr_range_db, ber_direct['lower'], ber_direct['upper'], alpha=0.2)
+            
+            plt.semilogy(snr_range_db, ber_receiver['mean'], 's-', label='Simulation Receiver')
+            plt.fill_between(snr_range_db, ber_receiver['lower'], ber_receiver['upper'], alpha=0.2)
+            
+            plt.semilogy(snr_range_db, ber_receiver_double['mean'], '^-', label='Simulation Receiver Double RIS Source')
+            plt.fill_between(snr_range_db, ber_receiver_double['lower'], ber_receiver_double['upper'], alpha=0.2)
+            
+            plt.semilogy(snr_range_db, ber_eavesdropper['mean'], 'x-', label=f'Simulation Eavesdropper')
+            plt.fill_between(snr_range_db, ber_eavesdropper['lower'], ber_eavesdropper['upper'], alpha=0.2)
+            
+            plt.semilogy(snr_range_db, ber_eavesdropper_double['mean'], 'd-', label=f'Simulation Eavesdropper Double RIS Source')
+            plt.fill_between(snr_range_db, ber_eavesdropper_double['lower'], ber_eavesdropper_double['upper'], alpha=0.2)
+            
             plt.grid(True)
             plt.xlabel('SNR (dB)')
             plt.ylabel('Bit Error Rate (BER)')
             plt.title(plt_name)
             plt.legend()
-            plt.savefig(f"./simulations/results/{plt_name}.png", dpi=300, format='png')
+            plt.savefig(f"./simulations/results_pdf_ci/{plt_name}.pdf", dpi=300, format='pdf', bbox_inches='tight')
             print(f"Saved {plt_name}.png\n\n")
 
 if __name__ == "__main__":
