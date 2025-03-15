@@ -20,7 +20,7 @@ from ber import (
     simulate_ssk_transmission_direct
 )
 
-num_symbols=1000000
+num_symbols=10000
 
 class HeatmapGenerator:
     def __init__(self, width: int, height: int, resolution: float = 0.5):
@@ -126,6 +126,7 @@ class HeatmapGenerator:
         for grid_y in range(self.grid_height):
             print(f"Processing row {grid_y * self.resolution}/{self.grid_height * self.resolution}")
             for grid_x in range(self.grid_width):
+                print(f"Processing column {grid_x * self.resolution}/{self.grid_width * self.resolution}")
                 if not np.isnan(self.grid[grid_y, grid_x]):
                     # * Convert grid coordinates to meters for the function
                     x, y = self._grid_to_meters(grid_x, grid_y)
@@ -147,15 +148,11 @@ class HeatmapGenerator:
             show_receivers_values: Whether to show values at receiver points
             show_heatmap: Whether to show the heatmap values and legend
             """
-        # Make sure directories exist
         os.makedirs("./simulations/results_pdf", exist_ok=True)
         os.makedirs("./simulations/results_data", exist_ok=True)
         
-        # Clean the title for use as a filename
-        clean_title = title.replace(' ', '_').replace('(', '').replace(')', '').replace('=', '').replace(',', '').replace('[', '').replace(']', '')
-        data_filename = f"./simulations/results_data/{clean_title}.npz"
+        data_filename = f"./simulations/results_data/{title}.npz"
         
-        # Save the heatmap data
         np.savez(
             data_filename,
             grid=self.grid,
@@ -218,8 +215,8 @@ class HeatmapGenerator:
         plt.title(title)
         plt.xlabel('X (meters)')
         plt.ylabel('Y (meters)')
-        plt.savefig(f"./simulations/results_pdf/{clean_title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
-        print(f"Saved {clean_title}.pdf")
+        plt.savefig(f"./simulations/results_pdf/{title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
+        print(f"Saved {title}.pdf")
         plt.close(figure)
     
     @classmethod
@@ -473,8 +470,8 @@ def ber_heatmap_reflection_simulation(
     print(f"Called function with num_symbols = {num_symbols}")
     M = len(ris_points)
     title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
-    clean_title = title.replace(' ', '_').replace('(', '').replace(')', '').replace('=', '').replace(',', '').replace('[', '').replace(']', '')
-    data_filename = f"./simulations/results_data/{clean_title}.npz"
+    title = title.replace(' ', '_').replace('(', '').replace(')', '').replace('=', '').replace(',', '').replace('[', '').replace(']', '')
+    data_filename = f"./simulations/results_data/{title}.npz"
     
     # Check if data already exists
     if not force_recompute and os.path.exists(data_filename):
