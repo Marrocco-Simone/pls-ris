@@ -87,9 +87,9 @@ def calculate_ris_reflection_matrice(
         dor: Degree of randomness achieved
     """
     W = calculate_W_multiple(K, N, J, Gs, H)
-    U, sigma, Vh = np.linalg.svd(W)
+    R, sigma, Vh = np.linalg.svd(W)
     
-    # * last N-JK²+JK columns of U and rows of Vh
+    # * last N-JK²+JK columns of R and rows of Vh
     null_space_dim = N - J*K**2 + J*K
     if null_space_dim <= 0:
         raise ValueError(f"No solution exists. Need more reflecting elements. Current: {N}, Required: >{J*K**2 - J*K}")
@@ -102,8 +102,12 @@ def calculate_ris_reflection_matrice(
     # if not first_all_are_not_zero or not last_all_are_zero:
     #     raise ValueError(f"Invalid singular values. First: {np.round(first_singular_values, 2)}, Last: {np.round(last_singular_values, 2)}")
 
-    # null_space_basis = U[:, -null_space_dim:] # * paper method
+    null_space_basis_old = R[:, -null_space_dim:] # * paper method
     null_space_basis = Vh[-null_space_dim:, :].T.conj()
+
+    # print(f"N: {N}, J: {J}, K: {K}, null_space_dim: {null_space_dim}")
+    # print(f"W shape: {W.shape}, null_space_basis_old shape: {null_space_basis_old.shape}, null_space_basis shape: {null_space_basis.shape}")
+    # print(f"R shape: {R.shape}, sigma shape: {sigma.shape}, Vh shape: {Vh.shape}")
 
     if null_space_basis.shape != (N, null_space_dim):
         raise ValueError(f"Invalid null space basis shape: {null_space_basis.shape}, should be ({N}, {null_space_dim})")
