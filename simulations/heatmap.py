@@ -132,6 +132,38 @@ class HeatmapGenerator:
                     x, y = self._grid_to_meters(grid_x, grid_y)
                     self.grid[grid_y, grid_x] = func(x, y)
 
+    def _save_colorbar_legend(self, title: str, cmap='viridis', vmin=None, vmax=None, label='BER', orientation='horizontal'):
+        """
+        Save a standalone colorbar legend as a separate file.
+        
+        Args:
+            title: Title for the file
+            cmap: Matplotlib colormap name
+            vmin: Minimum value for the color scale
+            vmax: Maximum value for the color scale
+            label: Label for the colorbar
+            orientation: 'horizontal' or 'vertical'
+        """
+        fig = plt.figure(figsize=(6, 1.5) if orientation == 'horizontal' else (1.5, 6))
+        ax = fig.add_axes([0.1, 0.4, 0.8, 0.3] if orientation == 'horizontal' else [0.3, 0.1, 0.3, 0.8])
+        
+        norm = plt.Normalize(vmin=vmin, vmax=vmax)
+        cb = plt.colorbar(
+            plt.cm.ScalarMappable(norm=norm, cmap=cmap),
+            cax=ax,
+            orientation=orientation,
+            label=label
+        )
+        
+        plt.rcParams['text.usetex'] = True
+        plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
+        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+        
+        legend_filename = f"./simulations/results_pdf/BER heatmap legend_{orientation}.pdf"
+        plt.savefig(legend_filename, dpi=300, format='pdf', bbox_inches='tight')
+        print(f"Saved {legend_filename}")
+        plt.close(fig)
+
     def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='red', vmin=None, vmax=None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True):
         """
         Visualize the ber_heatmap with optional building outlines and points of interest.
@@ -183,7 +215,9 @@ class HeatmapGenerator:
         
         if show_heatmap:
             plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=vmin, vmax=vmax, extent=extent)
-            plt.colorbar(label=label)
+            if not log_scale: 
+                self._save_colorbar_legend(title, cmap=cmap, vmin=vmin, vmax=vmax, label=label, orientation='horizontal')
+                self._save_colorbar_legend(title, cmap=cmap, vmin=vmin, vmax=vmax, label=label, orientation='vertical')
         else:
             plt.imshow(np.ones_like(masked_grid), cmap='Greys', origin='lower', vmin=0, vmax=1, extent=extent, alpha=0.1)
         
@@ -201,8 +235,8 @@ class HeatmapGenerator:
                     grid_x, grid_y = self._meters_to_grid(x, y)
                     value = self.grid[grid_y, grid_x]
                     label += f" ({value:.2f})"
-                plt.plot(x + c, y + c, 'o', color=point_color, markersize=6)
-                plt.text(x + 2 * c, y + 2 * c, label, color=point_color, fontweight='bold')
+                plt.plot(x + c, y + c, 'o', color=point_color, markersize=8)
+                plt.text(x + 2 * c, y + 2 * c, label, color=point_color, fontweight=1000, fontsize=15)
             # * plot a line between all points if the lines is not crossing a building
             for label1, (x1, y1) in self.points.items():
                 for label2, (x2, y2) in self.points.items():
@@ -211,8 +245,11 @@ class HeatmapGenerator:
                     if self._line_intersects_building(x1, y1, x2, y2): continue
                     plt.plot([x1 + c, x2 + c], [y1 + c, y2 + c], 'k--', alpha=0.5)
         
+        plt.rcParams['text.usetex'] = True
+        plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
+        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
         plt.grid(True)
-        plt.title(title)
+        # plt.title(title)
         plt.xlabel('X (meters)')
         plt.ylabel('Y (meters)')
         plt.savefig(f"./simulations/results_pdf/{title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
@@ -469,8 +506,8 @@ def ber_heatmap_reflection_simulation(
     """
     print(f"Called function with num_symbols = {num_symbols}")
     M = len(ris_points)
-    title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}] BER Heatmap'
-    data_filename = f"./simulations/results_data/{title}.npz"
+    title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
+    data_filename = f"./simulations/results_data/{title} BER Heatmap.npz"
     print(f"filename {data_filename} exist: {os.path.exists(data_filename)}")
     
     # Check if data already exists
@@ -478,7 +515,7 @@ def ber_heatmap_reflection_simulation(
         print(f"Data file {data_filename} already exists. Loading...")
         ber_heatmap = HeatmapGenerator.from_saved_data(data_filename)
         ber_heatmap.visualize(title + ' BER Heatmap', vmin=0.0, vmax=1.0, label='BER', show_receivers_values=True)
-        ber_heatmap.visualize(title + ' BER Heatmap', log_scale=True, vmin=-10.0, vmax=0.0, label='BER', show_receivers_values=True)
+        # ber_heatmap.visualize(title + ' BER Heatmap', log_scale=True, vmin=-10.0, vmax=0.0, label='BER', show_receivers_values=True)
         return
     
     os.makedirs("./simulations/results_data", exist_ok=True)
