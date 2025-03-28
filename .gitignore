@@ -53,6 +53,7 @@ texlive/*
 __pycache__/
 simulations/results/*.png
 .venv
+*.npz
 
 # Pdf I need
 !documents/*.pdf

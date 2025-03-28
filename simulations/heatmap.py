@@ -469,9 +469,9 @@ def ber_heatmap_reflection_simulation(
     """
     print(f"Called function with num_symbols = {num_symbols}")
     M = len(ris_points)
-    title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
-    title = title.replace(' ', '_').replace('(', '').replace(')', '').replace('=', '').replace(',', '').replace('[', '').replace(']', '')
+    title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}] BER Heatmap'
     data_filename = f"./simulations/results_data/{title}.npz"
+    print(f"filename {data_filename} exist: {os.path.exists(data_filename)}")
     
     # Check if data already exists
     if not force_recompute and os.path.exists(data_filename):
