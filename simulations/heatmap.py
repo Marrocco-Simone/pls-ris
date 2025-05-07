@@ -144,27 +144,37 @@ class HeatmapGenerator:
             label: Label for the colorbar
             orientation: 'horizontal' or 'vertical'
         """
-        fig = plt.figure(figsize=(6, 1.5) if orientation == 'horizontal' else (1.5, 6))
+        fig = plt.figure(figsize=(6, 1) if orientation == 'horizontal' else (1, 6))
         ax = fig.add_axes([0.1, 0.4, 0.8, 0.3] if orientation == 'horizontal' else [0.3, 0.1, 0.3, 0.8])
         
         norm = plt.Normalize(vmin=vmin, vmax=vmax)
-        cb = plt.colorbar(
-            plt.cm.ScalarMappable(norm=norm, cmap=cmap),
-            cax=ax,
-            orientation=orientation,
-            label=label
-        )
+        if orientation == 'horizontal':
+            ax.yaxis.set_label_position('right')
+            ax.set_ylabel(label)
+            cb = plt.colorbar(
+                plt.cm.ScalarMappable(norm=norm, cmap=cmap),
+                cax=ax,
+                orientation=orientation,
+                label=''
+            )
+        else:
+            cb = plt.colorbar(
+                plt.cm.ScalarMappable(norm=norm, cmap=cmap),
+                cax=ax,
+                orientation=orientation,
+                label=label
+            )
         
         plt.rcParams['text.usetex'] = True
         plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
-        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
         
         legend_filename = f"./simulations/results_pdf/BER heatmap legend_{orientation}.pdf"
         plt.savefig(legend_filename, dpi=300, format='pdf', bbox_inches='tight')
         print(f"Saved {legend_filename}")
         plt.close(fig)
 
-    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='red', vmin=None, vmax=None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True):
+    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='white', vmin=None, vmax=None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True):
         """
         Visualize the ber_heatmap with optional building outlines and points of interest.
         
@@ -235,7 +245,7 @@ class HeatmapGenerator:
                     grid_x, grid_y = self._meters_to_grid(x, y)
                     value = self.grid[grid_y, grid_x]
                     label += f" ({value:.2f})"
-                plt.plot(x + c, y + c, 'o', color=point_color, markersize=8)
+                plt.plot(x + c, y + c, 'o', color=point_color, markersize=6)
                 plt.text(x + 2 * c, y + 2 * c, label, color=point_color, fontweight=1000, fontsize=15)
             # * plot a line between all points if the lines is not crossing a building
             for label1, (x1, y1) in self.points.items():
@@ -243,11 +253,11 @@ class HeatmapGenerator:
                     if label1 == label2: continue
                     if label1[0] == 'R' and label2[0] == 'R': continue
                     if self._line_intersects_building(x1, y1, x2, y2): continue
-                    plt.plot([x1 + c, x2 + c], [y1 + c, y2 + c], 'k--', alpha=0.5)
+                    plt.plot([x1 + c, x2 + c], [y1 + c, y2 + c], 'k--', alpha=0.5, color=point_color)
         
         plt.rcParams['text.usetex'] = True
         plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
-        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
         plt.grid(True)
         # plt.title(title)
         plt.xlabel('X (meters)')
