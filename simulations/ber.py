@@ -214,7 +214,7 @@ def plot_ber_curves():
             
             # Create data directory if it doesn't exist
             import os
-            data_dir = "./simulations/data"
+            data_dir = "./results_data"
             os.makedirs(data_dir, exist_ok=True)
             
             data_filename = f"{data_dir}/ber_data_K{K}_N{N}_J{J}_M{M}.npz"
@@ -293,7 +293,7 @@ def plot_ber_curves():
             plt.legend()
             
             # Create results directory if it doesn't exist
-            results_dir = "./simulations/results_pdf_ci"
+            results_dir = "./results_pdf"
             os.makedirs(results_dir, exist_ok=True)
             
             plt.savefig(f"{results_dir}/{plt_name}.pdf", dpi=300, format='pdf', bbox_inches='tight')
