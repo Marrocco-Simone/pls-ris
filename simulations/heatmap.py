@@ -1,3 +1,4 @@
+import matplotlib.colors
 import numpy as np
 import matplotlib.pyplot as plt
 # * pip install PyQt6
@@ -6,8 +7,8 @@ from typing import List, Tuple, Callable, Literal
 import os
 import json
 from diagonalization import (
-  generate_random_channel_matrix, 
-  calculate_multi_ris_reflection_matrices, 
+  generate_random_channel_matrix,
+  calculate_multi_ris_reflection_matrices,
   unify_ris_reflection_matrices,
   verify_multi_ris_diagonalization
 )
@@ -34,7 +35,7 @@ class HeatmapGenerator:
         self.width = width
         self.height = height
         self.resolution = resolution
-        
+
         # * Calculate grid dimensions based on resolution
         self.grid_width = int(width / resolution)
         self.grid_height = int(height / resolution)
@@ -47,7 +48,7 @@ class HeatmapGenerator:
     def copy_from(other: 'HeatmapGenerator') -> 'HeatmapGenerator':
         """
         Copy the grid and points from another HeatmapGenerator object.
-        
+
         Args:
             other: Another HeatmapGenerator object
         """
@@ -56,7 +57,7 @@ class HeatmapGenerator:
         new_heatmap.buildings = other.buildings.copy()
         new_heatmap.points = other.points.copy()
         return new_heatmap
-    
+
     def _meters_to_grid(self, x: float, y: float) -> Tuple[int, int]:
         """Convert meter coordinates to grid coordinates"""
         return (
@@ -74,7 +75,7 @@ class HeatmapGenerator:
     def add_building(self, x: int, y: int, width: int, height: int):
         """
         Add a building to the map. Buildings are excluded from the heatmap calculation.
-        
+
         Args:
             x: X coordinate of building's lower-left corner
             y: Y coordinate of building's lower-left corner
@@ -85,14 +86,14 @@ class HeatmapGenerator:
         grid_x, grid_y = self._meters_to_grid(x, y)
         grid_width = int(width / self.resolution)
         grid_height = int(height / self.resolution)
-        
+
         # * Mark building area as NaN to exclude from heatmap
         self.grid[grid_y:grid_y+grid_height, grid_x:grid_x+grid_width] = np.nan
 
     def add_point(self, label: str, x: float, y: float):
         """
         Add a point of interest to the map with a specific label.
-        
+
         Args:
             label: Label for the point (e.g., 'A', 'B', 'Source 1')
             x: X coordinate of the point
@@ -105,7 +106,7 @@ class HeatmapGenerator:
     def get_point_coordinates(self, label: str) -> Tuple[float, float]:
         """
         Get the coordinates of a specific point by its label.
-        
+
         Args:
             label: The label of the point
         Returns:
@@ -119,7 +120,7 @@ class HeatmapGenerator:
         """
         Apply a custom function to calculate values for each point in the grid.
         The function should take x and y coordinates as input and return a float value.
-        
+
         Args:
             func: Function that takes (x, y) coordinates and returns a value
         """
@@ -135,7 +136,7 @@ class HeatmapGenerator:
     def _save_colorbar_legend(self, title: str, cmap='viridis', vmin=None, vmax=None, label='BER', orientation='horizontal'):
         """
         Save a standalone colorbar legend as a separate file.
-        
+
         Args:
             title: Title for the file
             cmap: Matplotlib colormap name
@@ -144,32 +145,21 @@ class HeatmapGenerator:
             label: Label for the colorbar
             orientation: 'horizontal' or 'vertical'
         """
-        fig = plt.figure(figsize=(6, 1) if orientation == 'horizontal' else (1, 6))
+        fig = plt.figure(figsize=(6, 1) if orientation == 'horizontal' else (1.5, 6))
         ax = fig.add_axes([0.1, 0.4, 0.8, 0.3] if orientation == 'horizontal' else [0.3, 0.1, 0.3, 0.8])
-        
+
         norm = plt.Normalize(vmin=vmin, vmax=vmax)
-        if orientation == 'horizontal':
-            ax.yaxis.set_label_position('right')
-            ax.set_ylabel(label)
-            cb = plt.colorbar(
-                plt.cm.ScalarMappable(norm=norm, cmap=cmap),
-                cax=ax,
-                orientation=orientation,
-                label=''
-            )
-        else:
-            cb = plt.colorbar(
-                plt.cm.ScalarMappable(norm=norm, cmap=cmap),
-                cax=ax,
-                orientation=orientation,
-                label=label
-            )
-        
+        cb = plt.colorbar(
+            plt.cm.ScalarMappable(norm=norm, cmap=cmap),
+            cax=ax,
+            orientation=orientation,
+        )
+
         plt.rcParams['text.usetex'] = True
         plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
-        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
-        
-        legend_filename = f"./simulations/results_pdf/BER heatmap legend_{orientation}.pdf"
+        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+
+        legend_filename = f"./results_pdf/BER heatmap legend_{orientation}.pdf"
         plt.savefig(legend_filename, dpi=300, format='pdf', bbox_inches='tight')
         print(f"Saved {legend_filename}")
         plt.close(fig)
@@ -177,7 +167,7 @@ class HeatmapGenerator:
     def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='white', vmin=None, vmax=None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True):
         """
         Visualize the ber_heatmap with optional building outlines and points of interest.
-        
+
         Args:
             cmap: Matplotlib colormap name
             show_buildings: Whether to show building outlines
@@ -190,11 +180,11 @@ class HeatmapGenerator:
             show_receivers_values: Whether to show values at receiver points
             show_heatmap: Whether to show the heatmap values and legend
             """
-        os.makedirs("./simulations/results_pdf", exist_ok=True)
-        os.makedirs("./simulations/results_data", exist_ok=True)
-        
-        data_filename = f"./simulations/results_data/{title}.npz"
-        
+        os.makedirs("./results_pdf", exist_ok=True)
+        os.makedirs("./results_data", exist_ok=True)
+
+        data_filename = f"./results_data/{title}.npz"
+
         np.savez(
             data_filename,
             grid=self.grid,
@@ -208,9 +198,9 @@ class HeatmapGenerator:
             log_scale=log_scale
         )
         print(f"Saved data to {data_filename}")
-        
+
         figure = plt.figure(figsize=(10, 8))
-        
+
         if log_scale and show_heatmap:
             # * Add small offset to zero values before taking log
             grid_for_log = np.copy(self.grid)
@@ -220,24 +210,24 @@ class HeatmapGenerator:
             title += ' (log scale)'
         else:
             masked_grid = np.ma.masked_invalid(self.grid)
-        
+
         extent = [0, self.width, 0, self.height]
-        
+
         if show_heatmap:
             plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=vmin, vmax=vmax, extent=extent)
-            if not log_scale: 
+            if not log_scale:
                 self._save_colorbar_legend(title, cmap=cmap, vmin=vmin, vmax=vmax, label=label, orientation='horizontal')
                 self._save_colorbar_legend(title, cmap=cmap, vmin=vmin, vmax=vmax, label=label, orientation='vertical')
         else:
             plt.imshow(np.ones_like(masked_grid), cmap='Greys', origin='lower', vmin=0, vmax=1, extent=extent, alpha=0.1)
-        
+
         if show_buildings:
             for building in self.buildings:
                 x, y, w, h = building
                 x_array = [x, x+w, x+w, x, x]
                 y_array = [y, y, y+h, y+h, y]
                 plt.plot(x_array, y_array,'r-', linewidth=2)
-        
+
         if show_points and self.points:
             c = 0.5 * self.resolution
             for label, (x, y) in self.points.items():
@@ -246,7 +236,7 @@ class HeatmapGenerator:
                     value = self.grid[grid_y, grid_x]
                     label += f" ({value:.2f})"
                 plt.plot(x + c, y + c, 'o', color=point_color, markersize=6)
-                plt.text(x + 2 * c, y + 2 * c, label, color=point_color, fontweight=1000, fontsize=15)
+                plt.text(x + 2 * c, y + 2 * c, label, color=point_color, fontweight=1000, fontsize=20, bbox=dict(pad=0.2, boxstyle='round',  lw=0, ec=None, fc='black', alpha=0.3))
             # * plot a line between all points if the lines is not crossing a building
             for label1, (x1, y1) in self.points.items():
                 for label2, (x2, y2) in self.points.items():
@@ -254,26 +244,28 @@ class HeatmapGenerator:
                     if label1[0] == 'R' and label2[0] == 'R': continue
                     if self._line_intersects_building(x1, y1, x2, y2): continue
                     plt.plot([x1 + c, x2 + c], [y1 + c, y2 + c], 'k--', alpha=0.5, color=point_color)
-        
+
         plt.rcParams['text.usetex'] = True
         plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
         plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
         plt.grid(True)
         # plt.title(title)
-        plt.xlabel('X (meters)')
-        plt.ylabel('Y (meters)')
-        plt.savefig(f"./simulations/results_pdf/{title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
+        plt.xlabel('$x$ [m]', fontsize=26)
+        plt.ylabel('$y$ [m]', fontsize=26)
+        plt.xticks(fontsize = 26)
+        plt.yticks(fontsize = 26)
+        plt.savefig(f"./results_pdf/{title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
         print(f"Saved {title}.pdf")
         plt.close(figure)
-    
+
     @classmethod
     def from_saved_data(cls, filename: str):
         """
         Load a heatmap from a saved data file
-        
+
         Args:
             filename: Path to the saved data file
-        
+
         Returns:
             HeatmapGenerator: A new HeatmapGenerator with the loaded data
         """
@@ -281,15 +273,15 @@ class HeatmapGenerator:
         width = data['width'].item()
         height = data['height'].item()
         resolution = data['resolution'].item()
-        
+
         heatmap = cls(width, height, resolution)
         heatmap.grid = data['grid']
         heatmap.buildings = data['buildings'].tolist()
-        
+
         # Convert points back from numpy arrays to tuples
         points_dict = data['points'].item()
         heatmap.points = {k: tuple(v) for k, v in points_dict.items()}
-        
+
         return heatmap
 
     def _line_intersects_building(self, x1: float, y1: float, x2: float, y2: float) -> bool:
@@ -310,7 +302,7 @@ class HeatmapGenerator:
                 (bx, by), (bx + bw, by),
                 (bx + bw, by + bh), (bx, by + bh)
             ]
-            
+
             for i in range(4):
                 if intersect(
                     (x1, y1), (x2, y2),
@@ -322,7 +314,7 @@ class HeatmapGenerator:
     def calculate_distance_from_point(self, point: str) -> np.ndarray:
         """
         Calculate the minimum distance from each grid cell to the specified point.
-        
+
         Args:
             point: point labels to consider
         Returns:
@@ -330,38 +322,38 @@ class HeatmapGenerator:
         """
         distances = np.full_like(self.grid, np.inf)
         px, py = self.points[point]
-        
+
         for grid_y in range(self.grid_height):
             for grid_x in range(self.grid_width):
                 if np.isnan(self.grid[grid_y, grid_x]):
                     continue
-                    
+
                 x, y = self._grid_to_meters(grid_x, grid_y)
                 if self._line_intersects_building(x, y, px, py):
                     continue
-                    
+
                 distance = np.sqrt((x - px)**2 + (y - py)**2)
                 distances[grid_y, grid_x] = distance
-                
+
         return distances
-    
+
     @staticmethod
     def visualize_distance_matrix(title: str, distances: np.ndarray, cmap='viridis'):
         height, width = distances.shape
         heatmap = HeatmapGenerator(width, height)
         heatmap.grid = distances
-        heatmap.visualize(title, cmap=cmap, show_buildings=False, show_points=True)    
+        heatmap.visualize(title, cmap=cmap, show_buildings=False, show_points=True)
 
 def calculate_free_space_path_loss(d: float, lam = 0.08, k = 2) -> float:
     """
     Calculate free space path loss between transmitter and receiver
-    
+
     Parameters:
     -----------
     d : Distance between transmitter and receiver in meters
     lam : Wavelength of the signal (default 5G = 80mm)
     k : Exponent of path loss model (default 2)
-        
+
     Returns:
     --------
     Free space path loss in dB
@@ -491,11 +483,12 @@ def ber_heatmap_reflection_simulation(
     eta: float = 0.9,
     snr_db: int = 10,
     path_loss_calculation_type: Literal['sum', 'product', 'active_ris'] = 'sum',
-    force_recompute: bool = False
+    force_recompute: bool = False,
+    n_colors: int = 256
 ):
     """
     Run RIS reflection simulation with given parameters
-    
+
     Args:
         width: Width of the simulation area
         height: Height of the simulation area
@@ -508,30 +501,34 @@ def ber_heatmap_reflection_simulation(
         eta: Reflection efficiency
         snr_db: Signal-to-noise ratio in dB
         num_symbols: Number of symbols to simulate
-        path_loss_calculation_type: Type of path loss calculation. 
+        path_loss_calculation_type: Type of path loss calculation.
         - 'sum' means summing all distances to calculate one single path loss;
         - 'product' means multiplying all path losses of each distances;
         - 'active_ris' means only the last RIS distance is considered
         force_recompute: If True, recompute even if data exists
+        n_colors: number of colors to be used for the heatmap. By default it is set to 255, so continuous. Set it to 5
+        to discretize the BER into 5 stops (0, 0.1, 0.2, 0.3, 0.4, 0.5)
     """
     print(f"Called function with num_symbols = {num_symbols}")
     M = len(ris_points)
     title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
-    data_filename = f"./simulations/results_data/{title} BER Heatmap.npz"
+    data_filename = f"./results_data/{title} BER Heatmap.npz"
     print(f"filename {data_filename} exist: {os.path.exists(data_filename)}")
-    
+
     # Check if data already exists
     if not force_recompute and os.path.exists(data_filename):
         print(f"Data file {data_filename} already exists. Loading...")
         ber_heatmap = HeatmapGenerator.from_saved_data(data_filename)
-        ber_heatmap.visualize(title + ' BER Heatmap', vmin=0.0, vmax=1.0, label='BER', show_receivers_values=True)
+        viridis = matplotlib.colormaps['viridis']
+        cmap = matplotlib.colors.ListedColormap([viridis(x) for x in np.linspace(0, 1, n_colors)])
+        ber_heatmap.visualize(title + ' BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
         # ber_heatmap.visualize(title + ' BER Heatmap', log_scale=True, vmin=-10.0, vmax=0.0, label='BER', show_receivers_values=True)
         return
-    
-    os.makedirs("./simulations/results_data", exist_ok=True)
-    
+
+    os.makedirs("./results_data", exist_ok=True)
+
     ber_heatmap = HeatmapGenerator(width, height)
-    
+
     for building in buildings:
         ber_heatmap.add_building(*building)
 
@@ -562,23 +559,23 @@ def ber_heatmap_reflection_simulation(
 
     if M > 1:
         receiver_grid_coords = [(ber_heatmap._meters_to_grid(rx, ry)) for rx, ry in receivers]
-        Gs = [calculate_mimo_channel_gain(distances_from_Ps[-1][ry, rx], N, K) 
+        Gs = [calculate_mimo_channel_gain(distances_from_Ps[-1][ry, rx], N, K)
               for ry, rx in receiver_grid_coords]
 
         ris_grid_coords = [ber_heatmap._meters_to_grid(px, py) for px, py in ris_points]
         Cs = [calculate_mimo_channel_gain(
-            distances_from_Ps[i+1][ris_grid_coords[i][1], ris_grid_coords[i][0]], 
+            distances_from_Ps[i+1][ris_grid_coords[i][1], ris_grid_coords[i][0]],
             N, N
         ) for i in range(M-1)]
     else:
         receiver_grid_coords = [(ber_heatmap._meters_to_grid(rx, ry)) for rx, ry in receivers]
-        Gs = [calculate_mimo_channel_gain(distances_from_Ps[0][ry, rx], N, K) 
+        Gs = [calculate_mimo_channel_gain(distances_from_Ps[0][ry, rx], N, K)
               for ry, rx in receiver_grid_coords]
         Cs = []
 
     print(f"Channel matrix from transmitter to RIS: MAS {calculate_channel_power(H):.1e}")
     print(f"Channel matrix from RIS to receiver: MAS {calculate_channel_power(Gs[0]):.1e}")
-    
+
     Ps, _ = calculate_multi_ris_reflection_matrices(K, N, J, M, Gs, H, eta, Cs)
     P = unify_ris_reflection_matrices(Ps, Cs)
     print(f"Reflection matrix: MAS {calculate_channel_power(P):.1e}")
@@ -605,9 +602,9 @@ def ber_heatmap_reflection_simulation(
         power_heatmap_from_T.grid[grid_y, grid_x] = B_power
 
         distances_from_Ps_current = [distances_from_Ps[i][grid_y, grid_x] for i in range(M)]
-        
+
         Fs = [calculate_mimo_channel_gain(d, N, K) for d in distances_from_Ps_current]
-        
+
         # * Override channel matrices for receiver positions
         for j in range(J):
             if x == receivers[j][0] and y == receivers[j][1]:
@@ -619,13 +616,13 @@ def ber_heatmap_reflection_simulation(
             P = unify_ris_reflection_matrices(Ps, Cs)
 
             effective_channel = np.zeros((K, K), dtype=complex)
-            
+
             for i in range(M):
                 if i == 0:
                     P_to_i = Ps[0]
                 else:
                     P_to_i = unify_ris_reflection_matrices(Ps[:i+1], Cs[:i])
-                
+
                 if path_loss_calculation_type == 'sum':
                     total_distance = sum(ris_path_distances[:i+1]) + distances_from_Ps_current[i]
                     total_path_loss = calculate_free_space_path_loss(total_distance)
@@ -638,22 +635,22 @@ def ber_heatmap_reflection_simulation(
                     new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss
                 elif path_loss_calculation_type == 'active_ris':
                     total_path_loss = calculate_free_space_path_loss(distances_from_Ps_current[i])
-                    new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss 
-                else: 
-                    raise ValueError(f"Invalid path loss calculation type: {path_loss_calculation_type}")   
+                    new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss
+                else:
+                    raise ValueError(f"Invalid path loss calculation type: {path_loss_calculation_type}")
 
                 new_effective_channel_power = calculate_channel_power(new_effective_channel)
                 power_heatmap_from_Ps[i].grid[grid_y, grid_x] += new_effective_channel_power / num_symbols # * Take the mean power
 
                 effective_channel += new_effective_channel
-            power = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel) 
+            power = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel)
             sigma_sq = snr_db_to_sigma_sq(snr_db, power)
-            
+
             if distance_from_T == np.inf:
                 errors += simulate_ssk_transmission_reflection(K, effective_channel, sigma_sq)
             else:
                 errors += simulate_ssk_transmission_direct(K, B, effective_channel, sigma_sq)
-                
+
         return errors / num_symbols
 
     ber_heatmap.apply_function(calculate_ber_per_point)
@@ -675,7 +672,7 @@ def main():
     transmitter_single = (3, 3)
     ris_points_single = [(7, 9)]
     receivers_single = [(16, 11), (10, 18)]
-    
+
     for path_loss_calculation_type in PATH_LOSS_TYPES:
         ber_heatmap_reflection_simulation(
             width=20,
@@ -698,7 +695,7 @@ def main():
     transmitter_multiple = (1, 1)
     ris_points_multiple = [(0, 9), (10, 9)]
     receivers_multiple = [(16, 14), (12, 18)]
-    
+
     for path_loss_calculation_type in PATH_LOSS_TYPES:
         ber_heatmap_reflection_simulation(
             width=20,
