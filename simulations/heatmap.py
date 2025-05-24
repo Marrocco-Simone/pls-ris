@@ -203,8 +203,15 @@ class HeatmapGenerator:
         if log_scale and show_heatmap:
             # * Add small offset to zero values before taking log
             grid_for_log = np.copy(self.grid)
-            min_nonzero = np.min(grid_for_log[grid_for_log > 0])
+            positive_values = grid_for_log[grid_for_log > 0]
+    
+            if len(positive_values) > 0:
+                min_nonzero = np.min(positive_values)
             grid_for_log[grid_for_log == 0] = min_nonzero / num_symbols
+            else:
+                # If no positive values exist, set a small default value
+                grid_for_log[grid_for_log == 0] = 1e-10
+
             masked_grid = np.ma.masked_invalid(np.log10(grid_for_log))
             title += ' (log scale)'
         else:
