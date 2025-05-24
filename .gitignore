@@ -58,3 +58,8 @@ simulations/results/*.png
 # Pdf I need
 !documents/*.pdf
 !frontespizio-tesi-lm-disi-word_signed_signed.pdf
+
+# cpp
+*.o
+*.out
+*.exe
