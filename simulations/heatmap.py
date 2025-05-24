@@ -6,6 +6,7 @@ import PyQt6
 from typing import List, Tuple, Callable, Literal
 import os
 import json
+from tqdm import tqdm
 from diagonalization import (
   generate_random_channel_matrix,
   calculate_multi_ris_reflection_matrices,
@@ -124,10 +125,8 @@ class HeatmapGenerator:
         Args:
             func: Function that takes (x, y) coordinates and returns a value
         """
-        for grid_y in range(self.grid_height):
-            print(f"Processing row {grid_y * self.resolution}/{self.grid_height * self.resolution}")
-            for grid_x in range(self.grid_width):
-                print(f"Processing column {grid_x * self.resolution}/{self.grid_width * self.resolution}")
+        for grid_y in tqdm(range(self.grid_height), desc="Processing rows   "):
+            for grid_x in tqdm(range(self.grid_width), desc="Processing columns", leave=False):
                 if not np.isnan(self.grid[grid_y, grid_x]):
                     # * Convert grid coordinates to meters for the function
                     x, y = self._grid_to_meters(grid_x, grid_y)
