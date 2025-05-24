@@ -242,7 +242,7 @@ class HeatmapGenerator:
                     if label1 == label2: continue
                     if label1[0] == 'R' and label2[0] == 'R': continue
                     if self._line_intersects_building(x1, y1, x2, y2): continue
-                    plt.plot([x1 + c, x2 + c], [y1 + c, y2 + c], 'k--', alpha=0.5, color=point_color)
+                    plt.plot([x1 + c, x2 + c], [y1 + c, y2 + c], '--', alpha=0.5, color=point_color)
 
         plt.rcParams['text.usetex'] = True
         plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
