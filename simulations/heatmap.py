@@ -570,7 +570,7 @@ def ber_heatmap_reflection_simulation(
     if M > 1:
         receiver_grid_coords = [(ber_heatmap._meters_to_grid(rx, ry)) for rx, ry in receivers]
         Gs = [calculate_mimo_channel_gain(distances_from_Ps[-1][ry, rx], N, K)
-              for ry, rx in receiver_grid_coords]
+              for rx, ry in receiver_grid_coords]
 
         ris_grid_coords = [ber_heatmap._meters_to_grid(px, py) for px, py in ris_points]
         Cs = [calculate_mimo_channel_gain(
@@ -580,7 +580,7 @@ def ber_heatmap_reflection_simulation(
     else:
         receiver_grid_coords = [(ber_heatmap._meters_to_grid(rx, ry)) for rx, ry in receivers]
         Gs = [calculate_mimo_channel_gain(distances_from_Ps[0][ry, rx], N, K)
-              for ry, rx in receiver_grid_coords]
+              for rx, ry in receiver_grid_coords]
         Cs = []
 
     print(f"Channel matrix from transmitter to RIS: MAS {calculate_channel_power(H):.1e}")
