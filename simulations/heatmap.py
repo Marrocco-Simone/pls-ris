@@ -22,7 +22,7 @@ from ber import (
     simulate_ssk_transmission_direct
 )
 
-num_symbols=10000
+num_symbols=10
 
 class HeatmapGenerator:
     def __init__(self, width: int, height: int, resolution: float = 0.5):
@@ -612,6 +612,8 @@ def ber_heatmap_reflection_simulation(
         power_heatmap_from_T.grid[grid_y, grid_x] = B_power
 
         distances_from_Ps_current = [distances_from_Ps[i][grid_y, grid_x] for i in range(M)]
+        if distance_from_T == np.inf and all(d == np.inf for d in distances_from_Ps_current):
+            return np.nan
 
         Fs = [calculate_mimo_channel_gain(d, N, K) for d in distances_from_Ps_current]
 
@@ -674,8 +676,9 @@ def ber_heatmap_reflection_simulation(
     print('\n')
 
 def main():
-    calculate_single_reflection = True
-    calculate_multiple_reflection = True
+    calculate_single_reflection = False
+    calculate_multiple_reflection = False
+    calculate_multiple_complex_reflection = True
     
     # * One reflection simulation
     if calculate_single_reflection:
@@ -723,6 +726,40 @@ def main():
                 K=2,
                 path_loss_calculation_type=path_loss_calculation_type,
                 num_symbols=num_symbols
+            )
+
+    # * Multiple complex reflection simulation - one receiver gets from the middle RIS, another from the last RIS
+    if calculate_multiple_complex_reflection:
+        buildings_multiple = [
+            (0, 10, 10, 10),
+            (2, 4, 7, 1),
+            (15, 10, 5, 5),
+            (9, 0, 1, 8),
+            (10, 7, 4, 1)
+        ]
+        transmitter_multiple = (1, 1)
+        ris_points_multiple = [
+            (1, 9), 
+            (10, 9), 
+            # (18, 9)
+        ]
+        receivers_multiple = [
+            (12, 2), 
+            (12, 18)
+        ]
+
+        for path_loss_calculation_type in PATH_LOSS_TYPES:
+            ber_heatmap_reflection_simulation(
+                width=20,
+                height=20,
+                buildings=buildings_multiple,
+                transmitter=transmitter_multiple,
+                ris_points=ris_points_multiple,
+                receivers=receivers_multiple,
+                N=16,
+                K=2,
+                path_loss_calculation_type=path_loss_calculation_type,
+                num_symbols=num_symbols,
             )
 
 if __name__ == "__main__":
