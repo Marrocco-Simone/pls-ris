@@ -475,7 +475,11 @@ def calculate_channel_power(H: np.ndarray) -> float:
 def print_low_array(v: np.ndarray) -> str:
     return print(np.array2string(np.abs(v), formatter={'float_kind':lambda x: '{:.1e}'.format(x)}))
 
-PATH_LOSS_TYPES = ('sum', 'product', 'active_ris')
+PATH_LOSS_TYPES = (
+    # 'sum', 
+    'product', 
+    'active_ris'
+)
 def ber_heatmap_reflection_simulation(
     width: int,
     height: int,
