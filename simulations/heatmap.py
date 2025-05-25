@@ -207,7 +207,7 @@ class HeatmapGenerator:
     
             if len(positive_values) > 0:
                 min_nonzero = np.min(positive_values)
-            grid_for_log[grid_for_log == 0] = min_nonzero / num_symbols
+                grid_for_log[grid_for_log == 0] = min_nonzero / num_symbols
             else:
                 # If no positive values exist, set a small default value
                 grid_for_log[grid_for_log == 0] = 1e-10
@@ -674,51 +674,56 @@ def ber_heatmap_reflection_simulation(
     print('\n')
 
 def main():
+    calculate_single_reflection = True
+    calculate_multiple_reflection = True
+    
     # * One reflection simulation
-    buildings_single = [
-        (0, 10, 7, 10),
-        (8, 0, 12, 8)
-    ]
-    transmitter_single = (3, 3)
-    ris_points_single = [(7, 9)]
-    receivers_single = [(16, 11), (10, 18)]
+    if calculate_single_reflection:
+        buildings_single = [
+            (0, 10, 7, 10),
+            (8, 0, 12, 8)
+        ]
+        transmitter_single = (3, 3)
+        ris_points_single = [(7, 9)]
+        receivers_single = [(16, 11), (10, 18)]
 
-    for path_loss_calculation_type in PATH_LOSS_TYPES:
-        ber_heatmap_reflection_simulation(
-            width=20,
-            height=20,
-            buildings=buildings_single,
-            transmitter=transmitter_single,
-            ris_points=ris_points_single,
-            receivers=receivers_single,
-            N=25,
-            K=4,
-            path_loss_calculation_type=path_loss_calculation_type,
-            num_symbols=num_symbols
-        )
+        for path_loss_calculation_type in PATH_LOSS_TYPES:
+            ber_heatmap_reflection_simulation(
+                width=20,
+                height=20,
+                buildings=buildings_single,
+                transmitter=transmitter_single,
+                ris_points=ris_points_single,
+                receivers=receivers_single,
+                N=25,
+                K=4,
+                path_loss_calculation_type=path_loss_calculation_type,
+                num_symbols=num_symbols
+            )
 
     # * Multiple reflection simulation
-    buildings_multiple = [
-        (0, 10, 10, 10),
-        (2, 4, 7, 1)
-    ]
-    transmitter_multiple = (1, 1)
-    ris_points_multiple = [(0, 9), (10, 9)]
-    receivers_multiple = [(16, 14), (12, 18)]
+    if calculate_multiple_reflection:
+        buildings_multiple = [
+            (0, 10, 10, 10),
+            (2, 4, 7, 1)
+        ]
+        transmitter_multiple = (1, 1)
+        ris_points_multiple = [(0, 9), (10, 9)]
+        receivers_multiple = [(16, 14), (12, 18)]
 
-    for path_loss_calculation_type in PATH_LOSS_TYPES:
-        ber_heatmap_reflection_simulation(
-            width=20,
-            height=20,
-            buildings=buildings_multiple,
-            transmitter=transmitter_multiple,
-            ris_points=ris_points_multiple,
-            receivers=receivers_multiple,
-            N=16,
-            K=2,
-            path_loss_calculation_type=path_loss_calculation_type,
-            num_symbols=num_symbols
-        )
+        for path_loss_calculation_type in PATH_LOSS_TYPES:
+            ber_heatmap_reflection_simulation(
+                width=20,
+                height=20,
+                buildings=buildings_multiple,
+                transmitter=transmitter_multiple,
+                ris_points=ris_points_multiple,
+                receivers=receivers_multiple,
+                N=16,
+                K=2,
+                path_loss_calculation_type=path_loss_calculation_type,
+                num_symbols=num_symbols
+            )
 
 if __name__ == "__main__":
     main()
