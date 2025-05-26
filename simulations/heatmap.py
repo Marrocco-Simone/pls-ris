@@ -554,10 +554,10 @@ def ber_heatmap_reflection_simulation(
         ber_heatmap.add_point(f'R{i+1}', rx, ry)
 
     distances_from_T = ber_heatmap.calculate_distance_from_point('T')
-    # HeatmapGenerator.visualize_distance_matrix('Distance from Transmitter', distances_from_T)
+    HeatmapGenerator.visualize_distance_matrix('Distance from Transmitter', distances_from_T)
     distances_from_Ps = [ber_heatmap.calculate_distance_from_point(f'P{i+1}') for i in range(M)]
-    # for m in range(M):
-    #     HeatmapGenerator.visualize_distance_matrix(f'Distance from RIS {m+1}', distances_from_Ps[m])
+    for m in range(M):
+        HeatmapGenerator.visualize_distance_matrix(f'Distance from RIS {m+1}', distances_from_Ps[m])
 
     power_heatmap_from_T = HeatmapGenerator.copy_from(ber_heatmap)
     power_heatmap_from_Ps = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
