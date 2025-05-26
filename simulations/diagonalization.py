@@ -207,6 +207,10 @@ def unify_ris_reflection_matrices(
         P = P @ Cs[i] @ Ps[i+1]
     return P
 
+def verify_matrix_is_diagonal(effective_channel: np.ndarray) -> bool:
+    off_diag_sum = np.sum(np.abs(effective_channel - np.diag(np.diag(effective_channel))))
+    return off_diag_sum < tolerance
+
 def verify_multi_ris_diagonalization(
     Ps: List[np.ndarray],
     Gs: List[np.ndarray],
@@ -230,8 +234,7 @@ def verify_multi_ris_diagonalization(
     P = unify_ris_reflection_matrices(Ps, Cs)
     for G in Gs:
         effective_channel = G @ P @ H
-        off_diag_sum = np.sum(np.abs(effective_channel - np.diag(np.diag(effective_channel))))
-        results.append(off_diag_sum < tolerance)
+        results.append(verify_matrix_is_diagonal(effective_channel))
     return results
 
 def print_effective_channel(G: np.ndarray, H: np.ndarray, P: np.ndarray):
