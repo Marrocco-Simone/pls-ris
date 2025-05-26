@@ -120,6 +120,22 @@ def calculate_ris_reflection_matrice(
     dor = 2 * null_space_dim
     return P, dor
 
+def random_reflection_vector(N: int, eta: float) -> np.ndarray:
+    """
+    Generate a random reflection vector.
+    
+    Args:
+        N: Number of reflecting elements
+        eta: Reflection efficiency
+    
+    Returns:
+        Random reflection vector of length N
+    """
+    absorptions = np.random.uniform(0, 1, N)
+    phases = np.random.uniform(0, 2 * np.pi, N)
+    # # * p_m[i] = eta * r_i * exp(j*theta_i)
+    return eta * absorptions * np.exp(1j * phases)
+
 def calculate_multi_ris_reflection_matrices(
     K: int, 
     N: int, 
@@ -155,10 +171,7 @@ def calculate_multi_ris_reflection_matrices(
 
     # * Generate M-1 random reflection vectors
     for i in range(M-1):
-        absorptions = np.random.uniform(0, 1, N)
-        phases = np.random.uniform(0, 2*np.pi, N)
-        # * p_m[i] = eta * r_i * exp(j*theta_i)
-        p_m = absorptions * np.exp(1j * phases)
+        p_m = random_reflection_vector(N, eta)
         ps.append(p_m)
         S = S @ np.diag(p_m) @ Cs[i]
 
