@@ -745,12 +745,12 @@ def ber_heatmap_reflection_simulation(
         print(f"\tReceiver {j+1} mean power: {mean_power_per_receiver[j]:.2e}, BER: {(ber_heatmap.grid[ber_heatmap._meters_to_grid(receivers[j][1], receivers[j][0])]*100):2}%")
     print("------")
     title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
-    ber_heatmap.visualize(title + ' BER Heatmap', vmin=0.0, vmax=1.0, label='BER', show_receivers_values=True)
-    ber_heatmap.visualize(title + ' BER Heatmap', log_scale=True, vmin=-10.0, vmax=0.0, label='BER', show_receivers_values=True)
+    ber_heatmap.visualize(title + ' BER Heatmap', vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
+    # ber_heatmap.visualize(title + ' BER Heatmap', log_scale=True, vmin=-10.0, vmax=0.0, label='BER', show_receivers_values=True)
 
-    power_heatmap_from_T.visualize(title + ' Mean Antenna Strenght from Transmitter', log_scale=True, vmin=-10.0, vmax=0.0, label='log MAS')
-    for i in range(M):
-        power_heatmap_from_Ps[i].visualize(title + f' Mean Antenna Strenght {i+1}', log_scale=True, vmin=-10.0, vmax=0.0, label='log MAS')
+    # power_heatmap_from_T.visualize(title + ' Mean Antenna Strenght from Transmitter', log_scale=True, vmin=-10.0, vmax=0.0, label='log MAS')
+    # for i in range(M):
+    #     power_heatmap_from_Ps[i].visualize(title + f' Mean Antenna Strenght {i+1}', log_scale=True, vmin=-10.0, vmax=0.0, label='log MAS')
     print('\n')
 
 def main():
