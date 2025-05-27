@@ -58,3 +58,7 @@ simulations/results/*.png
 # Pdf I need
 !documents/*.pdf
 !frontespizio-tesi-lm-disi-word_signed_signed.pdf
+
+# Miscellaneous
+*.log
+*.zip
