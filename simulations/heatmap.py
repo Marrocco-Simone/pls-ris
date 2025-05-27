@@ -600,6 +600,7 @@ def ber_heatmap_reflection_simulation(
                 distances_from_Ps[i][ris_points[i-1][1], ris_points[i-1][0]]
             )
 
+    mean_power_per_receiver = np.zeros(J, dtype=float)
     def calculate_ber_per_point(x: int, y: int) -> float:
         grid_x, grid_y = ber_heatmap._meters_to_grid(x, y)
         distance_from_T = distances_from_T[grid_y, grid_x]
@@ -620,6 +621,7 @@ def ber_heatmap_reflection_simulation(
                     Fs[i] = Gs_per_ris[i][j]
 
         show_receivers_calculations_and_exit = False
+        mean_power = 0.0
         errors = 0
         for _ in range(num_symbols):
             Ps: List[np.ndarray] = []
@@ -699,24 +701,23 @@ def ber_heatmap_reflection_simulation(
                 if path_loss_calculation_type == 'sum':
                     total_distance = sum(ris_path_distances[:i+1]) + distances_from_Ps_current[i]
                     total_path_loss = calculate_free_space_path_loss(total_distance)
-                    new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss
                 elif path_loss_calculation_type == 'product':
                     total_path_loss = 1
                     for j in range(i+1):
                         total_path_loss *= calculate_free_space_path_loss(ris_path_distances[j])
                     total_path_loss *= calculate_free_space_path_loss(distances_from_Ps_current[i])
-                    new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss
                 elif path_loss_calculation_type == 'active_ris':
                     total_path_loss = calculate_free_space_path_loss(distances_from_Ps_current[i])
-                    new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss
                 else:
                     raise ValueError(f"Invalid path loss calculation type: {path_loss_calculation_type}")
+                new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss
 
                 new_effective_channel_power = calculate_channel_power(new_effective_channel)
                 power_heatmap_from_Ps[i].grid[grid_y, grid_x] += new_effective_channel_power / num_symbols # * Take the mean power
 
                 effective_channel += new_effective_channel
             power = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel)
+            mean_power += power / num_symbols
             sigma_sq = snr_db_to_sigma_sq(snr_db, power)
 
             if distance_from_T == np.inf:
@@ -724,9 +725,24 @@ def ber_heatmap_reflection_simulation(
             else:
                 errors += simulate_ssk_transmission_direct(K, B, effective_channel, sigma_sq)
 
+        for i in range(M):
+            if distances_from_Ps_current[i] == np.inf:
+                continue    
+            for j in range(J):
+                if x == receivers[j][0] and y == receivers[j][1]:
+                    mean_power_per_receiver[j] += power_heatmap_from_Ps[i].grid[grid_y, grid_x]
+
+        if mean_power == 0:
+            return np.nan
+
         return errors / num_symbols
 
     ber_heatmap.apply_function(calculate_ber_per_point)
+    print(f"Mean power per receiver: {[f'{power:.2e}' for power in mean_power_per_receiver]}")
+    print("------")
+    for j in range (J):
+        print(f"\tReceiver {j+1} mean power: {mean_power_per_receiver[j]:.2e}, BER: {(ber_heatmap.grid[ber_heatmap._meters_to_grid(receivers[j][1], receivers[j][0])]*100):2}%")
+    print("------")
     title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
     ber_heatmap.visualize(title + ' BER Heatmap', vmin=0.0, vmax=1.0, label='BER', show_receivers_values=True)
     ber_heatmap.visualize(title + ' BER Heatmap', log_scale=True, vmin=-10.0, vmax=0.0, label='BER', show_receivers_values=True)
