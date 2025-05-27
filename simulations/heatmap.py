@@ -704,6 +704,7 @@ def ber_heatmap_reflection_simulation(
                 elif path_loss_calculation_type == 'product':
                     total_path_loss = 1
                     for j in range(i+1):
+                        if ris_path_distances[j] == np.inf: continue
                         total_path_loss *= calculate_free_space_path_loss(ris_path_distances[j])
                     total_path_loss *= calculate_free_space_path_loss(distances_from_Ps_current[i])
                 elif path_loss_calculation_type == 'active_ris':
