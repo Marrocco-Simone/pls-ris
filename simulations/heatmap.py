@@ -751,7 +751,6 @@ def ber_heatmap_reflection_simulation(
     # power_heatmap_from_T.visualize(title + ' Mean Antenna Strenght from Transmitter', log_scale=True, vmin=-10.0, vmax=0.0, label='log MAS')
     # for i in range(M):
     #     power_heatmap_from_Ps[i].visualize(title + f' Mean Antenna Strenght {i+1}', log_scale=True, vmin=-10.0, vmax=0.0, label='log MAS')
-    print('\n')
 
 def main():
     calculate_single_reflection = True
@@ -787,7 +786,7 @@ def main():
                 num_symbols=num_symbols
             )
             end_time = time.perf_counter()
-            print(f"Single reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}, path loss type: {path_loss_calculation_type}")
+            print(f"Single reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}, path loss type: {path_loss_calculation_type}\n\n")
 
     # * Multiple reflection simulation
     if calculate_multiple_reflection:
@@ -814,7 +813,7 @@ def main():
                 num_symbols=num_symbols
             )
             end_time = time.perf_counter()
-            print(f"Multiple reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}, path loss type: {path_loss_calculation_type}")
+            print(f"Multiple reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}, path loss type: {path_loss_calculation_type}\n\n")
 
     # * Multiple complex reflection simulation - one receiver gets from the middle RIS, another from the last RIS
     if calculate_multiple_complex_reflection:
@@ -854,7 +853,7 @@ def main():
                 num_symbols=num_symbols,
             )
             end_time = time.perf_counter()
-            print(f"Multiple complex reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}, path loss type: {path_loss_calculation_type}")
+            print(f"Multiple complex reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}, path loss type: {path_loss_calculation_type}\n\n")
 
     end_time = time.perf_counter()
     print(f"Total time taken: {end_time - begin_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}")
