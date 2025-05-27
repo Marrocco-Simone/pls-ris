@@ -23,7 +23,7 @@ from ber import (
     simulate_ssk_transmission_direct
 )
 
-num_symbols=25
+num_symbols=1000
 
 class HeatmapGenerator:
     def __init__(self, width: int, height: int, resolution: float = 0.5):
@@ -823,13 +823,13 @@ def main():
             (3, 4, 7, 1),
             (15, 10, 5, 1),
             (9, 0, 1, 8),
-            (5, 7, 9, 1),
+            (5, 7, 7, 1),
         ]
         transmitter_multiple = (1, 1)
         ris_points_multiple = [
-            (1, 9), 
+            (0, 9), 
             (10, 9), 
-            (18, 9),
+            (18, 6),
         ]
         receivers_multiple = [
             (4, 5),
