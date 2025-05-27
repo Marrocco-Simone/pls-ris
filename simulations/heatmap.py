@@ -742,7 +742,7 @@ def ber_heatmap_reflection_simulation(
     print(f"Mean power per receiver: {[f'{power:.2e}' for power in mean_power_per_receiver]}")
     print("------")
     for j in range (J):
-        print(f"\tReceiver {j+1} mean power: {mean_power_per_receiver[j]:.2e}, BER: {(ber_heatmap.grid[ber_heatmap._meters_to_grid(receivers[j][1], receivers[j][0])]*100):2}%")
+        print(f"\tReceiver {j+1} mean power: {mean_power_per_receiver[j]:.2e}, BER: {(ber_heatmap.grid[ber_heatmap._meters_to_grid(receivers[j][1], receivers[j][0])]*100):2f}%")
     print("------")
     title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
     ber_heatmap.visualize(title + ' BER Heatmap', vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
