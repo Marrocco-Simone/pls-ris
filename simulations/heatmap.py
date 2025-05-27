@@ -7,6 +7,7 @@ from typing import List, Tuple, Callable, Literal
 import os
 import json
 from tqdm import tqdm
+import time
 from diagonalization import (
   calculate_ris_reflection_matrice,
   unify_ris_reflection_matrices,
@@ -741,6 +742,8 @@ def main():
     calculate_multiple_complex_reflection = True
     K=4
     N=36
+
+    begin_time = time.perf_counter()
     
     # * One reflection simulation
     if calculate_single_reflection:
@@ -753,6 +756,7 @@ def main():
         receivers_single = [(16, 11), (10, 18)]
 
         for path_loss_calculation_type in PATH_LOSS_TYPES:
+            start_time = time.perf_counter()
             ber_heatmap_reflection_simulation(
                 width=20,
                 height=20,
@@ -765,6 +769,8 @@ def main():
                 path_loss_calculation_type=path_loss_calculation_type,
                 num_symbols=num_symbols
             )
+            end_time = time.perf_counter()
+            print(f"Single reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}, path loss type: {path_loss_calculation_type}")
 
     # * Multiple reflection simulation
     if calculate_multiple_reflection:
@@ -777,6 +783,7 @@ def main():
         receivers_multiple = [(16, 14), (12, 18)]
 
         for path_loss_calculation_type in PATH_LOSS_TYPES:
+            start_time = time.perf_counter()
             ber_heatmap_reflection_simulation(
                 width=20,
                 height=20,
@@ -789,6 +796,8 @@ def main():
                 path_loss_calculation_type=path_loss_calculation_type,
                 num_symbols=num_symbols
             )
+            end_time = time.perf_counter()
+            print(f"Multiple reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}, path loss type: {path_loss_calculation_type}")
 
     # * Multiple complex reflection simulation - one receiver gets from the middle RIS, another from the last RIS
     if calculate_multiple_complex_reflection:
@@ -814,6 +823,7 @@ def main():
         ]
 
         for path_loss_calculation_type in PATH_LOSS_TYPES:
+            start_time = time.perf_counter()
             ber_heatmap_reflection_simulation(
                 width=20,
                 height=20,
@@ -826,6 +836,11 @@ def main():
                 path_loss_calculation_type=path_loss_calculation_type,
                 num_symbols=num_symbols,
             )
+            end_time = time.perf_counter()
+            print(f"Multiple complex reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}, path loss type: {path_loss_calculation_type}")
+
+    end_time = time.perf_counter()
+    print(f"Total time taken: {end_time - begin_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}")
 
 if __name__ == "__main__":
     main()
