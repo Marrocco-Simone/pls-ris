@@ -1,64 +1,8 @@
 .DS_store
-
-# LaTeX intermediate files
-*.aux
-*.bbl
-*.blg
-*.brf
-*.idx
-*.ilg
-*.ind
-*.lof
-*.log
-*.lot
-*.out
-*.toc
-*.acn
-*.acr
-*.alg
-*.dvi
-*.fdb_latexmk
-*.fls
-*.glg
-*.glo
-*.gls
-*.ist
-*.loa
-*.lol
-*.maf
-*.mtc
-*.mtc0
-*.nav
-*.nlo
-*.nls
-*.snm
-*.synctex.gz
-*.tdo
-*.thm
-*.toc
-*.vrb
-
-# LaTeX Workshop specific files
-*.pdf
-*.synctex.gz
-*.fls
-*.fdb_latexmk
-*.synctex
-*.synctex(busy)
-
-# TeX Live specific files
-texlive/*
-
-# python
 __pycache__/
 simulations/results/*.png
 .venv
 *.npz
-
-# Pdf I need
-!documents/*.pdf
-!frontespizio-tesi-lm-disi-word_signed_signed.pdf
-
-# Miscellaneous
+*.pdf
 *.log
 *.zip
