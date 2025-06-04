@@ -118,21 +118,6 @@ class HeatmapGenerator:
             raise KeyError(f"Point {label} not found")
         return self.points[label]
 
-    def apply_function(self, func: Callable[[int, int], float]):
-        """
-        Apply a custom function to calculate values for each point in the grid.
-        The function should take x and y coordinates as input and return a float value.
-
-        Args:
-            func: Function that takes (x, y) coordinates and returns a value
-        """
-        for grid_y in tqdm(range(self.grid_height), desc="Processing rows   "):
-            for grid_x in tqdm(range(self.grid_width), desc="Processing columns", leave=False):
-                if not np.isnan(self.grid[grid_y, grid_x]):
-                    # * Convert grid coordinates to meters for the function
-                    x, y = self._grid_to_meters(grid_x, grid_y)
-                    self.grid[grid_y, grid_x] = func(x, y)
-
     def _save_colorbar_legend(self, title: str, cmap='viridis', vmin=None, vmax=None, label='BER', orientation='horizontal'):
         """
         Save a standalone colorbar legend as a separate file.
@@ -479,11 +464,6 @@ def calculate_channel_power(H: np.ndarray) -> float:
 def print_low_array(v: np.ndarray) -> str:
     return print(np.array2string(np.abs(v), formatter={'float_kind':lambda x: '{:.1e}'.format(x)}))
 
-PATH_LOSS_TYPES = (
-    # 'sum', 
-    'product', 
-    'active_ris'
-)
 def ber_heatmap_reflection_simulation(
     width: int,
     height: int,
@@ -496,7 +476,6 @@ def ber_heatmap_reflection_simulation(
     K: int = 2,
     eta: float = 0.9,
     snr_db: int = 10,
-    path_loss_calculation_type: Literal['sum', 'product', 'active_ris'] = 'sum',
     force_recompute: bool = False,
     n_colors: int = 256
 ):
@@ -515,29 +494,26 @@ def ber_heatmap_reflection_simulation(
         eta: Reflection efficiency
         snr_db: Signal-to-noise ratio in dB
         num_symbols: Number of symbols to simulate
-        path_loss_calculation_type: Type of path loss calculation.
-        - 'sum' means summing all distances to calculate one single path loss;
-        - 'product' means multiplying all path losses of each distances;
-        - 'active_ris' means only the last RIS distance is considered
         force_recompute: If True, recompute even if data exists
         n_colors: number of colors to be used for the heatmap. By default it is set to 255, so continuous. Set it to 5
         to discretize the BER into 5 stops (0, 0.1, 0.2, 0.3, 0.4, 0.5)
     """
     print(f"Called function with num_symbols = {num_symbols}")
     M = len(ris_points)
-    title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
-    data_filename = f"./results_data/{title} BER Heatmap.npz"
-    print(f"filename {data_filename} exist: {os.path.exists(data_filename)}")
+    for path_loss_calculation_type in ['sum', 'product', 'active']:
+        title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
+        data_filename = f"./results_data/{title} BER Heatmap.npz"
+        print(f"filename {data_filename} exist: {os.path.exists(data_filename)}")
 
-    # Check if data already exists
-    if not force_recompute and os.path.exists(data_filename):
-        print(f"Data file {data_filename} already exists. Loading...")
-        ber_heatmap = HeatmapGenerator.from_saved_data(data_filename)
-        viridis = matplotlib.colormaps['viridis']
-        cmap = matplotlib.colors.ListedColormap([viridis(x) for x in np.linspace(0, 1, n_colors)])
-        ber_heatmap.visualize(title + ' BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
-        # ber_heatmap.visualize(title + ' BER Heatmap', log_scale=True, vmin=-10.0, vmax=0.0, label='BER', show_receivers_values=True)
-        return
+        # Check if data already exists
+        if not force_recompute and os.path.exists(data_filename):
+            print(f"Data file {data_filename} already exists. Loading...")
+            ber_heatmap = HeatmapGenerator.from_saved_data(data_filename)
+            viridis = matplotlib.colormaps['viridis']
+            cmap = matplotlib.colors.ListedColormap([viridis(x) for x in np.linspace(0, 1, n_colors)])
+            ber_heatmap.visualize(title + ' BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
+            # ber_heatmap.visualize(title + ' BER Heatmap', log_scale=True, vmin=-10.0, vmax=0.0, label='BER', show_receivers_values=True)
+            return
 
     os.makedirs("./results_data", exist_ok=True)
 
@@ -564,7 +540,9 @@ def ber_heatmap_reflection_simulation(
     #     HeatmapGenerator.visualize_distance_matrix(f'Distance from RIS {m+1}', distances_from_Ps[m])
 
     power_heatmap_from_T = HeatmapGenerator.copy_from(ber_heatmap)
-    power_heatmap_from_Ps = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
+    power_heatmap_from_Ps_sum = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
+    power_heatmap_from_Ps_product = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
+    power_heatmap_from_Ps_active = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
 
     ber_heatmap.visualize(f'{M} RIS(s) (K = {K}, SNR = {snr_db})', label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False)
 
@@ -600,152 +578,203 @@ def ber_heatmap_reflection_simulation(
                 distances_from_Ps[i][ris_points[i-1][1], ris_points[i-1][0]]
             )
 
-    mean_power_per_receiver = np.zeros(J, dtype=float)
-    def calculate_ber_per_point(x: int, y: int) -> float:
-        grid_x, grid_y = ber_heatmap._meters_to_grid(x, y)
-        distance_from_T = distances_from_T[grid_y, grid_x]
-        B = calculate_mimo_channel_gain(distance_from_T, K, K) * calculate_free_space_path_loss(distance_from_T)
-        B_power = calculate_channel_power(B)
-        power_heatmap_from_T.grid[grid_y, grid_x] = B_power
+    ber_heatmap_sum = HeatmapGenerator.copy_from(ber_heatmap)
+    ber_heatmap_product = HeatmapGenerator.copy_from(ber_heatmap)
+    ber_heatmap_active = HeatmapGenerator.copy_from(ber_heatmap)
+    mean_power_per_receiver_sum = np.zeros(J, dtype=float)
+    mean_power_per_receiver_product = np.zeros(J, dtype=float)
+    mean_power_per_receiver_active = np.zeros(J, dtype=float)
+    # * calculate for all points
+    for grid_y in tqdm(range(ber_heatmap.grid_height), desc="Processing rows   "):
+        for grid_x in tqdm(range(ber_heatmap.grid_width), desc="Processing columns", leave=False):
+            if np.isnan(ber_heatmap.grid[grid_y, grid_x]): continue
 
-        distances_from_Ps_current = [distances_from_Ps[i][grid_y, grid_x] for i in range(M)]
-        if distance_from_T == np.inf and all(d == np.inf for d in distances_from_Ps_current):
-            return np.nan
+            # * Convert grid coordinates to meters for the function
+            x, y = ber_heatmap._grid_to_meters(grid_x, grid_y)
+            
+            distance_from_T = distances_from_T[grid_y, grid_x]
+            B = calculate_mimo_channel_gain(distance_from_T, K, K) * calculate_free_space_path_loss(distance_from_T)
+            B_power = calculate_channel_power(B)
+            power_heatmap_from_T.grid[grid_y, grid_x] = B_power
 
-        Fs = [calculate_mimo_channel_gain(d, N, K) for d in distances_from_Ps_current]
+            distances_from_Ps_current = [distances_from_Ps[i][grid_y, grid_x] for i in range(M)]
+            if distance_from_T == np.inf and all(d == np.inf for d in distances_from_Ps_current):
+                ber_heatmap_sum.grid[grid_y, grid_x] =  np.nan
+                ber_heatmap_product.grid[grid_y, grid_x] =  np.nan
+                ber_heatmap_active.grid[grid_y, grid_x] =  np.nan
+                continue
 
-        # * Override channel matrices for receiver positions, since fading is randomly calculated
-        for i in range(M):
-            for j in range(J):
-                if x == receivers[j][0] and y == receivers[j][1]:
-                    Fs[i] = Gs_per_ris[i][j]
+            Fs = [calculate_mimo_channel_gain(d, N, K) for d in distances_from_Ps_current]
 
-        show_receivers_calculations_and_exit = False
-        mean_power = 0.0
-        errors = 0
-        for _ in range(num_symbols):
-            Ps: List[np.ndarray] = []
+            # * Override channel matrices for receiver positions, since fading is randomly calculated
             for i in range(M):
-                distance_pi_to_receivers = [
-                    distances_from_Ps[i][ber_heatmap._meters_to_grid(receivers[j][1], receivers[j][0])] 
-                    for j in range(J)
-                ]
-                if show_receivers_calculations_and_exit:
-                    for j in range(J):
-                        print(f"Distance from RIS {i+1} to receiver {j+1}: {distance_pi_to_receivers[j]:.2f} m")
-                G_receivers_connected_to_ris_i = [
-                    Gs_per_ris[i][j] for j in range(J)
-                    if distance_pi_to_receivers[j] != np.inf
-                ]
-                if show_receivers_calculations_and_exit:
-                    indexes_of_receivers_connected_to_ris_i = [
-                        j for j in range(J)
-                        if distance_pi_to_receivers[j] != np.inf
-                    ]    
-                    print(f"Using {len(G_receivers_connected_to_ris_i)} out of {len(Gs_per_ris[i])} receivers connected to RIS {i+1}")
-                J_prime = len(G_receivers_connected_to_ris_i)
-                if J_prime == 0:
-                    P = np.diag(random_reflection_vector(N, eta))
-                    Ps.append(P)
-                    if show_receivers_calculations_and_exit: print(f"RIS {i+1} is not connected to any receiver, using random matrix")
-                elif i == 0:
-                    P, _ = calculate_ris_reflection_matrice(K, N, J_prime, G_receivers_connected_to_ris_i, H, eta)
-                    Ps.append(P)
-                    if show_receivers_calculations_and_exit: print(f"Set up RIS {i+1} reflection matrix using the receivers with index: {indexes_of_receivers_connected_to_ris_i}")
-                else:
-                    P_prev = unify_ris_reflection_matrices(Ps, Cs)
-                    # you may also modify H in modified_H, if needed
-                    modified_Gs = []
-                    for G in G_receivers_connected_to_ris_i:
-                        modified_Gs.append(G @ P_prev @ Cs[i-1])
-                    P, _ = calculate_ris_reflection_matrice(K, N, J_prime, modified_Gs, H, eta)
-                    Ps.append(P)
-                    if show_receivers_calculations_and_exit: 
-                        print(f"Set up RIS {i+1} reflection matrix using the receivers with index: {indexes_of_receivers_connected_to_ris_i}")
-                        print()
+                for j in range(J):
+                    if x == receivers[j][0] and y == receivers[j][1]:
+                        Fs[i] = Gs_per_ris[i][j]
 
-            for j in range(J):
-                effective_channel = np.zeros((K, K), dtype=complex)
+            show_receivers_calculations_and_exit = False
+            mean_power_sum = 0.0
+            mean_power_product = 0.0
+            mean_power_active = 0.0
+            errors_sum = 0
+            errors_product = 0
+            errors_active = 0
+            for _ in range(num_symbols):
+                Ps: List[np.ndarray] = []
                 for i in range(M):
-                    # verify if the RIS reflection matrices are diagonalizable for receivers
-                    distance_ris_receiver = distances_from_Ps[i][ber_heatmap._meters_to_grid(receivers[j][1], receivers[j][0])]
-                    if distance_ris_receiver == np.inf: 
-                        if show_receivers_calculations_and_exit:
-                            print(f"Receiver {j+1} is not connected to RIS {i+1}, skipping.")
-                            # print_low_array(Gs_per_ris[i][j])
-                        continue
+                    distance_pi_to_receivers = [
+                        distances_from_Ps[i][ber_heatmap._meters_to_grid(receivers[j][1], receivers[j][0])] 
+                        for j in range(J)
+                    ]
                     if show_receivers_calculations_and_exit:
-                        print(f"Receiver {j+1} connected to RIS {i+1} with distance {distance_ris_receiver:.2f} m")
-                        print_low_array(Gs_per_ris[i][j])
+                        for j in range(J):
+                            print(f"Distance from RIS {i+1} to receiver {j+1}: {distance_pi_to_receivers[j]:.2f} m")
+                    G_receivers_connected_to_ris_i = [
+                        Gs_per_ris[i][j] for j in range(J)
+                        if distance_pi_to_receivers[j] != np.inf
+                    ]
+                    if show_receivers_calculations_and_exit:
+                        indexes_of_receivers_connected_to_ris_i = [
+                            j for j in range(J)
+                            if distance_pi_to_receivers[j] != np.inf
+                        ]    
+                        print(f"Using {len(G_receivers_connected_to_ris_i)} out of {len(Gs_per_ris[i])} receivers connected to RIS {i+1}")
+                    J_prime = len(G_receivers_connected_to_ris_i)
+                    if J_prime == 0:
+                        P = np.diag(random_reflection_vector(N, eta))
+                        Ps.append(P)
+                        if show_receivers_calculations_and_exit: print(f"RIS {i+1} is not connected to any receiver, using random matrix")
+                    elif i == 0:
+                        P, _ = calculate_ris_reflection_matrice(K, N, J_prime, G_receivers_connected_to_ris_i, H, eta)
+                        Ps.append(P)
+                        if show_receivers_calculations_and_exit: print(f"Set up RIS {i+1} reflection matrix using the receivers with index: {indexes_of_receivers_connected_to_ris_i}")
+                    else:
+                        P_prev = unify_ris_reflection_matrices(Ps, Cs)
+                        # you may also modify H in modified_H, if needed
+                        modified_Gs = []
+                        for G in G_receivers_connected_to_ris_i:
+                            modified_Gs.append(G @ P_prev @ Cs[i-1])
+                        P, _ = calculate_ris_reflection_matrice(K, N, J_prime, modified_Gs, H, eta)
+                        Ps.append(P)
+                        if show_receivers_calculations_and_exit: 
+                            print(f"Set up RIS {i+1} reflection matrix using the receivers with index: {indexes_of_receivers_connected_to_ris_i}")
+                            print()
+
+                for j in range(J):
+                    effective_channel = np.zeros((K, K), dtype=complex)
+                    for i in range(M):
+                        # verify if the RIS reflection matrices are diagonalizable for receivers
+                        distance_ris_receiver = distances_from_Ps[i][ber_heatmap._meters_to_grid(receivers[j][1], receivers[j][0])]
+                        if distance_ris_receiver == np.inf: 
+                            if show_receivers_calculations_and_exit:
+                                print(f"Receiver {j+1} is not connected to RIS {i+1}, skipping.")
+                                # print_low_array(Gs_per_ris[i][j])
+                            continue
+                        if show_receivers_calculations_and_exit:
+                            print(f"Receiver {j+1} connected to RIS {i+1} with distance {distance_ris_receiver:.2f} m")
+                            print_low_array(Gs_per_ris[i][j])
+                        if i == 0:
+                            P_to_i = Ps[0]
+                        else:
+                            P_to_i = unify_ris_reflection_matrices(Ps[:i+1], Cs[:i])
+                        effective_channel += Gs_per_ris[i][j] @ P_to_i @ H
+                    if show_receivers_calculations_and_exit:
+                        is_diagonal = verify_matrix_is_diagonal(effective_channel)
+                        print(f"Effective channel matrix for receiver {j+1} is diagonal: {is_diagonal}")
+                        print_low_array(effective_channel)
+                        print()
+                if show_receivers_calculations_and_exit:
+                    exit()
+
+                effective_channel_sum = np.zeros((K, K), dtype=complex)
+                effective_channel_product = np.zeros((K, K), dtype=complex)
+                effective_channel_active = np.zeros((K, K), dtype=complex)
+
+                for i in range(M):
                     if i == 0:
                         P_to_i = Ps[0]
                     else:
                         P_to_i = unify_ris_reflection_matrices(Ps[:i+1], Cs[:i])
-                    effective_channel += Gs_per_ris[i][j] @ P_to_i @ H
-                if show_receivers_calculations_and_exit:
-                    is_diagonal = verify_matrix_is_diagonal(effective_channel)
-                    print(f"Effective channel matrix for receiver {j+1} is diagonal: {is_diagonal}")
-                    print_low_array(effective_channel)
-                    print()
-            if show_receivers_calculations_and_exit:
-                exit()
 
-            effective_channel = np.zeros((K, K), dtype=complex)
+                    new_effective_channel_without_path_loss = Fs[i] @ P_to_i @ H
 
-            for i in range(M):
-                if i == 0:
-                    P_to_i = Ps[0]
-                else:
-                    P_to_i = unify_ris_reflection_matrices(Ps[:i+1], Cs[:i])
+                    # * path loss sum
+                    total_distance_sum = sum(ris_path_distances[:i+1]) + distances_from_Ps_current[i]
+                    total_path_loss_sum = calculate_free_space_path_loss(total_distance_sum)
+                    new_effective_channel_sum = new_effective_channel_without_path_loss * total_path_loss_sum
+                    new_effective_channel_power_sum = calculate_channel_power(new_effective_channel_sum)
+                    effective_channel_sum += new_effective_channel_sum
 
-                if path_loss_calculation_type == 'sum':
-                    total_distance = sum(ris_path_distances[:i+1]) + distances_from_Ps_current[i]
-                    total_path_loss = calculate_free_space_path_loss(total_distance)
-                elif path_loss_calculation_type == 'product':
-                    total_path_loss = 1
+                    # * path loss product
+                    total_path_loss_product = 1
                     for j in range(i+1):
                         if ris_path_distances[j] == np.inf: continue
-                        total_path_loss *= calculate_free_space_path_loss(ris_path_distances[j])
-                    total_path_loss *= calculate_free_space_path_loss(distances_from_Ps_current[i])
-                elif path_loss_calculation_type == 'active_ris':
-                    total_path_loss = calculate_free_space_path_loss(distances_from_Ps_current[i])
+                        total_path_loss_product *= calculate_free_space_path_loss(ris_path_distances[j])
+                    total_path_loss_product *= calculate_free_space_path_loss(distances_from_Ps_current[i])
+                    new_effective_channel_product = new_effective_channel_without_path_loss * total_path_loss_product
+                    new_effective_channel_power_product = calculate_channel_power(new_effective_channel_product)
+                    effective_channel_product += new_effective_channel_product
+                    
+                    # * path loss active ris
+                    total_path_loss_active = calculate_free_space_path_loss(distances_from_Ps_current[i])
+                    new_effective_channel_active = new_effective_channel_without_path_loss * total_path_loss_active
+                    new_effective_channel_power_active = calculate_channel_power(new_effective_channel_active)
+                    effective_channel_active += new_effective_channel_active
+
+                    power_heatmap_from_Ps_sum[i].grid[grid_y, grid_x] += new_effective_channel_power_sum / num_symbols # * Take the mean power
+                    power_heatmap_from_Ps_product[i].grid[grid_y, grid_x] += new_effective_channel_power_product / num_symbols # * Take the mean power
+                    power_heatmap_from_Ps_active[i].grid[grid_y, grid_x] += new_effective_channel_power_active / num_symbols # * Take the mean power
+    
+                power_sum = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_sum)
+                mean_power_sum += power_sum / num_symbols
+                sigma_sq_sum = snr_db_to_sigma_sq(snr_db, power_sum)
+
+                power_product = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_product)
+                mean_power_product += power_product / num_symbols
+                sigma_sq_product = snr_db_to_sigma_sq(snr_db, power_product)
+
+                power_active = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_active)
+                mean_power_active += power_active / num_symbols
+                sigma_sq_active = snr_db_to_sigma_sq(snr_db, power_active)
+
+                if distance_from_T == np.inf:
+                    errors_sum += simulate_ssk_transmission_reflection(K, effective_channel_sum, sigma_sq_sum)
+                    errors_product += simulate_ssk_transmission_reflection(K, effective_channel_product, sigma_sq_product)
+                    errors_active += simulate_ssk_transmission_reflection(K, effective_channel_active, sigma_sq_active)
                 else:
-                    raise ValueError(f"Invalid path loss calculation type: {path_loss_calculation_type}")
-                new_effective_channel = Fs[i] @ P_to_i @ H * total_path_loss
+                    errors_sum += simulate_ssk_transmission_direct(K, B, effective_channel_sum, sigma_sq_sum)
+                    errors_product += simulate_ssk_transmission_direct(K, B, effective_channel_product, sigma_sq_product)
+                    errors_active += simulate_ssk_transmission_direct(K, B, effective_channel_active, sigma_sq_active)
 
-                new_effective_channel_power = calculate_channel_power(new_effective_channel)
-                power_heatmap_from_Ps[i].grid[grid_y, grid_x] += new_effective_channel_power / num_symbols # * Take the mean power
+            for i in range(M):
+                if distances_from_Ps_current[i] == np.inf:
+                    continue    
+                for j in range(J):
+                    if x == receivers[j][0] and y == receivers[j][1]:
+                        mean_power_per_receiver_sum[j] += power_heatmap_from_Ps_sum[i].grid[grid_y, grid_x]
+                        mean_power_per_receiver_product[j] += power_heatmap_from_Ps_product[i].grid[grid_y, grid_x]
+                        mean_power_per_receiver_active[j] += power_heatmap_from_Ps_active[i].grid[grid_y, grid_x]
 
-                effective_channel += new_effective_channel
-            power = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel)
-            mean_power += power / num_symbols
-            sigma_sq = snr_db_to_sigma_sq(snr_db, power)
+            if mean_power_sum == 0: ber_heatmap_sum.grid[grid_y, grid_x] =  np.nan
+            else: ber_heatmap_sum.grid[grid_y, grid_x] = errors_sum / num_symbols
+            if mean_power_product == 0: ber_heatmap_product.grid[grid_y, grid_x] =  np.nan
+            else: ber_heatmap_product.grid[grid_y, grid_x] = errors_product / num_symbols
+            if mean_power_active == 0: ber_heatmap_active.grid[grid_y, grid_x] =  np.nan
+            else: ber_heatmap_active.grid[grid_y, grid_x] = errors_active / num_symbols
 
-            if distance_from_T == np.inf:
-                errors += simulate_ssk_transmission_reflection(K, effective_channel, sigma_sq)
-            else:
-                errors += simulate_ssk_transmission_direct(K, B, effective_channel, sigma_sq)
-
-        for i in range(M):
-            if distances_from_Ps_current[i] == np.inf:
-                continue    
-            for j in range(J):
-                if x == receivers[j][0] and y == receivers[j][1]:
-                    mean_power_per_receiver[j] += power_heatmap_from_Ps[i].grid[grid_y, grid_x]
-
-        if mean_power == 0:
-            return np.nan
-
-        return errors / num_symbols
-
-    ber_heatmap.apply_function(calculate_ber_per_point)
-    print(f"Mean power per receiver: {[f'{power:.2e}' for power in mean_power_per_receiver]}")
+    print(f"[Path Loss: sum] Mean power per receiver: {[f'{power:.2e}' for power in mean_power_per_receiver_sum]}")
+    print(f"[Path Loss: product] Mean power per receiver: {[f'{power:.2e}' for power in mean_power_per_receiver_product]}")
+    print(f"[Path Loss: active] Mean power per receiver: {[f'{power:.2e}' for power in mean_power_per_receiver_active]}")
     print("------")
     for j in range (J):
-        print(f"\tReceiver {j+1} mean power: {mean_power_per_receiver[j]:.2e}, BER: {(ber_heatmap.grid[ber_heatmap._meters_to_grid(receivers[j][1], receivers[j][0])]*100):2f}%")
+        print(f"\t[Path Loss: sum] Receiver {j+1} mean power: {mean_power_per_receiver_sum[j]:.2e}, BER: {(ber_heatmap.grid[ber_heatmap._meters_to_grid(receivers[j][1], receivers[j][0])]*100):2f}%")
+        print(f"\t[Path Loss: product] Receiver {j+1} mean power: {mean_power_per_receiver_product[j]:.2e}, BER: {(ber_heatmap.grid[ber_heatmap._meters_to_grid(receivers[j][1], receivers[j][0])]*100):2f}%")
+        print(f"\t[Path Loss: active] Receiver {j+1} mean power: {mean_power_per_receiver_active[j]:.2e}, BER: {(ber_heatmap.grid[ber_heatmap._meters_to_grid(receivers[j][1], receivers[j][0])]*100):2f}%")
     print("------")
-    title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
-    ber_heatmap.visualize(title + ' BER Heatmap', vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
+    title = f'{M} RIS(s) (K = {K}, SNR = {snr_db})'
+    ber_heatmap_sum.visualize(title + ' [Path Loss: sum] BER Heatmap', vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
+    ber_heatmap_product.visualize(title + ' [Path Loss: product] BER Heatmap', vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
+    ber_heatmap_active.visualize(title + ' [Path Loss: active] BER Heatmap', vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
     # ber_heatmap.visualize(title + ' BER Heatmap', log_scale=True, vmin=-10.0, vmax=0.0, label='BER', show_receivers_values=True)
 
     # power_heatmap_from_T.visualize(title + ' Mean Antenna Strenght from Transmitter', log_scale=True, vmin=-10.0, vmax=0.0, label='log MAS')
@@ -771,22 +800,20 @@ def main():
         ris_points_single = [(7, 9)]
         receivers_single = [(16, 11), (10, 18)]
 
-        for path_loss_calculation_type in PATH_LOSS_TYPES:
-            start_time = time.perf_counter()
-            ber_heatmap_reflection_simulation(
-                width=20,
-                height=20,
-                buildings=buildings_single,
-                transmitter=transmitter_single,
-                ris_points=ris_points_single,
-                receivers=receivers_single,
-                N=N,
-                K=K,
-                path_loss_calculation_type=path_loss_calculation_type,
-                num_symbols=num_symbols
-            )
-            end_time = time.perf_counter()
-            print(f"Single reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}, path loss type: {path_loss_calculation_type}\n\n")
+        start_time = time.perf_counter()
+        ber_heatmap_reflection_simulation(
+            width=20,
+            height=20,
+            buildings=buildings_single,
+            transmitter=transmitter_single,
+            ris_points=ris_points_single,
+            receivers=receivers_single,
+            N=N,
+            K=K,
+            num_symbols=num_symbols
+        )
+        end_time = time.perf_counter()
+        print(f"Single reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}\n\n")
 
     # * Multiple reflection simulation
     if calculate_multiple_reflection:
@@ -798,22 +825,20 @@ def main():
         ris_points_multiple = [(0, 9), (10, 9)]
         receivers_multiple = [(16, 14), (12, 18)]
 
-        for path_loss_calculation_type in PATH_LOSS_TYPES:
-            start_time = time.perf_counter()
-            ber_heatmap_reflection_simulation(
-                width=20,
-                height=20,
-                buildings=buildings_multiple,
-                transmitter=transmitter_multiple,
-                ris_points=ris_points_multiple,
-                receivers=receivers_multiple,
-                N=N,
-                K=K,
-                path_loss_calculation_type=path_loss_calculation_type,
-                num_symbols=num_symbols
-            )
-            end_time = time.perf_counter()
-            print(f"Multiple reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}, path loss type: {path_loss_calculation_type}\n\n")
+        start_time = time.perf_counter()
+        ber_heatmap_reflection_simulation(
+            width=20,
+            height=20,
+            buildings=buildings_multiple,
+            transmitter=transmitter_multiple,
+            ris_points=ris_points_multiple,
+            receivers=receivers_multiple,
+            N=N,
+            K=K,
+            num_symbols=num_symbols
+        )
+        end_time = time.perf_counter()
+        print(f"Multiple reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}\n\n")
 
     # * Multiple complex reflection simulation - one receiver gets from the middle RIS, another from the last RIS
     if calculate_multiple_complex_reflection:
@@ -838,22 +863,20 @@ def main():
             (15, 1), 
         ]
 
-        for path_loss_calculation_type in PATH_LOSS_TYPES:
-            start_time = time.perf_counter()
-            ber_heatmap_reflection_simulation(
-                width=20,
-                height=20,
-                buildings=buildings_multiple,
-                transmitter=transmitter_multiple,
-                ris_points=ris_points_multiple,
-                receivers=receivers_multiple,
-                N=N,
-                K=K,
-                path_loss_calculation_type=path_loss_calculation_type,
-                num_symbols=num_symbols,
-            )
-            end_time = time.perf_counter()
-            print(f"Multiple complex reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}, path loss type: {path_loss_calculation_type}\n\n")
+        start_time = time.perf_counter()
+        ber_heatmap_reflection_simulation(
+            width=20,
+            height=20,
+            buildings=buildings_multiple,
+            transmitter=transmitter_multiple,
+            ris_points=ris_points_multiple,
+            receivers=receivers_multiple,
+            N=N,
+            K=K,
+            num_symbols=num_symbols,
+        )
+        end_time = time.perf_counter()
+        print(f"Multiple complex reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}\n\n")
 
     end_time = time.perf_counter()
     print(f"Total time taken: {end_time - begin_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}")
