@@ -738,13 +738,23 @@ def ber_heatmap_reflection_simulation(
                 sigma_sq_active = snr_db_to_sigma_sq(snr_db, power_active)
 
                 if distance_from_T == np.inf:
-                    errors_sum += simulate_ssk_transmission_reflection(K, effective_channel_sum, sigma_sq_sum)
-                    errors_product += simulate_ssk_transmission_reflection(K, effective_channel_product, sigma_sq_product)
-                    errors_active += simulate_ssk_transmission_reflection(K, effective_channel_active, sigma_sq_active)
+                    noise_sum = create_random_noise_vector(K, sigma_sq_sum)
+                    errors_sum += simulate_ssk_transmission_reflection(K, effective_channel_sum, noise_sum)
+
+                    noise_product = create_random_noise_vector(K, sigma_sq_product)
+                    errors_product += simulate_ssk_transmission_reflection(K, effective_channel_product, noise_product)
+
+                    noise_active = create_random_noise_vector(K, sigma_sq_active)
+                    errors_active += simulate_ssk_transmission_reflection(K, effective_channel_active, noise_active)
                 else:
-                    errors_sum += simulate_ssk_transmission_direct(K, B, effective_channel_sum, sigma_sq_sum)
-                    errors_product += simulate_ssk_transmission_direct(K, B, effective_channel_product, sigma_sq_product)
-                    errors_active += simulate_ssk_transmission_direct(K, B, effective_channel_active, sigma_sq_active)
+                    noise_sum = create_random_noise_vector(K, sigma_sq_sum)
+                    errors_sum += simulate_ssk_transmission_direct(K, B, effective_channel_sum, noise_sum)
+
+                    noise_product = create_random_noise_vector(K, sigma_sq_product)
+                    errors_product += simulate_ssk_transmission_direct(K, B, effective_channel_product, noise_product)
+
+                    noise_active = create_random_noise_vector(K, sigma_sq_active)
+                    errors_active += simulate_ssk_transmission_direct(K, B, effective_channel_active, noise_active)
 
             for i in range(M):
                 if distances_from_Ps_current[i] == np.inf:

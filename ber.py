@@ -12,7 +12,7 @@ from secrecy import (
     unify_ris_reflection_matrices
 )
 
-def simulate_ssk_transmission(K: int, sigma_sq: float, calculate_detected_id: Callable[[np.ndarray, np.ndarray], float]):
+def simulate_ssk_transmission(K: int, noise: np.ndarray, calculate_detected_id: Callable[[np.ndarray, np.ndarray], float]):
     n_bits = int(np.log2(K))
     if 2**n_bits != K:
         raise ValueError(f"K must be a power of 2, got {K}")
@@ -24,7 +24,6 @@ def simulate_ssk_transmission(K: int, sigma_sq: float, calculate_detected_id: Ca
     x = np.zeros(K)
     x[true_idx] = 1
 
-    noise = create_random_noise_vector(K, sigma_sq)
     detected_idx = calculate_detected_id(x, noise)
     
     detected_bits = np.array(list(bit_mappings[detected_idx])).astype(int)
@@ -54,7 +53,7 @@ def calculate_confidence_interval(error_rates, confidence=0.95):
     
     return mean, mean - margin, mean + margin
 
-def simulate_ssk_transmission_reflection(K: int, effective_channel: np.ndarray, sigma_sq: float):
+def simulate_ssk_transmission_reflection(K: int, effective_channel: np.ndarray, noise: np.ndarray):
     if effective_channel.shape != (K, K):
         raise ValueError(f"Reflection: Effective channel shape must be ({K}, {K}), but got {effective_channel.shape}")
 
@@ -62,9 +61,9 @@ def simulate_ssk_transmission_reflection(K: int, effective_channel: np.ndarray, 
         y = effective_channel @ x + noise
         return np.argmax(np.abs(y)**2)
     
-    return simulate_ssk_transmission(K, sigma_sq, calculate_detected_id)
+    return simulate_ssk_transmission(K, noise, calculate_detected_id)
 
-def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: np.ndarray, sigma_sq: float):
+def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: np.ndarray, noise: np.ndarray):
     if B.shape != (K, K):
         raise ValueError(f"Direct: B shape must be ({K}, {K}), but got {B.shape}")
     
@@ -76,7 +75,7 @@ def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: n
         distances = np.array([np.linalg.norm(y - B[:, i]) for i in range(B.shape[1])])
         return np.argmin(distances)
     
-    return simulate_ssk_transmission(K, sigma_sq, calculate_detected_id)
+    return simulate_ssk_transmission(K, noise, calculate_detected_id)
 
 def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=100000):
     sigma_sq = snr_db_to_sigma_sq(snr_db)
@@ -105,9 +104,14 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=100000):
             effective_channel_eavesdropper += Fs[i] @ P_to_i @ H
         effective_channel_direct = np.zeros((K, K))
 
-        results_receiver.append(simulate_ssk_transmission_reflection(K, effective_channel_receiver, sigma_sq))
-        results_eavesdropper.append(simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper, sigma_sq))
-        results_direct.append(simulate_ssk_transmission_direct(K, B, effective_channel_direct, sigma_sq))
+        noise = create_random_noise_vector(K, sigma_sq)
+        results_receiver.append(simulate_ssk_transmission_reflection(K, effective_channel_receiver, noise))
+
+        noise = create_random_noise_vector(K, sigma_sq)
+        results_eavesdropper.append(simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper, noise))
+
+        noise = create_random_noise_vector(K, sigma_sq)
+        results_direct.append(simulate_ssk_transmission_direct(K, B, effective_channel_direct, noise))
 
         H2 = generate_random_channel_matrix(N, K)
         Gs2 = [generate_random_channel_matrix(K, N) for _ in range(J)]
@@ -128,8 +132,11 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=100000):
         effective_channel_receiver_double = effective_channel_receiver + effective_channel_receiver_2
         effective_channel_eavesdropper_double = effective_channel_eavesdropper + effective_channel_eavesdropper_2
 
-        results_receiver_double.append(simulate_ssk_transmission_reflection(K, effective_channel_receiver_double, sigma_sq))
-        results_eavesdropper_double.append(simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper_double, sigma_sq))
+        noise = create_random_noise_vector(K, sigma_sq)
+        results_receiver_double.append(simulate_ssk_transmission_reflection(K, effective_channel_receiver_double, noise))
+
+        noise = create_random_noise_vector(K, sigma_sq)
+        results_eavesdropper_double.append(simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper_double, noise))
     
     result_receiver, lower_receiver, upper_receiver = calculate_confidence_interval(results_receiver)
     result_eavesdropper, lower_eavesdropper, upper_eavesdropper = calculate_confidence_interval(results_eavesdropper)
