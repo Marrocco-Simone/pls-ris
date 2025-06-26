@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 from typing import Callable
+from multiprocess import Pool, cpu_count
+import time
+from tqdm import tqdm
 from diagonalization import (
     calculate_multi_ris_reflection_matrices,
     generate_random_channel_matrix
@@ -11,6 +14,8 @@ from secrecy import (
     snr_db_to_sigma_sq,
     unify_ris_reflection_matrices
 )
+
+num_symbols=100000
 
 def simulate_ssk_transmission(K: int, noise: np.ndarray, calculate_detected_id: Callable[[np.ndarray, np.ndarray], float]):
     n_bits = int(np.log2(K))
@@ -77,7 +82,7 @@ def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: n
     
     return simulate_ssk_transmission(K, noise, calculate_detected_id)
 
-def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=100000):
+def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9):
     sigma_sq = snr_db_to_sigma_sq(snr_db)
     results_receiver = []
     results_eavesdropper = []
@@ -145,6 +150,7 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9, num_symbols=100000):
     result_eavesdropper_double, lower_eavesdropper_double, upper_eavesdropper_double = calculate_confidence_interval(results_eavesdropper_double)
 
     return {
+        'snr_db': snr_db,
         'receiver': (result_receiver, lower_receiver, upper_receiver),
         'eavesdropper': (result_eavesdropper, lower_eavesdropper, upper_eavesdropper),
         'direct': (result_direct, lower_direct, upper_direct),
@@ -236,10 +242,25 @@ def plot_ber_curves():
                 ber_direct = {'mean': [], 'lower': [], 'upper': []}
                 ber_receiver_double = {'mean': [], 'lower': [], 'upper': []}
                 ber_eavesdropper_double = {'mean': [], 'lower': [], 'upper': []}
+
+                begin_time = time.perf_counter()
+                n_processes = cpu_count()
+                print(f"Using {n_processes} CPU cores for parallel processing.")
+                pool = Pool(processes=n_processes)
+                # total_results = pool.map(
+                #     lambda snr_db: calculate_ber_simulation(snr_db, K, N, J, M, eta),
+                #     snr_range_db
+                # )
+                total_results = list(tqdm(
+                    pool.imap(
+                        lambda snr_db: calculate_ber_simulation(snr_db, K, N, J, M, eta),
+                        snr_range_db
+                    ),
+                    total=len(snr_range_db),
+                    desc="Processing snr dbs"
+                ))
                 
-                for snr_db in snr_range_db:
-                    results = calculate_ber_simulation(snr_db, K, N, J, M, eta)
-                    
+                for results in total_results:                    
                     ber_receiver['mean'].append(results['receiver'][0])
                     ber_receiver['lower'].append(results['receiver'][1])
                     ber_receiver['upper'].append(results['receiver'][2])
@@ -260,7 +281,10 @@ def plot_ber_curves():
                     ber_eavesdropper_double['lower'].append(results['eavesdropper_double'][1])
                     ber_eavesdropper_double['upper'].append(results['eavesdropper_double'][2])
                     
-                    print(f"Processed SNR = {snr_db} dB:\t{results['receiver'][0]:.2f}\t{results['eavesdropper'][0]:.2f}\t{results['direct'][0]:.2f}")
+                    # print(f"Processed SNR = {results['snr_db']} dB:\t{results['receiver'][0]:.2f}\t{results['eavesdropper'][0]:.2f}\t{results['direct'][0]:.2f}")
+                
+                end_time = time.perf_counter()
+                print(f"Total time taken: {end_time - begin_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}")
                 
                 # Save the data
                 plot_data = {
