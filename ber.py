@@ -82,66 +82,101 @@ def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: n
     
     return simulate_ssk_transmission(K, noise, calculate_detected_id)
 
-def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9):
+def calculate_single_ber_simulation(snr_db, K, N, J, M, eta=0.9):
     sigma_sq = snr_db_to_sigma_sq(snr_db)
-    results_receiver = []
-    results_eavesdropper = []
-    results_direct = []
-    results_receiver_double = []
-    results_eavesdropper_double = []
+    H = generate_random_channel_matrix(N, K)
+    Gs = [generate_random_channel_matrix(K, N) for _ in range(J)]
+    G = random.choice(Gs)
+    Fs = [generate_random_channel_matrix(K, N) for _ in range(M)]
+    B = generate_random_channel_matrix(K, K)
+    Cs = [generate_random_channel_matrix(N, N) for _ in range(M-1)]
+    Ps, _ = calculate_multi_ris_reflection_matrices(
+        K, N, J, M, Gs, H, eta, Cs
+    )
+    P = unify_ris_reflection_matrices(Ps, Cs)
+
+    effective_channel_receiver = G @ P @ H
+    effective_channel_eavesdropper = np.zeros((K, K), dtype=np.complex128) # F @ P @ H
+    for i in range(M):
+        P_to_i = unify_ris_reflection_matrices(Ps[:i+1], Cs[:i])
+        effective_channel_eavesdropper += Fs[i] @ P_to_i @ H
+    effective_channel_direct = np.zeros((K, K))
+
+    noise = create_random_noise_vector(K, sigma_sq)
+    result_receiver = simulate_ssk_transmission_reflection(K, effective_channel_receiver, noise)
+
+    noise = create_random_noise_vector(K, sigma_sq)
+    result_eavesdropper = simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper, noise)
+
+    noise = create_random_noise_vector(K, sigma_sq)
+    result_direct = simulate_ssk_transmission_direct(K, B, effective_channel_direct, noise)
+
+    H2 = generate_random_channel_matrix(N, K)
+    Gs2 = [generate_random_channel_matrix(K, N) for _ in range(J)]
+    G2 = random.choice(Gs2)
+    Fs2 = [generate_random_channel_matrix(K, N) for _ in range(M)]
+    Cs2 = [generate_random_channel_matrix(N, N) for _ in range(M-1)]
+    Ps2, _ = calculate_multi_ris_reflection_matrices(
+        K, N, J, M, Gs2, H2, eta, Cs2
+    )
+    P2 = unify_ris_reflection_matrices(Ps2, Cs2)
+
+    effective_channel_receiver_2 = G2 @ P2 @ H2
+    effective_channel_eavesdropper_2 = np.zeros((K, K), dtype=np.complex128) # F @ P @ H
+    for i in range(M):
+        P_to_i = unify_ris_reflection_matrices(Ps2[:i+1], Cs2[:i])
+        effective_channel_eavesdropper_2 += Fs2[i] @ P_to_i @ H2
+
+    effective_channel_receiver_double = effective_channel_receiver + effective_channel_receiver_2
+    effective_channel_eavesdropper_double = effective_channel_eavesdropper + effective_channel_eavesdropper_2
+
+    noise = create_random_noise_vector(K, sigma_sq)
+    result_receiver_double = simulate_ssk_transmission_reflection(K, effective_channel_receiver_double, noise)
+
+    noise = create_random_noise_vector(K, sigma_sq)
+    result_eavesdropper_double = simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper_double, noise)
     
-    for _ in range(num_symbols):
-        H = generate_random_channel_matrix(N, K)
-        Gs = [generate_random_channel_matrix(K, N) for _ in range(J)]
-        G = random.choice(Gs)
-        Fs = [generate_random_channel_matrix(K, N) for _ in range(M)]
-        B = generate_random_channel_matrix(K, K)
-        Cs = [generate_random_channel_matrix(N, N) for _ in range(M-1)]
-        Ps, _ = calculate_multi_ris_reflection_matrices(
-            K, N, J, M, Gs, H, eta, Cs
-        )
-        P = unify_ris_reflection_matrices(Ps, Cs)
+    return (
+        result_receiver,
+        result_eavesdropper,
+        result_direct,
+        result_receiver_double,
+        result_eavesdropper_double
+    )
 
-        effective_channel_receiver = G @ P @ H
-        effective_channel_eavesdropper = np.zeros((K, K), dtype=np.complex128) # F @ P @ H
-        for i in range(M):
-            P_to_i = unify_ris_reflection_matrices(Ps[:i+1], Cs[:i])
-            effective_channel_eavesdropper += Fs[i] @ P_to_i @ H
-        effective_channel_direct = np.zeros((K, K))
+def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9):
+    # results_receiver = []
+    # results_eavesdropper = []
+    # results_direct = []
+    # results_receiver_double = []
+    # results_eavesdropper_double = []
+    
+    # for _ in range(num_symbols):
+    #     result_receiver, result_eavesdropper, result_direct, result_receiver_double, result_eavesdropper_double = calculate_single_ber_simulation(
+    #         snr_db, K, N, J, M, eta
+    #     )
 
-        noise = create_random_noise_vector(K, sigma_sq)
-        results_receiver.append(simulate_ssk_transmission_reflection(K, effective_channel_receiver, noise))
-
-        noise = create_random_noise_vector(K, sigma_sq)
-        results_eavesdropper.append(simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper, noise))
-
-        noise = create_random_noise_vector(K, sigma_sq)
-        results_direct.append(simulate_ssk_transmission_direct(K, B, effective_channel_direct, noise))
-
-        H2 = generate_random_channel_matrix(N, K)
-        Gs2 = [generate_random_channel_matrix(K, N) for _ in range(J)]
-        G2 = random.choice(Gs2)
-        Fs2 = [generate_random_channel_matrix(K, N) for _ in range(M)]
-        Cs2 = [generate_random_channel_matrix(N, N) for _ in range(M-1)]
-        Ps2, _ = calculate_multi_ris_reflection_matrices(
-            K, N, J, M, Gs2, H2, eta, Cs2
-        )
-        P2 = unify_ris_reflection_matrices(Ps2, Cs2)
-
-        effective_channel_receiver_2 = G2 @ P2 @ H2
-        effective_channel_eavesdropper_2 = np.zeros((K, K), dtype=np.complex128) # F @ P @ H
-        for i in range(M):
-            P_to_i = unify_ris_reflection_matrices(Ps2[:i+1], Cs2[:i])
-            effective_channel_eavesdropper_2 += Fs2[i] @ P_to_i @ H2
-
-        effective_channel_receiver_double = effective_channel_receiver + effective_channel_receiver_2
-        effective_channel_eavesdropper_double = effective_channel_eavesdropper + effective_channel_eavesdropper_2
-
-        noise = create_random_noise_vector(K, sigma_sq)
-        results_receiver_double.append(simulate_ssk_transmission_reflection(K, effective_channel_receiver_double, noise))
-
-        noise = create_random_noise_vector(K, sigma_sq)
-        results_eavesdropper_double.append(simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper_double, noise))
+    #     results_receiver.append(result_receiver)
+    #     results_eavesdropper.append(result_eavesdropper)
+    #     results_direct.append(result_direct)
+    #     results_receiver_double.append(result_receiver_double)
+    #     results_eavesdropper_double.append(result_eavesdropper_double)
+    n_processes = cpu_count()
+    print(f"Using {n_processes} CPU cores for parallel processing.")
+    pool = Pool(processes=n_processes)
+    results = list(tqdm(
+        pool.imap(
+            lambda _: calculate_single_ber_simulation(snr_db, K, N, J, M, eta),
+            range(num_symbols)
+        ),
+        total=num_symbols,
+        desc=f"Processing SNR = {snr_db} dB"
+    ))
+    results_receiver = [result[0] for result in results]
+    results_eavesdropper = [result[1] for result in results]
+    results_direct = [result[2] for result in results]
+    results_receiver_double = [result[3] for result in results]
+    results_eavesdropper_double = [result[4] for result in results]
     
     result_receiver, lower_receiver, upper_receiver = calculate_confidence_interval(results_receiver)
     result_eavesdropper, lower_eavesdropper, upper_eavesdropper = calculate_confidence_interval(results_eavesdropper)
@@ -242,25 +277,9 @@ def plot_ber_curves():
                 ber_direct = {'mean': [], 'lower': [], 'upper': []}
                 ber_receiver_double = {'mean': [], 'lower': [], 'upper': []}
                 ber_eavesdropper_double = {'mean': [], 'lower': [], 'upper': []}
-
-                begin_time = time.perf_counter()
-                n_processes = cpu_count()
-                print(f"Using {n_processes} CPU cores for parallel processing.")
-                pool = Pool(processes=n_processes)
-                # total_results = pool.map(
-                #     lambda snr_db: calculate_ber_simulation(snr_db, K, N, J, M, eta),
-                #     snr_range_db
-                # )
-                total_results = list(tqdm(
-                    pool.imap(
-                        lambda snr_db: calculate_ber_simulation(snr_db, K, N, J, M, eta),
-                        snr_range_db
-                    ),
-                    total=len(snr_range_db),
-                    desc="Processing snr dbs"
-                ))
                 
-                for results in total_results:                    
+                for snr_db in tqdm(snr_range_db, desc="Processing SNR values"):       
+                    results = calculate_ber_simulation(snr_db, K, N, J, M, eta)         
                     ber_receiver['mean'].append(results['receiver'][0])
                     ber_receiver['lower'].append(results['receiver'][1])
                     ber_receiver['upper'].append(results['receiver'][2])
@@ -282,9 +301,6 @@ def plot_ber_curves():
                     ber_eavesdropper_double['upper'].append(results['eavesdropper_double'][2])
                     
                     # print(f"Processed SNR = {results['snr_db']} dB:\t{results['receiver'][0]:.2f}\t{results['eavesdropper'][0]:.2f}\t{results['direct'][0]:.2f}")
-                
-                end_time = time.perf_counter()
-                print(f"Total time taken: {end_time - begin_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}")
                 
                 # Save the data
                 plot_data = {
