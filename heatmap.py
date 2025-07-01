@@ -17,11 +17,9 @@ from diagonalization import (
   calculate_ris_reflection_matrice,
   unify_ris_reflection_matrices,
   random_reflection_vector,
-  verify_matrix_is_diagonal
 )
 from secrecy import (
-    snr_db_to_sigma_sq,
-    create_random_noise_vector
+    create_random_noise_vector_from_snr
 )
 from ber import (
     simulate_ssk_transmission_reflection,
@@ -607,33 +605,23 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
         
         power_sum = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_sum)
         mean_power_sum += power_sum / num_symbols
-        sigma_sq_sum = snr_db_to_sigma_sq(snr_db, power_sum)
+        noise_sum = create_random_noise_vector_from_snr(K, snr_db, power_sum)
         
         power_product = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_product)
         mean_power_product += power_product / num_symbols
-        sigma_sq_product = snr_db_to_sigma_sq(snr_db, power_product)
+        noise_product = create_random_noise_vector_from_snr(K, snr_db, power_product)
         
         power_active = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_active)
         mean_power_active += power_active / num_symbols
-        sigma_sq_active = snr_db_to_sigma_sq(snr_db, power_active)
+        noise_active = create_random_noise_vector_from_snr(K, snr_db, power_active)
         
         if distance_from_T == np.inf:
-            noise_sum = create_random_noise_vector(K, sigma_sq_sum)
             errors_sum += simulate_ssk_transmission_reflection(K, effective_channel_sum, noise_sum)
-            
-            noise_product = create_random_noise_vector(K, sigma_sq_product)
             errors_product += simulate_ssk_transmission_reflection(K, effective_channel_product, noise_product)
-            
-            noise_active = create_random_noise_vector(K, sigma_sq_active)
             errors_active += simulate_ssk_transmission_reflection(K, effective_channel_active, noise_active)
         else:
-            noise_sum = create_random_noise_vector(K, sigma_sq_sum)
             errors_sum += simulate_ssk_transmission_direct(K, B, effective_channel_sum, noise_sum)
-            
-            noise_product = create_random_noise_vector(K, sigma_sq_product)
             errors_product += simulate_ssk_transmission_direct(K, B, effective_channel_product, noise_product)
-            
-            noise_active = create_random_noise_vector(K, sigma_sq_active)
             errors_active += simulate_ssk_transmission_direct(K, B, effective_channel_active, noise_active)
     
     ber_sum = np.nan if mean_power_sum == 0 else errors_sum / num_symbols

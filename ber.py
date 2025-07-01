@@ -10,8 +10,7 @@ from diagonalization import (
     generate_random_channel_matrix
 )
 from secrecy import (
-    create_random_noise_vector,
-    snr_db_to_sigma_sq,
+    create_random_noise_vector_from_snr,
     unify_ris_reflection_matrices
 )
 
@@ -83,7 +82,6 @@ def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: n
     return simulate_ssk_transmission(K, noise, calculate_detected_id)
 
 def calculate_single_ber_simulation(snr_db, K, N, J, M, eta=0.9):
-    sigma_sq = snr_db_to_sigma_sq(snr_db)
     H = generate_random_channel_matrix(N, K)
     Gs = [generate_random_channel_matrix(K, N) for _ in range(J)]
     G = random.choice(Gs)
@@ -102,13 +100,13 @@ def calculate_single_ber_simulation(snr_db, K, N, J, M, eta=0.9):
         effective_channel_eavesdropper += Fs[i] @ P_to_i @ H
     effective_channel_direct = np.zeros((K, K))
 
-    noise = create_random_noise_vector(K, sigma_sq)
+    noise = create_random_noise_vector_from_snr(K, snr_db)
     result_receiver = simulate_ssk_transmission_reflection(K, effective_channel_receiver, noise)
 
-    noise = create_random_noise_vector(K, sigma_sq)
+    noise = create_random_noise_vector_from_snr(K, snr_db)
     result_eavesdropper = simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper, noise)
 
-    noise = create_random_noise_vector(K, sigma_sq)
+    noise = create_random_noise_vector_from_snr(K, snr_db)
     result_direct = simulate_ssk_transmission_direct(K, B, effective_channel_direct, noise)
 
     H2 = generate_random_channel_matrix(N, K)
@@ -130,10 +128,10 @@ def calculate_single_ber_simulation(snr_db, K, N, J, M, eta=0.9):
     effective_channel_receiver_double = effective_channel_receiver + effective_channel_receiver_2
     effective_channel_eavesdropper_double = effective_channel_eavesdropper + effective_channel_eavesdropper_2
 
-    noise = create_random_noise_vector(K, sigma_sq)
+    noise = create_random_noise_vector_from_snr(K, snr_db)
     result_receiver_double = simulate_ssk_transmission_reflection(K, effective_channel_receiver_double, noise)
 
-    noise = create_random_noise_vector(K, sigma_sq)
+    noise = create_random_noise_vector_from_snr(K, snr_db)
     result_eavesdropper_double = simulate_ssk_transmission_direct(K, B, effective_channel_eavesdropper_double, noise)
     
     return (

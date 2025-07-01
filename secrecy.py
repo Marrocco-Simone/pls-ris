@@ -5,7 +5,22 @@ import matplotlib.pyplot as plt
 from typing import List, Tuple, Callable
 from diagonalization import generate_random_channel_matrix, calculate_multi_ris_reflection_matrices, unify_ris_reflection_matrices
 
-def create_random_noise_vector(K: int, sigma_sq: float) -> np.ndarray:
+def snr_db_to_sigma_sq(snr_db, path_gain = 1):
+    '''
+    Convert SNR in dB to noise variance (sigma squared).
+
+    Args:
+        snr_db: Signal-to-noise ratio in dB
+        path_gain: Path gain (default is 1)
+
+    Returns:
+        sigma_sq: Noise variance
+    '''
+    snr_linear = 10**(snr_db/10)
+    sigma_sq = path_gain / snr_linear
+    return sigma_sq
+
+def create_random_noise_vector_from_snr(K: int, snr_db: int, path_gain = 1) -> np.ndarray:
     """
     Generate a random noise vector with complex Gaussian entries.
     
@@ -16,19 +31,12 @@ def create_random_noise_vector(K: int, sigma_sq: float) -> np.ndarray:
     Returns:
         Random noise vector
     """
-    # mu_real = np.random.normal(0, np.sqrt(sigma_sq/2), K)
-    # mu_imag = np.random.normal(0, np.sqrt(sigma_sq/2), K)
-    # mu = mu_real + 1j*mu_imag
+    sigma_sq = snr_db_to_sigma_sq(snr_db, path_gain)
     mu = np.sqrt(sigma_sq/2) * (
         np.random.randn(K) + 1j*np.random.randn(K)
     )
     
     return mu
-
-def snr_db_to_sigma_sq(snr_db, path_gain = 1):
-    snr_linear = 10**(snr_db/10)
-    sigma_sq = path_gain / snr_linear
-    return sigma_sq
 
 ######## Secrecy Rate Calculation ########
 
@@ -88,7 +96,7 @@ def calculate_eavesdropper_term(K: int, N: int, eta: float, G: np.ndarray, P: np
         print(f"Error at calculate_eavesdropper_term: {e}")
         raise e
     
-def calculate_general_secrecy_rate(K: int, calculate_term: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray], sigma_sq: float, num_samples = 100):
+def calculate_general_secrecy_rate(K: int, calculate_term: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray], snr_db: int, num_samples = 100):
     try:
         sum_i = 0
         for i in range(K):
@@ -96,7 +104,7 @@ def calculate_general_secrecy_rate(K: int, calculate_term: Callable[[np.ndarray,
             xi[i] = 1
             expected = 0
             for _ in range(num_samples):
-                mu = create_random_noise_vector(K, sigma_sq)
+                mu = create_random_noise_vector_from_snr(K, snr_db)
                 sum_j = 0
                 for j in range(K):
                     xj = np.zeros((K, 1))
@@ -111,14 +119,15 @@ def calculate_general_secrecy_rate(K: int, calculate_term: Callable[[np.ndarray,
         print(f"Error at calculate_general_secrecy_rate: {e}")
         raise e
     
-def calculate_secrecy_rate(N: int, K: int, G: np.ndarray, P: np.ndarray, H: np.ndarray, B: np.ndarray, F: np.ndarray, sigma_sq: float, eta: float, num_samples = 100):
+def calculate_secrecy_rate(N: int, K: int, G: np.ndarray, P: np.ndarray, H: np.ndarray, B: np.ndarray, F: np.ndarray, snr_db: int, eta: float, num_samples = 100):
     try:
+        sigma_sq = snr_db_to_sigma_sq(snr_db)
         def calculate_receiver_term_wrapper(xi: np.ndarray, xj: np.ndarray, mu: np.ndarray):
             return calculate_receiver_term(G, P, H, xi, xj, mu, sigma_sq)
         def calculate_eavesdropper_term_wrapper(xi: np.ndarray, xj: np.ndarray, mu: np.ndarray):
             return calculate_eavesdropper_term(K, N, eta, G, P, H, F, B, xi, xj, mu, sigma_sq, num_samples)
-        receiver_secrecy_rate = calculate_general_secrecy_rate(K, calculate_receiver_term_wrapper, sigma_sq, num_samples)
-        eavesdropper_secrecy_rate = calculate_general_secrecy_rate(K, calculate_eavesdropper_term_wrapper, sigma_sq, num_samples)
+        receiver_secrecy_rate = calculate_general_secrecy_rate(K, calculate_receiver_term_wrapper, snr_db, num_samples)
+        eavesdropper_secrecy_rate = calculate_general_secrecy_rate(K, calculate_eavesdropper_term_wrapper, snr_db, num_samples)
         secrecy_rate = receiver_secrecy_rate - eavesdropper_secrecy_rate
         return secrecy_rate, receiver_secrecy_rate, eavesdropper_secrecy_rate
     except ValueError as e:
@@ -153,8 +162,7 @@ def main():
         receiver_secrecy_rates = []
         eavesdropper_secrecy_rates = []
         for snr_db in snr_range_db:
-            sigma_sq = snr_db_to_sigma_sq(snr_db)
-            secrecy_rate, receiver_secrecy_rate, eavesdropper_secrecy_rate = calculate_secrecy_rate(N, K, G, P, H, B, F, sigma_sq, eta)
+            secrecy_rate, receiver_secrecy_rate, eavesdropper_secrecy_rate = calculate_secrecy_rate(N, K, G, P, H, B, F, snr_db, eta)
             print(f"SNR: {snr_db}, Secrecy Rate: {secrecy_rate:.2f} ({receiver_secrecy_rate:.2f} - {eavesdropper_secrecy_rate:.2f}) bits/s/Hz")
             secrecy_rates.append(secrecy_rate)
             receiver_secrecy_rates.append(receiver_secrecy_rate)
