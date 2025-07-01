@@ -19,7 +19,8 @@ from diagonalization import (
   random_reflection_vector,
 )
 from secrecy import (
-    create_random_noise_vector_from_snr
+    create_random_noise_vector_from_snr,
+    create_random_noise_vector_from_noise_floor
 )
 from ber import (
     simulate_ssk_transmission_reflection,
@@ -27,6 +28,7 @@ from ber import (
 )
 
 num_symbols=1000
+use_noise_floor = True
 
 class HeatmapGenerator:
     def __init__(self, width: int, height: int, resolution: float = 0.5):
@@ -602,18 +604,20 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
             power_from_Ps_sum[i] += new_effective_channel_power_sum / num_symbols
             power_from_Ps_product[i] += new_effective_channel_power_product / num_symbols
             power_from_Ps_active[i] += new_effective_channel_power_active / num_symbols
+
+        noise_floor = create_random_noise_vector_from_noise_floor(K)
         
         power_sum = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_sum)
         mean_power_sum += power_sum / num_symbols
-        noise_sum = create_random_noise_vector_from_snr(K, snr_db, power_sum)
+        noise_sum = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_sum)
         
         power_product = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_product)
         mean_power_product += power_product / num_symbols
-        noise_product = create_random_noise_vector_from_snr(K, snr_db, power_product)
+        noise_product = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_product)
         
         power_active = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_active)
         mean_power_active += power_active / num_symbols
-        noise_active = create_random_noise_vector_from_snr(K, snr_db, power_active)
+        noise_active = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_active)
         
         if distance_from_T == np.inf:
             errors_sum += simulate_ssk_transmission_reflection(K, effective_channel_sum, noise_sum)
