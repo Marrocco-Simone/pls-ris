@@ -866,9 +866,10 @@ def ber_heatmap_reflection_simulation(
     ber_heatmap_active.visualize(title + ' [Path Loss: active] BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
 
 def main():
-    calculate_single_reflection = True
-    calculate_multiple_reflection = True
-    calculate_multiple_complex_reflection = True
+    calculate_single_reflection = False
+    calculate_multiple_reflection = False
+    calculate_multiple_complex_reflection = False
+    calculate_ris_in_parallel = True
     K=4
     N=36
 
@@ -912,7 +913,7 @@ def main():
 
         start_time = time.perf_counter()
         ber_heatmap_reflection_simulation(
-            simulation_name="RISs in series, only final",
+            simulation_name="RISs in series, only at the end",
             width=20,
             height=20,
             buildings=buildings_multiple,
@@ -951,7 +952,7 @@ def main():
 
         start_time = time.perf_counter()
         ber_heatmap_reflection_simulation(
-            simulation_name="RISs in series, only final",
+            simulation_name="RISs in series",
             width=20,
             height=20,
             buildings=buildings_multiple,
@@ -964,6 +965,42 @@ def main():
         )
         end_time = time.perf_counter()
         print(f"Multiple complex reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}\n\n")
+
+    if calculate_ris_in_parallel:
+        buildings_multiple = [
+            (8, 0, 1, 4),
+            (12, 0, 1, 4),
+            (6, 7, 8, 4),
+        ]
+        transmitter_multiple = (10, 1)
+        ris_points_multiple = [
+            (10, 4),
+            (18, 8),
+            (2, 8),
+            (2, 16),
+        ]
+        receivers_multiple = [
+            (6, 2),
+            (16, 18),
+            (15, 10),
+        ]
+
+        start_time = time.perf_counter()
+        ber_heatmap_reflection_simulation(
+            simulation_name="RISs in parallel",
+            width=20,
+            height=20,
+            buildings=buildings_multiple,
+            transmitter=transmitter_multiple,
+            ris_points=ris_points_multiple,
+            receivers=receivers_multiple,
+            N=N,
+            K=K,
+            num_symbols=num_symbols,
+            force_recompute=True,
+        )
+        end_time = time.perf_counter()
+        print(f"RIS in parallel simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}\n\n")
 
     end_time = time.perf_counter()
     print(f"Total time taken: {end_time - begin_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}")
