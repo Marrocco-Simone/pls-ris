@@ -650,6 +650,7 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 def ber_heatmap_reflection_simulation(
+    simulation_name: str,
     width: int,
     height: int,
     buildings: List[Tuple[int, int, int, int]],
@@ -692,7 +693,7 @@ def ber_heatmap_reflection_simulation(
     
     M = len(ris_points)
     for path_loss_calculation_type in ['sum', 'product', 'active']:
-        title = f'{M} RIS(s) (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
+        title = f'{simulation_name} (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
         data_filename = f"./results_data/{title} BER Heatmap.npz"
         print(f"filename {data_filename} exist: {os.path.exists(data_filename)}")
 
@@ -735,7 +736,7 @@ def ber_heatmap_reflection_simulation(
     power_heatmap_from_Ps_product = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
     power_heatmap_from_Ps_active = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
 
-    ber_heatmap.visualize(f'{M} RIS(s) (K = {K}, SNR = {snr_db})', label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False)
+    ber_heatmap.visualize(f'{simulation_name} (K = {K}, SNR = {snr_db})', label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False)
 
     tx_grid_y, tx_grid_x = ber_heatmap._meters_to_grid(tx, ty)
     # todo H could be multiple ones and not just transmitter to first RIS. For the multi path scenario, change this
@@ -856,7 +857,7 @@ def ber_heatmap_reflection_simulation(
         print(f"\t[Path Loss: active] Receiver {j+1} mean power: {mean_power_per_receiver_active[j]:.2e}, BER: {(ber_heatmap_active.grid[rx_grid_y, rx_grid_x]*100):.2f}%")
     print("------")
     
-    title = f'{M} RIS(s) (K = {K}, SNR = {snr_db})'
+    title = f'{simulation_name} (K = {K}, SNR = {snr_db})'
     viridis = matplotlib.colormaps['viridis']
     cmap = matplotlib.colors.ListedColormap([viridis(x) for x in np.linspace(0, 1, n_colors)])
     
@@ -885,6 +886,7 @@ def main():
 
         start_time = time.perf_counter()
         ber_heatmap_reflection_simulation(
+            simulation_name="Single Reflection",
             width=20,
             height=20,
             buildings=buildings_single,
@@ -910,6 +912,7 @@ def main():
 
         start_time = time.perf_counter()
         ber_heatmap_reflection_simulation(
+            simulation_name="RISs in series, only final",
             width=20,
             height=20,
             buildings=buildings_multiple,
@@ -948,6 +951,7 @@ def main():
 
         start_time = time.perf_counter()
         ber_heatmap_reflection_simulation(
+            simulation_name="RISs in series, only final",
             width=20,
             height=20,
             buildings=buildings_multiple,
