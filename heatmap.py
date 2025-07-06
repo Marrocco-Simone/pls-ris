@@ -9,7 +9,6 @@ import json
 from tqdm import tqdm
 import time
 from multiprocess import Pool, cpu_count
-from functools import partial
 import warnings
 warnings.filterwarnings('ignore', category=RuntimeWarning)
 
@@ -27,7 +26,7 @@ from ber import (
     simulate_ssk_transmission_direct
 )
 
-num_symbols=1000
+num_symbols=10
 use_noise_floor = True
 
 class HeatmapGenerator:
@@ -469,55 +468,64 @@ def calculate_channel_power(H: np.ndarray) -> float:
 def print_low_array(v: np.ndarray) -> str:
     return print(np.array2string(np.abs(v), formatter={'float_kind':lambda x: '{:.1e}'.format(x)}))
 
-def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
+def process_grid_point(grid_coords: Tuple[int, int], 
+                      resolution: float,
+                      buildings_grid: np.ndarray,
+                      distance_from_T: np.ndarray,
+                      distances_from_Ps: List[np.ndarray],
+                      K: int, N: int, M: int, J: int,
+                      eta: float, snr_db: int, num_symbols: int,
+                      receivers: List[Tuple[int, int]],
+                      H: np.ndarray,
+                      Gs_per_ris: List[List[np.ndarray]],
+                      Cs: List[np.ndarray],
+                      tx_grid_coords: Tuple[int, int],
+                      ris_path_distances: List[float]) -> Dict[str, Any]:
     """
     Process a single grid point. This function is designed to be called by multiprocessing.
     
     Args:
-        args: Dictionary containing all necessary parameters for processing a grid point
+        grid_coords: Tuple of (grid_x, grid_y)
+        resolution: Grid resolution in meters
+        buildings_grid: Grid indicating building locations (NaN for buildings)
+        distance_from_T: Distance matrix from transmitter
+        distances_from_Ps: List of distance matrices from each RIS
+        K, N, M, J: System parameters
+        eta: Reflection efficiency
+        snr_db: SNR in dB
+        num_symbols: Number of symbols to simulate
+        receivers: List of receiver coordinates
+        H: Channel matrix from transmitter to first RIS
+        Gs_per_ris: Channel matrices from each RIS to receivers
+        Cs: Channel matrices between consecutive RIS
+        tx_grid_coords: Transmitter grid coordinates
+        ris_path_distances: Path distances between RIS points
     
     Returns:
         Dictionary containing the results for this grid point
     """
-    grid_x = args['grid_x']
-    grid_y = args['grid_y']
-    x = args['x']
-    y = args['y']
-    is_building = args['is_building']
+    grid_x, grid_y = grid_coords
+    x = grid_x * resolution
+    y = grid_y * resolution
     
-    if is_building:
+    if np.isnan(buildings_grid[grid_y, grid_x]):
         return {
             'grid_x': grid_x,
             'grid_y': grid_y,
             'skip': True
         }
     
-    distance_from_T = args['distance_from_T']
-    distances_from_Ps_current = args['distances_from_Ps_current']
-    K = args['K']
-    N = args['N']
-    M = args['M']
-    J = args['J']
-    eta = args['eta']
-    snr_db = args['snr_db']
-    num_symbols = args['num_symbols']
-    receivers = args['receivers']
-    H = args['H']
-    Gs_per_ris = args['Gs_per_ris']
-    Cs = args['Cs']
-    tx_grid_y = args['tx_grid_y']
-    tx_grid_x = args['tx_grid_x']
-    ris_path_distances = args['ris_path_distances']
-    ber_heatmap_resolution = args['ber_heatmap_resolution']
+    distance_from_T_current = distance_from_T[grid_y, grid_x]
+    distances_from_Ps_current = [distances_from_Ps[i][grid_y, grid_x] for i in range(M)]
     
-    if distance_from_T == np.inf and all(d == np.inf for d in distances_from_Ps_current):
+    if distance_from_T_current == np.inf and all(d == np.inf for d in distances_from_Ps_current):
         return {
             'grid_x': grid_x,
             'grid_y': grid_y,
             'skip': True
         }
     
-    B = calculate_mimo_channel_gain(distance_from_T, K, K) * calculate_free_space_path_loss(distance_from_T)
+    B = calculate_mimo_channel_gain(distance_from_T_current, K, K) * calculate_free_space_path_loss(distance_from_T_current)
     B_power = calculate_channel_power(B)
     
     Fs = [calculate_mimo_channel_gain(d, N, K) for d in distances_from_Ps_current]
@@ -544,8 +552,8 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
         for i in range(M):
             distance_pi_to_receivers = []
             for j in range(J):
-                rx_grid_x, rx_grid_y = int(receivers[j][0] / ber_heatmap_resolution), int(receivers[j][1] / ber_heatmap_resolution)
-                dist_ij = args[f'distances_from_P{i}'][rx_grid_y, rx_grid_x]
+                rx_grid_x, rx_grid_y = int(receivers[j][0] / resolution), int(receivers[j][1] / resolution)
+                dist_ij = distances_from_Ps[i][rx_grid_y, rx_grid_x]
                 distance_pi_to_receivers.append(dist_ij)
             
             G_receivers_connected_to_ris_i = [
@@ -607,19 +615,19 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
 
         noise_floor = create_random_noise_vector_from_noise_floor(K)
         
-        power_sum = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_sum)
+        power_sum = B_power if distance_from_T_current != np.inf else calculate_channel_power(effective_channel_sum)
         mean_power_sum += power_sum / num_symbols
         noise_sum = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_sum)
         
-        power_product = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_product)
+        power_product = B_power if distance_from_T_current != np.inf else calculate_channel_power(effective_channel_product)
         mean_power_product += power_product / num_symbols
         noise_product = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_product)
         
-        power_active = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_active)
+        power_active = B_power if distance_from_T_current != np.inf else calculate_channel_power(effective_channel_active)
         mean_power_active += power_active / num_symbols
         noise_active = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_active)
         
-        if distance_from_T == np.inf:
+        if distance_from_T_current == np.inf:
             errors_sum += simulate_ssk_transmission_reflection(K, effective_channel_sum, noise_sum)
             errors_product += simulate_ssk_transmission_reflection(K, effective_channel_product, noise_product)
             errors_active += simulate_ssk_transmission_reflection(K, effective_channel_active, noise_active)
@@ -686,10 +694,6 @@ def ber_heatmap_reflection_simulation(
         n_processes: Number of processes to use (None for auto-detect)
     """
     print(f"Called function with num_symbols = {num_symbols}")
-    
-    if n_processes is None:
-        n_processes = cpu_count()
-    print(f"Using {n_processes} CPU cores for parallel processing.")
     
     M = len(ris_points)
     for path_loss_calculation_type in ['sum', 'product', 'active']:
@@ -777,49 +781,41 @@ def ber_heatmap_reflection_simulation(
     mean_power_per_receiver_product = np.zeros(J, dtype=float)
     mean_power_per_receiver_active = np.zeros(J, dtype=float)
 
-    args_list = []
+    # Prepare grid coordinates for processing
+    grid_coords_list = []
     for grid_y in range(ber_heatmap.grid_height):
         for grid_x in range(ber_heatmap.grid_width):
-            x, y = ber_heatmap._grid_to_meters(grid_x, grid_y)
-            
-            args = {
-                'grid_x': grid_x,
-                'grid_y': grid_y,
-                'x': x,
-                'y': y,
-                'is_building': np.isnan(ber_heatmap.grid[grid_y, grid_x]),
-                'distance_from_T': distances_from_T[grid_y, grid_x],
-                'distances_from_Ps_current': [distances_from_Ps[i][grid_y, grid_x] for i in range(M)],
-                'K': K,
-                'N': N,
-                'M': M,
-                'J': J,
-                'eta': eta,
-                'snr_db': snr_db,
-                'num_symbols': num_symbols,
-                'receivers': receivers,
-                'H': H,
-                'Gs_per_ris': Gs_per_ris,
-                'Cs': Cs,
-                'tx_grid_y': tx_grid_y,
-                'tx_grid_x': tx_grid_x,
-                'ris_path_distances': ris_path_distances,
-                'ber_heatmap_resolution': ber_heatmap.resolution,
-            }
-            
-            for i in range(M):
-                args[f'distances_from_P{i}'] = distances_from_Ps[i]
-            
-            args_list.append(args)
+            grid_coords_list.append((grid_x, grid_y))
+
     
-    print(f"Processing {len(args_list)} grid points...")
-    pool = Pool(processes=n_processes)
-    results = list(tqdm(
-        pool.imap(process_grid_point, args_list),
-        total=len(args_list),
-        desc="Processing grid points"
-    ))
+    if n_processes is None:
+        n_processes = cpu_count()
+    print(f"Using {n_processes} CPU cores for parallel processing.")
+    print(f"Processing {len(grid_coords_list)} grid points...")
     
+    with Pool(processes=n_processes) as pool:
+        results = list(tqdm(
+            pool.imap(lambda grid_coords: process_grid_point(
+                grid_coords=grid_coords, 
+                resolution=ber_heatmap.resolution,
+                buildings_grid=ber_heatmap.grid,
+                distance_from_T=distances_from_T,
+                distances_from_Ps=distances_from_Ps,
+                K=K, N=N, M=M, J=J,
+                eta=eta, snr_db=snr_db, num_symbols=num_symbols,
+                receivers=receivers,
+                H=H,
+                Gs_per_ris=Gs_per_ris,
+                Cs=Cs,
+                tx_grid_coords=(tx_grid_x, tx_grid_y),
+                ris_path_distances=ris_path_distances
+            ), 
+            grid_coords_list),
+            total=len(grid_coords_list),
+            desc="Processing grid points"
+        ))
+
+    # Process results
     for result in results:
         if result['skip']:
             continue
@@ -866,10 +862,10 @@ def ber_heatmap_reflection_simulation(
     ber_heatmap_active.visualize(title + ' [Path Loss: active] BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
 
 def main():
-    calculate_single_reflection = False
+    calculate_single_reflection = True
     calculate_multiple_reflection = False
     calculate_multiple_complex_reflection = False
-    calculate_ris_in_parallel = True
+    calculate_ris_in_parallel = False
     K=4
     N=36
 
@@ -997,7 +993,6 @@ def main():
             N=N,
             K=K,
             num_symbols=num_symbols,
-            force_recompute=True,
         )
         end_time = time.perf_counter()
         print(f"RIS in parallel simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}\n\n")
