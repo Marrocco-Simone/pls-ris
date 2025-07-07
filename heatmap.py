@@ -362,7 +362,7 @@ def calculate_free_space_path_loss(d: float, lam = 0.08, k = 2) -> float:
 
     Returns:
     --------
-    Free space path loss in dB
+    Free space path loss in ...
     """
     if d == 0: d = 0.01
     return 1 / np.sqrt((4 * np.pi / lam) ** 2 * d ** k)
@@ -704,7 +704,7 @@ def ber_heatmap_reflection_simulation(
     
     M = len(ris_points)
     for path_loss_calculation_type in ['sum', 'product', 'active']:
-        title = f'{simulation_name} (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
+        title = f'{simulation_name} (K = {K}, num_symbols = {num_symbols}) [Path Loss: {path_loss_calculation_type}]'
         data_filename = f"./results_data/{title} BER Heatmap.npz"
         print(f"filename {data_filename} exist: {os.path.exists(data_filename)}")
 
@@ -747,7 +747,7 @@ def ber_heatmap_reflection_simulation(
     power_heatmap_from_Ps_product = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
     power_heatmap_from_Ps_active = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
 
-    ber_heatmap.visualize(f'{simulation_name} (K = {K}, SNR = {snr_db})', label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False)
+    ber_heatmap.visualize(f'{simulation_name} (K = {K}, num_symbols = {num_symbols})', label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False)
 
     tx_grid_y, tx_grid_x = ber_heatmap._meters_to_grid(tx, ty)
     # todo H could be multiple ones and not just transmitter to first RIS. For the multi path scenario, change this
@@ -860,7 +860,7 @@ def ber_heatmap_reflection_simulation(
         print(f"\t[Path Loss: active] Receiver {j+1} mean power: {mean_power_per_receiver_active[j]:.2e}, BER: {(ber_heatmap_active.grid[rx_grid_y, rx_grid_x]*100):.2f}%")
     print("------")
     
-    title = f'{simulation_name} (K = {K}, SNR = {snr_db})'
+    title = f'{simulation_name} (K = {K}, num_symbols = {num_symbols})'
     viridis = matplotlib.colormaps['viridis']
     cmap = matplotlib.colors.ListedColormap([viridis(x) for x in np.linspace(0, 1, n_colors)])
     
@@ -899,7 +899,8 @@ def main():
             receivers=receivers_single,
             N=N,
             K=K,
-            num_symbols=num_symbols
+            num_symbols=num_symbols,
+            force_recompute=True,
         )
         end_time = time.perf_counter()
         print(f"Single reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}\n\n")

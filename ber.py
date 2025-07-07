@@ -16,7 +16,7 @@ from secrecy import (
 
 num_symbols=100000
 
-def simulate_ssk_transmission(K: int, noise: np.ndarray, calculate_detected_id: Callable[[np.ndarray, np.ndarray], float]):
+def simulate_ssk_transmission(K: int, noise: np.ndarray, calculate_detected_id: Callable[[np.ndarray, np.ndarray], float], P_mw = 100):
     n_bits = int(np.log2(K))
     if 2**n_bits != K:
         raise ValueError(f"K must be a power of 2, got {K}")
@@ -27,6 +27,7 @@ def simulate_ssk_transmission(K: int, noise: np.ndarray, calculate_detected_id: 
 
     x = np.zeros(K)
     x[true_idx] = 1
+    x = x * np.sqrt(P_mw)
 
     detected_idx = calculate_detected_id(x, noise)
     

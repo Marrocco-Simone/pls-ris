@@ -45,7 +45,7 @@ def create_random_noise_vector_from_noise_floor(K: int, temp_kelvin = 290, f = 4
     Args:
         K: Number of elements in the noise vector
         temp_kelvin: Temperature in Kelvin (default is 290)
-        f: Frequency in MHz (default is 400 MHz)
+        f: Bandwidth in MHz (default is 400 MHz)
     
     Returns:
         Random noise vector
@@ -56,10 +56,14 @@ def create_random_noise_vector_from_noise_floor(K: int, temp_kelvin = 290, f = 4
     # P_dbm = -80
     # P_mw = 10**(P_dbm/10) 
     
-    P_mw = botzmann_constant * temp_kelvin * (f * 1000000) * 1000 * noise_figure
+    P_w = botzmann_constant * temp_kelvin * (f * 1000000) * noise_figure
+    P_mw = P_w * 1000
     # P_dbm = 10 * np.log10(P_mw)
 
-    mu = np.random.randn(K) + 1j*np.random.randn(K)
+    # mu = np.random.randn(K) + 1j*np.random.randn(K)
+    phases = np.random.uniform(-np.pi, np.pi, K)
+    magnitudes = np.random.rayleigh(np.sqrt(2 / np.pi), K)
+    mu = magnitudes * (np.cos(phases) + 1j * np.sin(phases))
     mu = mu * np.sqrt(P_mw)
     
     return mu
