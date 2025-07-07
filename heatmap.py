@@ -799,28 +799,28 @@ def ber_heatmap_reflection_simulation(
         n_processes = cpu_count()
     print(f"Using {n_processes} CPU cores for parallel processing.")
     print(f"Processing {len(grid_coords_list)} grid points...")
-    
+
     pool = Pool(processes=n_processes)
-        results = list(tqdm(
-            pool.imap(lambda grid_coords: process_grid_point(
-                grid_coords=grid_coords, 
-                resolution=ber_heatmap.resolution,
-                buildings_grid=ber_heatmap.grid,
-                distance_from_T=distances_from_T,
-                distances_from_Ps=distances_from_Ps,
-                K=K, N=N, M=M, J=J,
-                eta=eta, snr_db=snr_db, num_symbols=num_symbols,
-                receivers=receivers,
-                H=H,
-                Gs_per_ris=Gs_per_ris,
-                Cs=Cs,
-                tx_grid_coords=(tx_grid_x, tx_grid_y),
-                ris_path_distances=ris_path_distances
-            ), 
-            grid_coords_list),
-            total=len(grid_coords_list),
-            desc="Processing grid points"
-        ))
+    results = list(tqdm(
+        pool.imap(lambda grid_coords: process_grid_point(
+            grid_coords=grid_coords, 
+            resolution=ber_heatmap.resolution,
+            buildings_grid=ber_heatmap.grid,
+            distance_from_T=distances_from_T,
+            distances_from_Ps=distances_from_Ps,
+            K=K, N=N, M=M, J=J,
+            eta=eta, snr_db=snr_db, num_symbols=num_symbols,
+            receivers=receivers,
+            H=H,
+            Gs_per_ris=Gs_per_ris,
+            Cs=Cs,
+            tx_grid_coords=(tx_grid_x, tx_grid_y),
+            ris_path_distances=ris_path_distances
+        ), 
+        grid_coords_list),
+        total=len(grid_coords_list),
+        desc="Processing grid points"
+    ))
 
     # Process results
     for result in results:
