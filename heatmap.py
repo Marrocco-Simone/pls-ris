@@ -56,6 +56,8 @@ class HeatmapGenerator:
         self.buildings = []
         # * Dictionary to store points with their labels and coordinates
         self.points = {}
+        # * Graph between all actors, saved as a dictionary of dictionaries
+        self.graph = {}
 
     @staticmethod
     def copy_from(other: 'HeatmapGenerator') -> 'HeatmapGenerator':
@@ -114,6 +116,18 @@ class HeatmapGenerator:
         """
         if not (0 <= x < self.width and 0 <= y < self.height):
             raise ValueError(f"Point {label} coordinates ({x}, {y}) are outside the map boundaries")
+        if self.points.get(label):
+            raise ValueError(f"Point {label} already exists at ({self.points[label][0]}, {self.points[label][1]})")
+
+        self.graph[label] = {}
+        for other_label in self.points:
+            other_x, other_y = self.points[other_label]
+            distance = np.sqrt((x - other_x)**2 + (y - other_y)**2)
+            if self._line_intersects_building(x, y, other_x, other_y):
+                distance = np.inf
+            self.graph[label][other_label] = distance
+            self.graph[other_label][label] = distance
+        self.graph[label][label] = 0
         self.points[label] = (x, y)
 
     def get_point_coordinates(self, label: str) -> Tuple[float, float]:
@@ -342,7 +356,21 @@ class HeatmapGenerator:
                 distances[grid_y, grid_x] = distance
 
         return distances
-
+    
+    def check_ris_cycles(self) -> bool:
+        already_checked = set()
+        def check_next_nodes_dfs(label: str, from_label: str) -> bool:
+            if label in already_checked: return True
+            already_checked.add(label)
+            for p_label, _ in self.points.items():
+                if p_label == label: continue
+                if p_label == from_label: continue
+                if not p_label.startswith('P'): continue
+                if self.graph[label][p_label] == np.inf: continue
+                if check_next_nodes_dfs(p_label, label): return True
+            return False
+        return check_next_nodes_dfs("T", "T")
+    
     @staticmethod
     def visualize_distance_matrix(title: str, distances: np.ndarray, cmap='viridis'):
         height, width = distances.shape
@@ -731,6 +759,9 @@ def ber_heatmap_reflection_simulation(
     M = len(ris_points)
     for i, (px, py) in enumerate(ris_points):
         ber_heatmap.add_point(f'P{i+1}', px, py)
+
+    if ber_heatmap.check_ris_cycles():
+        raise KeyError("RIS placement contains cycles")
 
     J = len(receivers)
     for i, (rx, ry) in enumerate(receivers):
