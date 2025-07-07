@@ -1,3 +1,10 @@
+import os
+# Disable NumPy multithreading before importing NumPy
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
 import matplotlib.colors
 import numpy as np
 import matplotlib.pyplot as plt
@@ -26,7 +33,7 @@ from ber import (
     simulate_ssk_transmission_direct
 )
 
-num_symbols=10
+num_symbols=1000
 use_noise_floor = True
 
 class HeatmapGenerator:
@@ -793,7 +800,7 @@ def ber_heatmap_reflection_simulation(
     print(f"Using {n_processes} CPU cores for parallel processing.")
     print(f"Processing {len(grid_coords_list)} grid points...")
     
-    with Pool(processes=n_processes) as pool:
+    pool = Pool(processes=n_processes)
         results = list(tqdm(
             pool.imap(lambda grid_coords: process_grid_point(
                 grid_coords=grid_coords, 
