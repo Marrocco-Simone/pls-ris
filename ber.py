@@ -14,7 +14,7 @@ from secrecy import (
     unify_ris_reflection_matrices
 )
 
-num_symbols=100000
+num_symbols=1000000
 
 def simulate_ssk_transmission(K: int, noise: np.ndarray, calculate_detected_id: Callable[[np.ndarray, np.ndarray], float]):
     n_bits = int(np.log2(K))
@@ -313,7 +313,7 @@ def plot_ber_curves():
             else:
                 print(f"Loading existing data from {data_filename}")
 
-            plt_name = f'SSK BER Performance with RIS (K={K}, N={N}, J={J}, M={M})'
+            plt_name = f'SSK BER Performance with RIS (K={K}, N={N}, J={J}, M={M}, num_symbols={num_symbols})'
             plt.figure(figsize=(10, 6))
             
             plt.semilogy(plot_data['snr_range_db'], plot_data['ber_direct']['mean'], 'o-', label=f'Simulation Direct')
