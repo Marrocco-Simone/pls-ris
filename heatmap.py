@@ -157,7 +157,7 @@ class HeatmapGenerator:
         print(f"Saved {legend_filename}")
         plt.close(fig)
 
-    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='white', vmin=None, vmax=None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True):
+    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='white', vmin=None, vmax=None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True, show_legend=False):
         """
         Visualize the ber_heatmap with optional building outlines and points of interest.
 
@@ -218,6 +218,8 @@ class HeatmapGenerator:
             if not log_scale:
                 self._save_colorbar_legend(title, cmap=cmap, vmin=vmin, vmax=vmax, label=label, orientation='horizontal')
                 self._save_colorbar_legend(title, cmap=cmap, vmin=vmin, vmax=vmax, label=label, orientation='vertical')
+            if show_legend:
+                plt.colorbar(label=label, orientation='vertical')
         else:
             plt.imshow(np.ones_like(masked_grid), cmap='Greys', origin='lower', vmin=0, vmax=1, extent=extent, alpha=0.1)
 
@@ -234,6 +236,8 @@ class HeatmapGenerator:
                 if label[0] == 'R' and show_receivers_values and show_heatmap:
                     grid_x, grid_y = self._meters_to_grid(x, y)
                     value = self.grid[grid_y, grid_x]
+                    if log_scale and value > 0:
+                        value = np.log10(value)
                     label += f" ({value:.2f})"
                 plt.plot(x + c, y + c, 'o', color=point_color, markersize=6)
                 plt.text(x + 2 * c, y + 2 * c, label, color=point_color, fontweight=1000, fontsize=20, bbox=dict(pad=0.2, boxstyle='round',  lw=0, ec=None, fc='black', alpha=0.3))
@@ -864,6 +868,24 @@ def ber_heatmap_reflection_simulation(
     ber_heatmap_sum.visualize(title + ' [Path Loss: sum] BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
     ber_heatmap_product.visualize(title + ' [Path Loss: product] BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
     ber_heatmap_active.visualize(title + ' [Path Loss: active] BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
+
+    power_heatmap_from_T.visualize(
+        title + ' Power from T', 
+        cmap=cmap, log_scale=True, vmin=-13.0, vmax=0.0, label='Power', show_receivers_values=True, show_legend=True
+    )
+    for i in range(M):
+        power_heatmap_from_Ps_sum[i].visualize(
+            title + f' [Path Loss: sum] Power from P{i+1}', 
+            cmap=cmap, log_scale=True, vmin=-13.0, vmax=0.0, label='Power', show_receivers_values=True, show_legend=True
+        )
+        power_heatmap_from_Ps_product[i].visualize(
+            title + f' [Path Loss: product] Power from P{i+1}', 
+            cmap=cmap, log_scale=True, vmin=-13.0, vmax=0.0, label='Power', show_receivers_values=True, show_legend=True
+        )
+        power_heatmap_from_Ps_active[i].visualize(
+            title + f' [Path Loss: active] Power from P{i+1}', 
+            cmap=cmap, log_scale=True, vmin=-13.0, vmax=0.0, label='Power', show_receivers_values=True, show_legend=True
+        )
 
 def main():
     calculate_single_reflection = True
