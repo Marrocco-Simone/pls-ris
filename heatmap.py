@@ -27,7 +27,7 @@ from ber import (
     simulate_ssk_transmission_direct
 )
 
-num_symbols=1000
+num_symbols=100000
 use_noise_floor = True
 
 class HeatmapGenerator:
@@ -463,6 +463,9 @@ def calculate_channel_power(H: np.ndarray) -> float:
     Channel power
     '''
     # return np.linalg.norm(H) ** 2
+    if H.ndim == 1:
+        return np.linalg.norm(H) ** 2
+
     columns, rows = H.shape
     power = 0
     for i in range(columns):
@@ -541,6 +544,10 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
     power_from_Ps_sum = np.zeros(M)
     power_from_Ps_product = np.zeros(M)
     power_from_Ps_active = np.zeros(M)
+
+    mean_noise_power_sum = 0.0
+    mean_noise_power_product = 0.0
+    mean_noise_power_active = 0.0
     
     for _ in range(num_symbols):
         Ps = []
@@ -614,14 +621,20 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
         power_sum = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_sum)
         mean_power_sum += power_sum / num_symbols
         noise_sum = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_sum)
+        noise_power_sum = calculate_channel_power(noise_sum)
+        mean_noise_power_sum += noise_power_sum / num_symbols
         
         power_product = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_product)
         mean_power_product += power_product / num_symbols
         noise_product = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_product)
+        noise_power_product = calculate_channel_power(noise_product)
+        mean_noise_power_product += noise_power_product / num_symbols
         
         power_active = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_active)
         mean_power_active += power_active / num_symbols
         noise_active = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_active)
+        noise_power_active = calculate_channel_power(noise_active)
+        mean_noise_power_active += noise_power_active / num_symbols
         
         if distance_from_T == np.inf:
             errors_sum += simulate_ssk_transmission_reflection(K, effective_channel_sum, noise_sum)
@@ -635,6 +648,23 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
     ber_sum = np.nan if mean_power_sum == 0 else errors_sum / num_symbols
     ber_product = np.nan if mean_power_product == 0 else errors_product / num_symbols
     ber_active = np.nan if mean_power_active == 0 else errors_active / num_symbols
+
+    # convert power values to snr
+    for i in range(M):
+        if power_from_Ps_sum[i] > 0:
+            power_from_Ps_sum[i] = 10 * np.log10(power_from_Ps_sum[i] / mean_noise_power_sum)
+        else:
+            power_from_Ps_sum[i] = np.nan
+        
+        if power_from_Ps_product[i] > 0:
+            power_from_Ps_product[i] = 10 * np.log10(power_from_Ps_product[i] / mean_noise_power_product)
+        else:
+            power_from_Ps_product[i] = np.nan
+        
+        if power_from_Ps_active[i] > 0:
+            power_from_Ps_active[i] = 10 * np.log10(power_from_Ps_active[i] / mean_noise_power_active)
+        else:
+            power_from_Ps_active[i] = np.nan
     
     return {
         'grid_x': grid_x,
@@ -870,21 +900,21 @@ def ber_heatmap_reflection_simulation(
     ber_heatmap_active.visualize(title + ' [Path Loss: active] BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
 
     power_heatmap_from_T.visualize(
-        title + ' Power from T', 
-        cmap=cmap, log_scale=True, vmin=-13.0, vmax=0.0, label='Power', show_receivers_values=True, show_legend=True
+        title + ' SNR from T', 
+        cmap=cmap, vmin=0.0, vmax=15.0, label='SNR', show_receivers_values=True, show_legend=True
     )
     for i in range(M):
         power_heatmap_from_Ps_sum[i].visualize(
-            title + f' [Path Loss: sum] Power from P{i+1}', 
-            cmap=cmap, log_scale=True, vmin=-13.0, vmax=0.0, label='Power', show_receivers_values=True, show_legend=True
+            title + f' [Path Loss: sum] SNR from P{i+1}', 
+            cmap=cmap, vmin=0.0, vmax=15.0, label='SNR', show_receivers_values=True, show_legend=True
         )
         power_heatmap_from_Ps_product[i].visualize(
-            title + f' [Path Loss: product] Power from P{i+1}', 
-            cmap=cmap, log_scale=True, vmin=-13.0, vmax=0.0, label='Power', show_receivers_values=True, show_legend=True
+            title + f' [Path Loss: product] SNR from P{i+1}', 
+            cmap=cmap, vmin=0.0, vmax=15.0, label='SNR', show_receivers_values=True, show_legend=True
         )
         power_heatmap_from_Ps_active[i].visualize(
-            title + f' [Path Loss: active] Power from P{i+1}', 
-            cmap=cmap, log_scale=True, vmin=-13.0, vmax=0.0, label='Power', show_receivers_values=True, show_legend=True
+            title + f' [Path Loss: active] SNR from P{i+1}', 
+            cmap=cmap, vmin=0.0, vmax=15.0, label='SNR', show_receivers_values=True, show_legend=True
         )
 
 def main():
