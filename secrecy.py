@@ -23,11 +23,11 @@ def snr_db_to_sigma_sq(snr_db, path_gain = 1):
 def create_random_noise_vector_from_snr(K: int, snr_db: int, path_gain = 1) -> np.ndarray:
     """
     Generate a random noise vector with complex Gaussian entries, from SNR in dB.
-    
+
     Args:
         K: Number of elements in the noise vector
         sigma_sq: Noise variance
-    
+
     Returns:
         Random noise vector
     """
@@ -35,40 +35,40 @@ def create_random_noise_vector_from_snr(K: int, snr_db: int, path_gain = 1) -> n
     mu = np.sqrt(sigma_sq/2) * (
         np.random.randn(K) + 1j*np.random.randn(K)
     )
-    
+
     return mu
 
 def create_random_noise_vector_from_noise_floor(K: int, temp_kelvin = 290, f = 400) -> np.ndarray:
     """
     Generate a random noise vector with complex Gaussian entries, from noise variance.
-    
+
     Args:
         K: Number of elements in the noise vector
         temp_kelvin: Temperature in Kelvin (default is 290)
         f: Frequency in MHz (default is 400 MHz)
-    
+
     Returns:
         Random noise vector
     """
     botzmann_constant = 1.380649e-23
-    noise_figure = 6 
+    noise_figure = 6
 
     # P_dbm = -80
-    # P_mw = 10**(P_dbm/10) 
-    
+    # P_mw = 10**(P_dbm/10)
+
     P_mw = botzmann_constant * temp_kelvin * (f * 1000000) * 1000 * noise_figure
     # P_dbm = 10 * np.log10(P_mw)
 
     mu = np.random.randn(K) + 1j*np.random.randn(K)
     mu = mu * np.sqrt(P_mw)
-    
+
     return mu
 
 
 ######## Secrecy Rate Calculation ########
 
-def calculate_receiver_term(G: np.ndarray, P: np.ndarray, H: np.ndarray, xi: np.ndarray, xj: np.ndarray, mu: np.ndarray, sigma_sq: float): 
-    try: 
+def calculate_receiver_term(G: np.ndarray, P: np.ndarray, H: np.ndarray, xi: np.ndarray, xj: np.ndarray, mu: np.ndarray, sigma_sq: float):
+    try:
         a = G @ P @ H @ (xi - xj) + mu
         a = np.linalg.norm(a) ** 2
         b = np.linalg.norm(mu) ** 2
@@ -110,7 +110,7 @@ def calculate_eavesdropper_noise(Sigma_inv_sqrt: np.ndarray, P: np.ndarray, H: n
     except ValueError as e:
         print(f"Error at calculate_eavesdropper_noise: {e}")
         raise e
-    
+
 def calculate_eavesdropper_term(K: int, N: int, eta: float, G: np.ndarray, P: np.ndarray, H: np.ndarray, F: np.ndarray, B: np.ndarray, xi: np.ndarray, xj: np.ndarray, mu: np.ndarray, sigma_sq: float, num_samples = 100):
     try:
         Sigma_inv_sqrt = calculate_eavesdropper_Sigma_inv_sqrt(K, N, eta, G, H, F, xi, xj, sigma_sq, num_samples)
@@ -122,7 +122,7 @@ def calculate_eavesdropper_term(K: int, N: int, eta: float, G: np.ndarray, P: np
     except ValueError as e:
         print(f"Error at calculate_eavesdropper_term: {e}")
         raise e
-    
+
 def calculate_general_secrecy_rate(K: int, calculate_term: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray], snr_db: int, num_samples = 100):
     try:
         sum_i = 0
@@ -145,7 +145,7 @@ def calculate_general_secrecy_rate(K: int, calculate_term: Callable[[np.ndarray,
     except ValueError as e:
         print(f"Error at calculate_general_secrecy_rate: {e}")
         raise e
-    
+
 def calculate_secrecy_rate(N: int, K: int, G: np.ndarray, P: np.ndarray, H: np.ndarray, B: np.ndarray, F: np.ndarray, snr_db: int, eta: float, num_samples = 100):
     try:
         sigma_sq = snr_db_to_sigma_sq(snr_db)
@@ -160,7 +160,7 @@ def calculate_secrecy_rate(N: int, K: int, G: np.ndarray, P: np.ndarray, H: np.n
     except ValueError as e:
         print(f"Error at calculate_secrecy_rate: {e}")
         raise e
-    
+
 ######## MAIN ###################
 
 def main():
@@ -206,7 +206,7 @@ def main():
         plt.grid()
         plt.savefig(f"./simulations/results/{plt_name}.png", dpi=300, format='png')
         print(f"Saved {plt_name}.png\n\n")
-        
+
     except ValueError as e:
         print(f"Error: {e}")
 
