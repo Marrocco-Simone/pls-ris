@@ -15,16 +15,26 @@ def calculate_channel_power(H: np.ndarray) -> float:
     --------
     Channel power
     '''
-    # return np.linalg.norm(H) ** 2
-    if H.ndim == 1:
-        return np.linalg.norm(H) ** 2
-
     columns, rows = H.shape
     power = 0
     for i in range(columns):
         h_i = H[i, :]
         power += np.linalg.norm(h_i) ** 2
     return power / columns
+
+def calculate_signal_power(signal: np.ndarray) -> float:
+    '''
+    Calculate the signal power of a given signal vector
+
+    Parameters:
+    -----------
+    signal : Complex signal vector
+
+    Returns:
+    --------
+    Signal power
+    '''
+    return np.linalg.norm(signal) ** 2
 
 def snr_db_to_sigma_sq(snr_db, path_gain = 1):
     '''
@@ -85,6 +95,7 @@ def create_random_noise_vector_from_noise_floor(K: int, temp_kelvin = 290, f = 4
     """
     P_mw = calculate_noise_floor_in_mw(temp_kelvin, f)
 
+    # TODO GENERATE THESE WITH A RICE DISTRIBUTION
     mu = np.random.randn(K) + 1j*np.random.randn(K)
     mu = mu * np.sqrt(P_mw)
 
@@ -92,18 +103,43 @@ def create_random_noise_vector_from_noise_floor(K: int, temp_kelvin = 290, f = 4
 
 def main():
     # test noise floor
-    P_dbm_1 = -80
-    P_mw_1 = 10**(P_dbm_1/10)
+    Pn_dbm_1 = -80
+    Pn_mw_1 = 10**(Pn_dbm_1/10)
 
-    P_mw_2 = calculate_noise_floor_in_mw()
-    P_dbm_2 = 10 * np.log10(P_mw_2)
+    Pn_mw_2 = calculate_noise_floor_in_mw()
+    Pn_dbm_2 = 10 * np.log10(Pn_mw_2)
 
-    diff_dbm = abs(P_dbm_1 - P_dbm_2)
-    diff_mw = abs(P_mw_1 - P_mw_2)
+    diff_dbm = abs(Pn_dbm_1 - Pn_dbm_2)
+    diff_mw = abs(Pn_mw_1 - Pn_mw_2)
 
     print(f"Noise floor power comparisons:")
-    print(f"\t{P_dbm_1:.2f} dbm == {P_dbm_2:.2f} dbm ({abs(diff_dbm / P_dbm_1 * 100):.2f} %),")
-    print(f"\t{P_mw_1:.2e} mw == {P_mw_2:.2e} mw ({abs(diff_mw / P_mw_1 * 100):.2f} %)")
+    print(f"\t{Pn_dbm_1:.2f} dbm == {Pn_dbm_2:.2f} dbm ({abs(diff_dbm / Pn_dbm_1 * 100):.2f} %)")
+    print(f"\t{Pn_mw_1:.2e} mw == {Pn_mw_2:.2e} mw ({abs(diff_mw / Pn_mw_1 * 100):.2f} %)")
+
+    print("\n--------------------\n")
+
+    # test signal power calculation
+    Pt_dbm = 12
+    Pt_mw = 10**(Pt_dbm/10)
+    Pn_mw = Pn_mw_2
+    Pn_dbm = Pn_dbm_2
+
+    K = 4
+    x = np.zeros(K)
+    x[0] = 1
+    x = x * np.sqrt(Pt_mw)
+    noise = create_random_noise_vector_from_noise_floor(K)
+
+    x_power_mw = calculate_signal_power(x)
+    x_power_dbm = 10 * np.log10(x_power_mw)
+    noise_power_mw = calculate_signal_power(noise)
+    noise_power_dmb = 10 * np.log10(noise_power_mw)
+
+    print(f"Signal power comparisons:")
+    print_low_array(x)
+    print(f"\t{x_power_dbm:.2f} / {x_power_mw:.2e} == {Pt_dbm:.2f} / {Pt_mw:.2e}")
+    print_low_array(noise)
+    print(f"\t{noise_power_dmb:.2f} / {noise_power_mw:.2e} == {Pn_dbm:.2f} / {Pn_mw:.2e}")
 
 if __name__ == "__main__":
     main()
