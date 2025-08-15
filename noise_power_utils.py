@@ -1,5 +1,8 @@
 import numpy as np
 
+def print_low_array(v: np.ndarray) -> str:
+    return print(np.array2string(np.abs(v), formatter={'float_kind':lambda x: '{:.1e}'.format(x)}))
+
 def calculate_channel_power(H: np.ndarray) -> float:
     '''
     Calculate the channel power of a given channel matrix H

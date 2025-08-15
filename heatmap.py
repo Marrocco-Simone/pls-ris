@@ -451,9 +451,6 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.08, k = 2) -> 
     H = H * generate_rice_faiding_channel(L, K, ratio, total_power)
     return H
 
-def print_low_array(v: np.ndarray) -> str:
-    return print(np.array2string(np.abs(v), formatter={'float_kind':lambda x: '{:.1e}'.format(x)}))
-
 def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
     """
     Process a single grid point. This function is designed to be called by multiprocessing.
