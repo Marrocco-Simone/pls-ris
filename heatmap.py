@@ -18,13 +18,14 @@ from diagonalization import (
   unify_ris_reflection_matrices,
   random_reflection_vector,
 )
-from secrecy import (
-    create_random_noise_vector_from_snr,
-    create_random_noise_vector_from_noise_floor
-)
 from ber import (
     simulate_ssk_transmission_reflection,
     simulate_ssk_transmission_direct
+)
+from noise_power_utils import (
+    calculate_channel_power,
+    create_random_noise_vector_from_snr,
+    create_random_noise_vector_from_noise_floor
 )
 
 num_symbols=100000
@@ -449,29 +450,6 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.08, k = 2) -> 
     total_power = 1.0
     H = H * generate_rice_faiding_channel(L, K, ratio, total_power)
     return H
-
-def calculate_channel_power(H: np.ndarray) -> float:
-    '''
-    Calculate the channel power of a given channel matrix H
-
-    Parameters:
-    -----------
-    H : Complex channel matrix of shape (K, L)
-
-    Returns:
-    --------
-    Channel power
-    '''
-    # return np.linalg.norm(H) ** 2
-    if H.ndim == 1:
-        return np.linalg.norm(H) ** 2
-
-    columns, rows = H.shape
-    power = 0
-    for i in range(columns):
-        h_i = H[i, :]
-        power += np.linalg.norm(h_i) ** 2
-    return power / columns
 
 def print_low_array(v: np.ndarray) -> str:
     return print(np.array2string(np.abs(v), formatter={'float_kind':lambda x: '{:.1e}'.format(x)}))

@@ -8,11 +8,11 @@ import time
 from tqdm import tqdm
 from diagonalization import (
     calculate_multi_ris_reflection_matrices,
-    generate_random_channel_matrix
-)
-from secrecy import (
-    create_random_noise_vector_from_snr,
+    generate_random_channel_matrix,
     unify_ris_reflection_matrices
+)
+from noise_power_utils import (
+    create_random_noise_vector_from_snr,
 )
 
 num_symbols=1000000
