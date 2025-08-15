@@ -56,6 +56,18 @@ def create_random_noise_vector_from_snr(K: int, snr_db: int, path_gain = 1) -> n
 
     return mu
 
+def calculate_noise_floor_in_mw(temp_kelvin = 290, f = 400):
+    botzmann_constant = 1.380649e-23
+    noise_figure = 6
+
+    # P_dbm = -80
+    # P_mw = 10**(P_dbm/10)
+
+    P_mw = botzmann_constant * temp_kelvin * (f * 1000000) * 1000 * noise_figure
+    # P_dbm = 10 * np.log10(P_mw)
+
+    return P_mw
+
 def create_random_noise_vector_from_noise_floor(K: int, temp_kelvin = 290, f = 400) -> np.ndarray:
     """
     Generate a random noise vector with complex Gaussian entries, from noise variance.
@@ -68,16 +80,27 @@ def create_random_noise_vector_from_noise_floor(K: int, temp_kelvin = 290, f = 4
     Returns:
         Random noise vector
     """
-    botzmann_constant = 1.380649e-23
-    noise_figure = 6
-
-    # P_dbm = -80
-    # P_mw = 10**(P_dbm/10)
-
-    P_mw = botzmann_constant * temp_kelvin * (f * 1000000) * 1000 * noise_figure
-    # P_dbm = 10 * np.log10(P_mw)
+    P_mw = calculate_noise_floor_in_mw(temp_kelvin, f)
 
     mu = np.random.randn(K) + 1j*np.random.randn(K)
     mu = mu * np.sqrt(P_mw)
 
     return mu
+
+def main():
+    # test noise floor
+    P_dbm_1 = -80
+    P_mw_1 = 10**(P_dbm_1/10)
+
+    P_mw_2 = calculate_noise_floor_in_mw()
+    P_dbm_2 = 10 * np.log10(P_mw_2)
+
+    diff_dbm = abs(P_dbm_1 - P_dbm_2)
+    diff_mw = abs(P_mw_1 - P_mw_2)
+
+    print(f"Noise floor power comparisons:")
+    print(f"\t{P_dbm_1:.2f} dbm == {P_dbm_2:.2f} dbm ({abs(diff_dbm / P_dbm_1 * 100):.2f} %),")
+    print(f"\t{P_mw_1:.2e} mw == {P_mw_2:.2e} mw ({abs(diff_mw / P_mw_1 * 100):.2f} %)")
+
+if __name__ == "__main__":
+    main()
