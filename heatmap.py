@@ -498,6 +498,9 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
             'grid_y': grid_y,
             'skip': True
         }
+    
+    unique_seed = int(time.time() * 1000000) % (2**32) + os.getpid() * 1000 + int(grid_y * 100 + grid_x)
+    np.random.seed(unique_seed)
 
     distance_from_T = args['distance_from_T']
     distances_from_Ps_current = args['distances_from_Ps_current']

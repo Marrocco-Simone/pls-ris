@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import random
@@ -15,6 +16,7 @@ from secrecy import (
 )
 
 num_symbols=1000000
+n_processes = cpu_count()
 
 def simulate_ssk_transmission(K: int, noise: np.ndarray, calculate_detected_id: Callable[[np.ndarray, np.ndarray], float]):
     n_bits = int(np.log2(K))
@@ -82,6 +84,9 @@ def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: n
     return simulate_ssk_transmission(K, noise, calculate_detected_id)
 
 def calculate_single_ber_simulation(snr_db, K, N, J, M, eta=0.9):
+    unique_seed = int(time.time() * 1000000) % (2**32) + os.getpid() * 1000 + snr_db
+    np.random.seed(unique_seed)
+
     H = generate_random_channel_matrix(N, K)
     Gs = [generate_random_channel_matrix(K, N) for _ in range(J)]
     G = random.choice(Gs)
@@ -159,8 +164,6 @@ def calculate_ber_simulation(snr_db, K, N, J, M, eta=0.9):
     #     results_direct.append(result_direct)
     #     results_receiver_double.append(result_receiver_double)
     #     results_eavesdropper_double.append(result_eavesdropper_double)
-    n_processes = cpu_count()
-    print(f"Using {n_processes} CPU cores for parallel processing.")
     pool = Pool(processes=n_processes)
     results = list(tqdm(
         pool.imap(
@@ -275,6 +278,8 @@ def plot_ber_curves():
                 ber_direct = {'mean': [], 'lower': [], 'upper': []}
                 ber_receiver_double = {'mean': [], 'lower': [], 'upper': []}
                 ber_eavesdropper_double = {'mean': [], 'lower': [], 'upper': []}
+
+                print(f"Using {n_processes} CPU cores for parallel processing.")
 
                 for snr_db in tqdm(snr_range_db, desc="Processing SNR values"):
                     results = calculate_ber_simulation(snr_db, K, N, J, M, eta)
