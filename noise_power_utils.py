@@ -150,11 +150,13 @@ def main():
     noise_full_power_dmb = 10 * np.log10(noise_full_power_mw)
 
     print(f"Full signal power comparisons:")
-    print(f"x_full: {ndarray_to_string(x_full)}")
-    print(f"Power:\t{x_full_power_dbm:.2f} dbm\n\t{x_full_power_mw:.2e} mw")
-    print(f"noise_full: {ndarray_to_string(noise_full)}")
-    print(f"Power:\t{noise_full_power_dmb:.2f} dbm\n\t{noise_full_power_mw:.2e} mw")
-    print(f"SNR: {x_full_power_mw / noise_full_power_mw:.2e} mw\n\t{x_full_power_dbm - noise_full_power_dmb:.2f} dbm")
+    print(f"x:\t{ndarray_to_string(x_full)}")
+    print(f"Power:\t{x_full_power_dbm:.2f} dbm == {x_full_power_mw:.2e} mw")
+    print()
+    print(f"noise:\t{ndarray_to_string(noise_full)}")
+    print(f"Power:\t{noise_full_power_dmb:.2f} dbm == {noise_full_power_mw:.2e} mw")
+    print()
+    print(f"SNR: {x_full_power_mw / noise_full_power_mw:.2e} mw == {x_full_power_dbm - noise_full_power_dmb:.2f} dbm")
 
     print("\n--------------------\n")
 
@@ -164,14 +166,16 @@ def main():
     x_power_mw = calculate_signal_power(x)
     x_power_dbm = 10 * np.log10(x_power_mw)
     noise_power_mw = calculate_signal_power(noise)
-    noise_power_dmb = 10 * np.log10(noise_power_mw)
+    noise_power_dbm = 10 * np.log10(noise_power_mw)
 
     print(f"Signal power comparisons:")
-    print(f"x: {ndarray_to_string(x)}")
-    print(f"Power:\n\t{x_power_dbm:.2f} dbm == {Pt_dbm:.2f} dbm\n\t{x_power_mw:.2e} mw == {Pt_mw:.2e} mw")
-    print(f"noise: {ndarray_to_string(noise)}")
-    print(f"Power:\n\t{noise_power_dmb:.2f} dbm == {Pn_dbm:.2f} dbm\n\t{noise_power_mw:.2e} mw == {Pn_mw:.2e} mw")
-    print(f"SNR:\n\t{x_power_mw / noise_power_mw:.2e} mw\n\t{x_power_dbm - noise_power_dmb:.2f} dbm == {Pt_dbm - Pn_dbm:.2f} db")
+    print(f"x:\t{ndarray_to_string(x)}")
+    print(f"Power:\t{x_power_dbm:.2f} dbm == {x_power_mw:.2e} mw calculated\n\t{Pt_dbm:.2f} dbm == {Pt_mw:.2e} mw given")
+    print()
+    print(f"noise:\t{ndarray_to_string(noise)}")
+    print(f"Power:\t{noise_power_dbm:.2f} dbm == {noise_power_mw:.2e} mw calculated\n\t{Pn_dbm:.2f} dbm == {Pn_mw:.2e} mw given")
+    print()
+    print(f"SNR:\n\t{x_power_dbm - noise_power_dbm:.2f} dbm == {x_power_mw / noise_power_mw:.2e} mw calculated\n\t{Pt_dbm - Pn_dbm:.2f} dbm == {Pt_mw / Pn_mw:.2e} mw given")
 
     print("\n--------------------\n")
 
@@ -183,7 +187,7 @@ def main():
         noise_power_mw_mean += calculate_signal_power(noise) / n
 
     noise_power_dbm_mean = 10 * np.log10(noise_power_mw_mean)
-    print(f"Average noise power over {n:.0e} samples: {noise_power_dbm_mean:.2f} dbm == {noise_power_mw_mean:.2e} mw over a predicted noise floor of {Pn_dbm:.2f} dbm == {Pn_mw:.2e} mw")
+    print(f"Average noise power over {n:.0e} samples:\n\t{noise_power_dbm_mean:.2f} dbm == {noise_power_mw_mean:.2e} mw calculated\n\t{Pn_dbm:.2f} dbm == {Pn_mw:.2e} mw given")
 
 if __name__ == "__main__":
     main()
