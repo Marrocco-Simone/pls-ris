@@ -743,10 +743,10 @@ def ber_heatmap_reflection_simulation(
     # for m in range(M):
     #     HeatmapGenerator.visualize_distance_matrix(f'Distance from RIS {m+1}', distances_from_Ps[m])
 
-    power_heatmap_from_T = HeatmapGenerator.copy_from(ber_heatmap)
-    power_heatmap_from_Ps_sum = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
-    power_heatmap_from_Ps_product = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
-    power_heatmap_from_Ps_active = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
+    snr_heatmap_from_T = HeatmapGenerator.copy_from(ber_heatmap)
+    snr_heatmap_from_Ps_sum = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
+    snr_heatmap_from_Ps_product = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
+    snr_heatmap_from_Ps_active = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
 
     ber_heatmap.visualize(f'{simulation_name} (K = {K}, SNR = {snr_db})', label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False)
 
@@ -839,12 +839,12 @@ def ber_heatmap_reflection_simulation(
         grid_x = result['grid_x']
         grid_y = result['grid_y']
 
-        power_heatmap_from_T.grid[grid_y, grid_x] = result['power_from_T']
+        snr_heatmap_from_T.grid[grid_y, grid_x] = result['power_from_T']
 
         for i in range(M):
-            power_heatmap_from_Ps_sum[i].grid[grid_y, grid_x] = result['power_from_Ps_sum'][i]
-            power_heatmap_from_Ps_product[i].grid[grid_y, grid_x] = result['power_from_Ps_product'][i]
-            power_heatmap_from_Ps_active[i].grid[grid_y, grid_x] = result['power_from_Ps_active'][i]
+            snr_heatmap_from_Ps_sum[i].grid[grid_y, grid_x] = result['power_from_Ps_sum'][i]
+            snr_heatmap_from_Ps_product[i].grid[grid_y, grid_x] = result['power_from_Ps_product'][i]
+            snr_heatmap_from_Ps_active[i].grid[grid_y, grid_x] = result['power_from_Ps_active'][i]
 
         ber_heatmap_sum.grid[grid_y, grid_x] = result['ber_sum']
         ber_heatmap_product.grid[grid_y, grid_x] = result['ber_product']
@@ -877,20 +877,20 @@ def ber_heatmap_reflection_simulation(
     ber_heatmap_product.visualize(title + ' [Path Loss: product] BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
     ber_heatmap_active.visualize(title + ' [Path Loss: active] BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
 
-    power_heatmap_from_T.visualize(
+    snr_heatmap_from_T.visualize(
         title + ' SNR from T',
         cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
     )
     for i in range(M):
-        power_heatmap_from_Ps_sum[i].visualize(
+        snr_heatmap_from_Ps_sum[i].visualize(
             title + f' [Path Loss: sum] SNR from P{i+1}',
             cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
         )
-        power_heatmap_from_Ps_product[i].visualize(
+        snr_heatmap_from_Ps_product[i].visualize(
             title + f' [Path Loss: product] SNR from P{i+1}',
             cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
         )
-        power_heatmap_from_Ps_active[i].visualize(
+        snr_heatmap_from_Ps_active[i].visualize(
             title + f' [Path Loss: active] SNR from P{i+1}',
             cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
         )
