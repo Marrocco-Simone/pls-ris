@@ -1,7 +1,8 @@
 import numpy as np
+from tqdm import tqdm
 
-def print_low_array(v: np.ndarray) -> str:
-    return print(np.array2string(np.abs(v), formatter={'float_kind':lambda x: '{:.1e}'.format(x)}))
+def ndarray_to_string(v: np.ndarray) -> str:
+    return np.array2string(np.abs(v), formatter={'float_kind':lambda x: '{:.1e}'.format(x)})
 
 def calculate_channel_power(H: np.ndarray) -> float:
     '''
@@ -81,6 +82,21 @@ def calculate_noise_floor_in_mw(temp_kelvin = 290, f = 400):
 
     return P_mw
 
+def create_rice_vector(K: int) -> np.ndarray:
+    """
+    Generate a random Rice vector with complex Gaussian entries.
+
+    Args:
+        K: Number of elements in the Rice vector
+
+    Returns:
+        Random Rice vector
+    """
+    mu = np.random.randn(K) + 1j*np.random.randn(K)
+    # mu = mu / np.linalg.norm(mu)
+
+    return mu
+
 def create_random_noise_vector_from_noise_floor(K: int, temp_kelvin = 290, f = 400) -> np.ndarray:
     """
     Generate a random noise vector with complex Gaussian entries, from noise variance.
@@ -94,9 +110,7 @@ def create_random_noise_vector_from_noise_floor(K: int, temp_kelvin = 290, f = 4
         Random noise vector
     """
     P_mw = calculate_noise_floor_in_mw(temp_kelvin, f)
-
-    # TODO GENERATE THESE WITH A RICE DISTRIBUTION
-    mu = np.random.randn(K) + 1j*np.random.randn(K)
+    mu = create_rice_vector(K)
     mu = mu * np.sqrt(P_mw)
 
     return mu
@@ -119,16 +133,33 @@ def main():
     print("\n--------------------\n")
 
     # test signal power calculation
-    Pt_dbm = 12
+    Pt_dbm = 20
     Pt_mw = 10**(Pt_dbm/10)
     Pn_mw = Pn_mw_2
     Pn_dbm = Pn_dbm_2
 
     K = 4
-    x = np.zeros(K)
-    x[0] = 1
-    x = x * np.sqrt(Pt_mw)
-    noise = create_random_noise_vector_from_noise_floor(K)
+    x_full = np.zeros(K)
+    x_full[0] = 1
+    # noise = create_random_noise_vector_from_noise_floor(K)
+    noise_full = create_rice_vector(K)
+
+    x_full_power_mw = calculate_signal_power(x_full)
+    x_full_power_dbm = 10 * np.log10(x_full_power_mw)
+    noise_full_power_mw = calculate_signal_power(noise_full)
+    noise_full_power_dmb = 10 * np.log10(noise_full_power_mw)
+
+    print(f"Full signal power comparisons:")
+    print(f"x_full: {ndarray_to_string(x_full)}")
+    print(f"Power:\t{x_full_power_dbm:.2f} dbm\n\t{x_full_power_mw:.2e} mw")
+    print(f"noise_full: {ndarray_to_string(noise_full)}")
+    print(f"Power:\t{noise_full_power_dmb:.2f} dbm\n\t{noise_full_power_mw:.2e} mw")
+    print(f"SNR: {x_full_power_mw / noise_full_power_mw:.2e} mw\n\t{x_full_power_dbm - noise_full_power_dmb:.2f} dbm")
+
+    print("\n--------------------\n")
+
+    x = x_full * np.sqrt(Pt_mw)
+    noise = noise_full * np.sqrt(Pn_mw)
 
     x_power_mw = calculate_signal_power(x)
     x_power_dbm = 10 * np.log10(x_power_mw)
@@ -136,10 +167,23 @@ def main():
     noise_power_dmb = 10 * np.log10(noise_power_mw)
 
     print(f"Signal power comparisons:")
-    print_low_array(x)
-    print(f"\t{x_power_dbm:.2f} / {x_power_mw:.2e} == {Pt_dbm:.2f} / {Pt_mw:.2e}")
-    print_low_array(noise)
-    print(f"\t{noise_power_dmb:.2f} / {noise_power_mw:.2e} == {Pn_dbm:.2f} / {Pn_mw:.2e}")
+    print(f"x: {ndarray_to_string(x)}")
+    print(f"Power:\n\t{x_power_dbm:.2f} dbm == {Pt_dbm:.2f} dbm\n\t{x_power_mw:.2e} mw == {Pt_mw:.2e} mw")
+    print(f"noise: {ndarray_to_string(noise)}")
+    print(f"Power:\n\t{noise_power_dmb:.2f} dbm == {Pn_dbm:.2f} dbm\n\t{noise_power_mw:.2e} mw == {Pn_mw:.2e} mw")
+    print(f"SNR:\n\t{x_power_mw / noise_power_mw:.2e} mw\n\t{x_power_dbm - noise_power_dmb:.2f} dbm == {Pt_dbm - Pn_dbm:.2f} db")
+
+    print("\n--------------------\n")
+
+    n = 500000
+    # simualate n noise vectors, and calculate the average noise power
+    noise_power_mw_mean = 0
+    for _ in tqdm(range(n)):
+        noise = create_random_noise_vector_from_noise_floor(K)
+        noise_power_mw_mean += calculate_signal_power(noise) / n
+
+    noise_power_dbm_mean = 10 * np.log10(noise_power_mw_mean)
+    print(f"Average noise power over {n:.0e} samples: {noise_power_dbm_mean:.2f} dbm == {noise_power_mw_mean:.2e} mw over a predicted noise floor of {Pn_dbm:.2f} dbm == {Pn_mw:.2e} mw")
 
 if __name__ == "__main__":
     main()
