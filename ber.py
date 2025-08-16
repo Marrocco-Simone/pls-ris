@@ -18,7 +18,7 @@ from noise_power_utils import (
 num_symbols=1000000
 n_processes = cpu_count()
 
-def simulate_ssk_transmission(K: int, noise: np.ndarray, calculate_detected_id: Callable[[np.ndarray, np.ndarray], float]):
+def simulate_ssk_transmission(K: int, noise: np.ndarray, calculate_detected_id: Callable[[np.ndarray, np.ndarray], float], Pt_dbm = 0.0):
     n_bits = int(np.log2(K))
     if 2**n_bits != K:
         raise ValueError(f"K must be a power of 2, got {K}")
@@ -29,6 +29,8 @@ def simulate_ssk_transmission(K: int, noise: np.ndarray, calculate_detected_id: 
 
     x = np.zeros(K)
     x[true_idx] = 1
+    Pt_mw = 10**(Pt_dbm/10)
+    x = x * np.sqrt(Pt_mw)
 
     detected_idx = calculate_detected_id(x, noise)
 
@@ -59,7 +61,7 @@ def calculate_confidence_interval(error_rates, confidence=0.95):
 
     return mean, mean - margin, mean + margin
 
-def simulate_ssk_transmission_reflection(K: int, effective_channel: np.ndarray, noise: np.ndarray):
+def simulate_ssk_transmission_reflection(K: int, effective_channel: np.ndarray, noise: np.ndarray, Pt_dbm = 0.0):
     if effective_channel.shape != (K, K):
         raise ValueError(f"Reflection: Effective channel shape must be ({K}, {K}), but got {effective_channel.shape}")
 
@@ -67,9 +69,9 @@ def simulate_ssk_transmission_reflection(K: int, effective_channel: np.ndarray, 
         y = effective_channel @ x + noise
         return np.argmax(np.abs(y)**2)
 
-    return simulate_ssk_transmission(K, noise, calculate_detected_id)
+    return simulate_ssk_transmission(K, noise, calculate_detected_id, Pt_dbm)
 
-def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: np.ndarray, noise: np.ndarray):
+def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: np.ndarray, noise: np.ndarray, Pt_dbm = 0.0):
     if B.shape != (K, K):
         raise ValueError(f"Direct: B shape must be ({K}, {K}), but got {B.shape}")
 
@@ -81,7 +83,7 @@ def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: n
         distances = np.array([np.linalg.norm(y - B[:, i]) for i in range(B.shape[1])])
         return np.argmin(distances)
 
-    return simulate_ssk_transmission(K, noise, calculate_detected_id)
+    return simulate_ssk_transmission(K, noise, calculate_detected_id, Pt_dbm)
 
 def calculate_single_ber_simulation(snr_db, K, N, J, M, eta=0.9):
     unique_seed = int(time.time() * 1000000) % (2**32) + os.getpid() * 1000 + snr_db
