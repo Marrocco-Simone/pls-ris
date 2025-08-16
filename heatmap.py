@@ -503,7 +503,7 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     B = calculate_mimo_channel_gain(distance_from_T, K, K) * calculate_free_space_path_loss(distance_from_T)
-    B_power = calculate_channel_power(B)
+    power_from_T = calculate_channel_power(B)
 
     Fs = [calculate_mimo_channel_gain(d, N, K) for d in distances_from_Ps_current]
 
@@ -596,19 +596,19 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
 
         noise_floor = create_random_noise_vector_from_noise_floor(K)
 
-        power_sum = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_sum)
+        power_sum = power_from_T if distance_from_T != np.inf else calculate_channel_power(effective_channel_sum)
         mean_power_sum += power_sum / num_symbols
         noise_sum = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_sum)
         noise_power_sum = calculate_channel_power(noise_sum)
         mean_noise_power_sum += noise_power_sum / num_symbols
 
-        power_product = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_product)
+        power_product = power_from_T if distance_from_T != np.inf else calculate_channel_power(effective_channel_product)
         mean_power_product += power_product / num_symbols
         noise_product = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_product)
         noise_power_product = calculate_channel_power(noise_product)
         mean_noise_power_product += noise_power_product / num_symbols
 
-        power_active = B_power if distance_from_T != np.inf else calculate_channel_power(effective_channel_active)
+        power_active = power_from_T if distance_from_T != np.inf else calculate_channel_power(effective_channel_active)
         mean_power_active += power_active / num_symbols
         noise_active = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_active)
         noise_power_active = calculate_channel_power(noise_active)
@@ -647,7 +647,7 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
     return {
         'grid_x': grid_x,
         'grid_y': grid_y,
-        'B_power': B_power,
+        'power_from_T': power_from_T,
         'power_from_Ps_sum': power_from_Ps_sum,
         'power_from_Ps_product': power_from_Ps_product,
         'power_from_Ps_active': power_from_Ps_active,
@@ -839,7 +839,7 @@ def ber_heatmap_reflection_simulation(
         grid_x = result['grid_x']
         grid_y = result['grid_y']
 
-        power_heatmap_from_T.grid[grid_y, grid_x] = result['B_power']
+        power_heatmap_from_T.grid[grid_y, grid_x] = result['power_from_T']
 
         for i in range(M):
             power_heatmap_from_Ps_sum[i].grid[grid_y, grid_x] = result['power_from_Ps_sum'][i]
@@ -879,20 +879,20 @@ def ber_heatmap_reflection_simulation(
 
     power_heatmap_from_T.visualize(
         title + ' SNR from T',
-        cmap=cmap, vmin=0.0, vmax=15.0, label='SNR', show_receivers_values=True, show_legend=True
+        cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
     )
     for i in range(M):
         power_heatmap_from_Ps_sum[i].visualize(
             title + f' [Path Loss: sum] SNR from P{i+1}',
-            cmap=cmap, vmin=0.0, vmax=15.0, label='SNR', show_receivers_values=True, show_legend=True
+            cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
         )
         power_heatmap_from_Ps_product[i].visualize(
             title + f' [Path Loss: product] SNR from P{i+1}',
-            cmap=cmap, vmin=0.0, vmax=15.0, label='SNR', show_receivers_values=True, show_legend=True
+            cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
         )
         power_heatmap_from_Ps_active[i].visualize(
             title + f' [Path Loss: active] SNR from P{i+1}',
-            cmap=cmap, vmin=0.0, vmax=15.0, label='SNR', show_receivers_values=True, show_legend=True
+            cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
         )
 
 def main():
