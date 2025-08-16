@@ -93,7 +93,7 @@ def create_rice_vector(K: int) -> np.ndarray:
         Random Rice vector
     """
     mu = np.random.randn(K) + 1j*np.random.randn(K)
-    # mu = mu / np.linalg.norm(mu)
+    mu = mu / np.linalg.norm(mu)
 
     return mu
 
