@@ -34,13 +34,18 @@ use_noise_floor = True
 Pt_dbm = 0.0
 
 def calculate_signal_power_from_channel_using_ssk(K: int, H: np.ndarray, Pt_dbm = 0.0):
-    index = np.random.randint(0, K)
-    x = np.zeros(K)
-    x[index] = 1
-    Pt_mw = 10**(Pt_dbm/10)
-    x = x * np.sqrt(Pt_mw)
+    signal_power = 0.0
+    # just to make comparison more equal. But dont put this too high, otherwise it will take too long
+    n_sim = 10
+    for _ in range(n_sim):
+        index = np.random.randint(0, K)
+        x = np.zeros(K)
+        x[index] = 1
+        Pt_mw = 10**(Pt_dbm/10)
+        x = x * np.sqrt(Pt_mw)
+        signal_power += calculate_signal_power(H @ x) / n_sim
 
-    return calculate_signal_power(H @ x)
+    return signal_power
 
 class HeatmapGenerator:
     def __init__(self, width: int, height: int, resolution: float = 0.5):
@@ -536,12 +541,12 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
     power_from_Ps_active = np.zeros(M)
 
     snr_from_T = 0.0
-    snr_from_Ps_sum = np.zeros(M)
-    snr_from_Ps_product = np.zeros(M)
-    snr_from_Ps_active = np.zeros(M)
     snr_sum = 0.0
     snr_product = 0.0
     snr_active = 0.0
+    snr_from_Ps_sum = np.zeros(M)
+    snr_from_Ps_product = np.zeros(M)
+    snr_from_Ps_active = np.zeros(M)
 
     for _ in range(num_symbols):
         Ps = []
@@ -638,10 +643,18 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
             errors_sum += simulate_ssk_transmission_reflection(K, effective_channel_sum, noise_sum, Pt_dbm)
             errors_product += simulate_ssk_transmission_reflection(K, effective_channel_product, noise_product, Pt_dbm)
             errors_active += simulate_ssk_transmission_reflection(K, effective_channel_active, noise_active, Pt_dbm)
+
+            snr_sum += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(K, effective_channel_sum, Pt_dbm)) - 10 * np.log10(noise_signal_power_sum)) / num_symbols
+            snr_product += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(K, effective_channel_product, Pt_dbm)) - 10 * np.log10(noise_signal_power_product)) / num_symbols
+            snr_active += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(K, effective_channel_active, Pt_dbm)) - 10 * np.log10(noise_signal_power_active)) / num_symbols
         else:
             errors_sum += simulate_ssk_transmission_direct(K, B, effective_channel_sum, noise_sum, Pt_dbm)
             errors_product += simulate_ssk_transmission_direct(K, B, effective_channel_product, noise_product, Pt_dbm)
             errors_active += simulate_ssk_transmission_direct(K, B, effective_channel_active, noise_active, Pt_dbm)
+
+            snr_sum += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(K, B + effective_channel_sum, Pt_dbm)) - 10 * np.log10(noise_signal_power_sum)) / num_symbols
+            snr_product += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(K, B + effective_channel_product, Pt_dbm)) - 10 * np.log10(noise_signal_power_product)) / num_symbols
+            snr_active += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(K, B + effective_channel_active, Pt_dbm)) - 10 * np.log10(noise_signal_power_active)) / num_symbols
 
         snr_from_T += (10 * np.log10(signal_power_from_T) - 10 * np.log10(noise_signal_power_T)) / num_symbols
         snr_from_Ps_sum += (10 * np.log10(signal_power_sum) - 10 * np.log10(noise_signal_power_sum)) / num_symbols
@@ -664,6 +677,9 @@ def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
         'skip': False,
         'is_receiver': any(x == receivers[j][0] and y == receivers[j][1] for j in range(J)),
         'snr_from_T': snr_from_T,
+        'snr_sum': snr_sum,
+        'snr_product': snr_product,
+        'snr_active': snr_active,
         'snr_from_Ps_sum': snr_from_Ps_sum,
         'snr_from_Ps_product': snr_from_Ps_product,
         'snr_from_Ps_active': snr_from_Ps_active,
@@ -752,6 +768,9 @@ def ber_heatmap_reflection_simulation(
     #     HeatmapGenerator.visualize_distance_matrix(f'Distance from RIS {m+1}', distances_from_Ps[m])
 
     snr_heatmap_from_T = HeatmapGenerator.copy_from(ber_heatmap)
+    snr_heatmap_sum = HeatmapGenerator.copy_from(ber_heatmap)
+    snr_heatmap_product = HeatmapGenerator.copy_from(ber_heatmap)
+    snr_heatmap_active = HeatmapGenerator.copy_from(ber_heatmap)
     snr_heatmap_from_Ps_sum = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
     snr_heatmap_from_Ps_product = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
     snr_heatmap_from_Ps_active = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
@@ -848,6 +867,9 @@ def ber_heatmap_reflection_simulation(
         grid_y = result['grid_y']
 
         snr_heatmap_from_T.grid[grid_y, grid_x] = result['snr_from_T']
+        snr_heatmap_sum.grid[grid_y, grid_x] = result['snr_sum']
+        snr_heatmap_product.grid[grid_y, grid_x] = result['snr_product']
+        snr_heatmap_active.grid[grid_y, grid_x] = result['snr_active']
 
         for i in range(M):
             snr_heatmap_from_Ps_sum[i].grid[grid_y, grid_x] = result['snr_from_Ps_sum'][i]
@@ -896,37 +918,36 @@ def ber_heatmap_reflection_simulation(
         title + ' SNR from T',
         cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
     )
+    snr_heatmap_sum.visualize(
+        title + ' [Path Loss: sum] SNR',
+        cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
+    )
+    snr_heatmap_product.visualize(
+        title + ' [Path Loss: product] SNR',
+        cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
+    )
+    snr_heatmap_active.visualize(
+        title + ' [Path Loss: active] SNR',
+        cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
+    )
     for i in range(M):
         snr_heatmap_from_Ps_sum[i].visualize(
-            title + f' [Path Loss: sum] SNR from P{i+1} FULL SCALE',
-            cmap=cmap, vmin=-50.0, vmax=100.0, label='SNR', show_receivers_values=True, show_legend=True
-        )
-        snr_heatmap_from_Ps_product[i].visualize(
-            title + f' [Path Loss: product] SNR from P{i+1} FULL SCALE',
-            cmap=cmap, vmin=-50.0, vmax=100.0, label='SNR', show_receivers_values=True, show_legend=True
-        )
-        snr_heatmap_from_Ps_active[i].visualize(
-            title + f' [Path Loss: active] SNR from P{i+1} FULL SCALE',
-            cmap=cmap, vmin=-50.0, vmax=100.0, label='SNR', show_receivers_values=True, show_legend=True
-        )
-
-        snr_heatmap_from_Ps_sum[i].visualize(
-            title + f' [Path Loss: sum] SNR from P{i+1} UNSCALED',
+            title + f' [Path Loss: sum] SNR from P{i+1}',
             cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
         )
         snr_heatmap_from_Ps_product[i].visualize(
-            title + f' [Path Loss: product] SNR from P{i+1} UNSCALED',
+            title + f' [Path Loss: product] SNR from P{i+1}',
             cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
         )
         snr_heatmap_from_Ps_active[i].visualize(
-            title + f' [Path Loss: active] SNR from P{i+1} UNSCALED',
+            title + f' [Path Loss: active] SNR from P{i+1}',
             cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
         )
 
 def main():
     calculate_single_reflection = True
-    calculate_multiple_reflection = True
-    calculate_multiple_complex_reflection = True
+    calculate_multiple_reflection = False
+    calculate_multiple_complex_reflection = False
     K=4
     N=36
 
@@ -954,6 +975,7 @@ def main():
             N=N,
             K=K,
             num_symbols=num_symbols,
+            force_recompute=True,
         )
         end_time = time.perf_counter()
         print(f"Single reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}\n\n")
