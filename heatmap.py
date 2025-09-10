@@ -1,5 +1,6 @@
 import matplotlib.colors
-import numpy as np
+import cupy as np
+import numpy as npt
 import matplotlib.pyplot as plt
 # * pip install PyQt6
 import PyQt6
@@ -29,10 +30,10 @@ from noise_power_utils import (
     create_random_noise_vector_from_noise_floor
 )
 
-num_symbols=1000
+num_symbols=1000000
 use_noise_floor = True
 Pt_dbm = 0.0
-max_cpu_count = 64
+max_cpu_count = 32
 
 def calculate_signal_power_from_channel_using_ssk(K: int, H: np.ndarray, Pt_dbm = 0.0):
     signal_power = 0.0
@@ -224,22 +225,22 @@ class HeatmapGenerator:
                 # If no positive values exist, set a small default value
                 grid_for_log[grid_for_log == 0] = 1e-10
 
-            masked_grid = np.ma.masked_invalid(np.log10(grid_for_log))
+            masked_grid = np.asarray(npt.ma.masked_invalid(np.asnumpy(np.log10(grid_for_log))))
             title += ' (log scale)'
         else:
-            masked_grid = np.ma.masked_invalid(self.grid)
+            masked_grid = np.asarray(npt.ma.masked_invalid(np.asnumpy(self.grid)))
 
         extent = [0, self.width, 0, self.height]
 
         if show_heatmap:
-            plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=vmin, vmax=vmax, extent=extent)
+            plt.imshow(np.asnumpy(masked_grid), cmap=cmap, origin='lower', vmin=vmin, vmax=vmax, extent=extent)
             if not log_scale:
                 self._save_colorbar_legend(title, cmap=cmap, vmin=vmin, vmax=vmax, label=label, orientation='horizontal')
                 self._save_colorbar_legend(title, cmap=cmap, vmin=vmin, vmax=vmax, label=label, orientation='vertical')
             if show_legend:
                 plt.colorbar(label=label, orientation='vertical')
         else:
-            plt.imshow(np.ones_like(masked_grid), cmap='Greys', origin='lower', vmin=0, vmax=1, extent=extent, alpha=0.1)
+            plt.imshow(np.asnumpy(np.ones_like(masked_grid)), cmap='Greys', origin='lower', vmin=0, vmax=1, extent=extent, alpha=0.1)
 
         if show_buildings:
             for building in self.buildings:

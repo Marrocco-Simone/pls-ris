@@ -1,4 +1,4 @@
-import numpy as np
+import cupy as np
 from tqdm import tqdm
 
 def ndarray_to_string(v: np.ndarray) -> str:
