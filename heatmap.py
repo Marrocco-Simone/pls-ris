@@ -32,6 +32,7 @@ from noise_power_utils import (
 num_symbols=1000
 use_noise_floor = True
 Pt_dbm = 0.0
+max_cpu_count = 64
 
 def calculate_signal_power_from_channel_using_ssk(K: int, H: np.ndarray, Pt_dbm = 0.0):
     signal_power = 0.0
@@ -724,7 +725,7 @@ def ber_heatmap_reflection_simulation(
     print(f"Called function with num_symbols = {num_symbols}")
 
     if n_processes is None:
-        n_processes = cpu_count()
+        n_processes = min(cpu_count(), max_cpu_count)
     print(f"Using {n_processes} CPU cores for parallel processing.")
 
     M = len(ris_points)

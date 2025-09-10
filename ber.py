@@ -16,7 +16,8 @@ from noise_power_utils import (
 )
 
 num_symbols=1000000
-n_processes = cpu_count()
+max_cpu_count = 64
+n_processes = min(cpu_count(), max_cpu_count)
 
 def simulate_ssk_transmission(K: int, noise: np.ndarray, calculate_detected_id: Callable[[np.ndarray, np.ndarray], float], Pt_dbm = 0.0):
     n_bits = int(np.log2(K))
