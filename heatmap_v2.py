@@ -1,0 +1,504 @@
+import matplotlib.colors
+import numpy as np
+import matplotlib.pyplot as plt
+# * pip install PyQt6
+import PyQt6
+from typing import List, Tuple, Callable, Literal, Dict, Any, TypedDict, List
+from numpy import ndarray, float64, dtype
+import os
+import json
+from tqdm import tqdm
+import time
+from multiprocess import Pool, cpu_count # pyright: ignore[reportAttributeAccessIssue]
+from functools import partial
+import warnings
+warnings.filterwarnings('ignore', category=RuntimeWarning)
+
+from diagonalization import (
+  calculate_ris_reflection_matrice,
+  unify_ris_reflection_matrices,
+  random_reflection_vector,
+)
+from ber import (
+    simulate_ssk_transmission_reflection,
+    simulate_ssk_transmission_direct
+)
+from noise_power_utils import (
+    calculate_channel_power,
+    calculate_signal_power,
+    create_random_noise_vector_from_snr,
+    create_random_noise_vector_from_noise_floor
+)
+
+max_cpu_count = 64
+results_folder = './results_data_v2'
+results_folder_pdf = results_folder + '/pdf'
+results_folder_data = results_folder + '/data'
+
+class Globals(TypedDict):
+    K: int
+    N: int
+    num_symbols: int
+    use_noise_floor: bool
+    Pt_dbm: float
+    eta: float
+    snr_db: int
+
+globals: Globals = {
+    'K': 4,
+    'N': 36,
+    'eta': 0.9,
+    'num_symbols': 1000,
+    'use_noise_floor': True,
+    'Pt_dbm': 0.0,
+    'snr_db': 10,
+}
+
+class PathLossType(TypedDict):
+    name: str
+    calculate: bool
+
+path_loss_types: List[PathLossType] = [
+    {
+        'name': 'sum',
+        'calculate': True
+    },
+    {
+        'name': 'product',
+        'calculate': True
+    },
+    {
+        'name': 'active',
+        'calculate': True
+    }
+]
+
+# Area = Tuple[int, int, int, int]
+# Point = Tuple[int, int]
+# GridPoint = Tuple[float, float]
+class Building(TypedDict):
+    x: int
+    y: int
+    width: int
+    height: int
+class Point(TypedDict):
+    x: int
+    y: int
+
+class Situation(TypedDict):
+    simulation_name: str
+    calculate: bool
+    force_recompute: bool
+    width: int
+    height: int
+    resolution: float
+    buildings: List[Building]
+    transmitter: Point
+    ris_points: List[Point]
+    receivers: List[Point]
+
+situations: List[Situation] = [
+    {
+        "simulation_name": "Single Reflection",
+        "calculate": True,
+        "force_recompute": False,
+        "width": 20,
+        "height": 20,
+        "resolution": 0.5,
+        "buildings": [
+            {'x': 0, 'y': 10, 'width': 7, 'height': 10},
+            {'x': 8, 'y': 0, 'width': 12, 'height': 8},
+        ],
+        "transmitter": {'x': 3,'y': 3},
+        "ris_points": [
+            {'x': 7,'y': 9}
+        ],
+        "receivers": [
+            {'x': 16,'y': 11}, 
+            {'x': 10,'y': 18}
+        ]
+    },
+    {
+        "simulation_name": "RISs in series, only final",
+        "calculate": True,
+        "force_recompute": False,
+        "width": 20,
+        "height": 20,
+        "resolution": 0.5,
+        "buildings": [
+            {'x': 0, 'y': 10, 'width': 10, 'height': 10},
+            {'x': 2, 'y': 4, 'width': 7, 'height': 1},
+        ],
+        "transmitter": {'x': 1, 'y': 1},
+        "ris_points": [
+            {'x': 0, 'y': 9}, 
+            {'x': 10, 'y': 9}
+        ],
+        "receivers": [
+            {'x': 16, 'y': 14}, 
+            {'x': 12, 'y': 18}
+        ]
+    },
+    {
+        "simulation_name": "RISs in series",
+        "calculate": True,
+        "force_recompute": False,
+        "width": 20,
+        "height": 20,
+        "resolution": 0.5,
+        "buildings": [
+            {'x': 0, 'y': 10, 'width': 10, 'height': 10},
+            {'x': 3, 'y': 4, 'width': 7, 'height': 1},
+            {'x': 15, 'y': 10, 'width': 5, 'height': 1},
+            {'x': 9, 'y': 0, 'width': 1, 'height': 8},
+            {'x': 5, 'y': 7, 'width': 7, 'height': 1},
+        ],
+        "transmitter": {'x': 1, 'y': 1},
+        "ris_points": [
+            {'x': 0, 'y': 9},
+            {'x': 10, 'y': 9},
+            {'x': 18, 'y': 6},
+        ],
+        "receivers": [
+            {'x': 4, 'y': 5},
+            {'x': 14, 'y': 16},
+            {'x': 12, 'y': 18},
+            {'x': 11, 'y': 3},
+            {'x': 15, 'y': 1},
+        ]
+    }
+]
+
+class Grid:
+    def __init__(self, grid_width: int, grid_height: int):
+        self.grid = np.zeros((grid_height, grid_width))
+    
+    def __setitem__(self, point: Point, value: float):
+        self.grid[point['y'], point['x']] = value
+    
+    def __getitem__(self, point: Point) -> float:
+        return self.grid[point['y'], point['x']]
+    
+    def set_building(self, building: Building, value: float):
+        """Set a rectangular region defined by a building to a specific value."""
+        y_start = building['y']
+        y_end = y_start + building['height']
+        x_start = building['x']
+        x_end = x_start + building['width']
+        
+        self.grid[y_start:y_end, x_start:x_end] = value
+
+    def __array__(self):
+        """Return the grid as a NumPy array for compatibility with np.savez"""
+        return self.grid
+
+Graph = Dict[str, Dict[str, float]]
+class Heatmap:
+    width: int
+    height: int
+    resolution: float
+    buildings: List[Building]
+    points: Dict[str, Point]
+    grid_width: int
+    grid_height: int
+    grid: Grid
+    graph: Graph
+
+class HeatmapGenerator(Heatmap):
+    def __init__(self, situation: Situation):
+        # TODO precheck that the situation data is ok (points outside the grid, ecc)
+
+        self.width = situation['width']
+        self.height = situation['height']
+        self.resolution = situation['resolution']
+        
+        # * Calculate grid dimensions based on resolution
+        self.grid_width = int(self.width / self.resolution)
+        self.grid_height = int(self.height / self.resolution)
+        self.grid = Grid(self.grid_width, self.grid_height)
+
+        self.buildings = situation['buildings']
+        for building in self.buildings:
+            grid_building: Building = {
+                'x': self._meters_to_grid(building['x']),
+                'y': self._meters_to_grid(building['y']),
+                'width': self._meters_to_grid(building['width']),
+                'height': self._meters_to_grid(building['height']),
+            }
+
+            # * Mark building area as NaN to exclude from heatmap
+            self.grid.set_building(grid_building, np.nan)
+
+        self.points = { 'T': situation['transmitter'] }
+        for i, ris_point in enumerate(situation['ris_points']):
+            self.points[f'P{i+1}'] = ris_point
+        for i, receiver in enumerate(situation['receivers']):
+            self.points[f'R{i+1}'] = receiver
+
+        self.graph = {}
+        for label in self.points.keys():
+            self.graph[label] = {}
+        for label, point in self.points.items():
+            for other_label, other_point in self.points.items():
+                if other_label in self.graph[label]: continue
+                elif other_label == label: 
+                    distance = 0
+                elif self._line_intersects_building(point, other_point):
+                    distance = np.inf
+                else:
+                    distance = np.sqrt((point['x'] - other_point['x'])**2 + (point['y'] - other_point['y'])**2)
+                self.graph[label][other_label] = distance
+                self.graph[other_label][label] = distance
+                
+        # TODO check for no cycles
+
+    def _meters_to_grid(self, f: int) -> int:
+        """Convert meter coordinates to grid coordinates"""
+        return int(f / self.resolution)
+        
+
+    # def _grid_to_meters(self, i: int) -> int:
+    #     """Convert grid coordinates to meter coordinates"""
+    #     return int(i * self.resolution)
+    
+    def _point_meters_to_grid(self, point: Point) -> Point:
+        return {
+            'x': self._meters_to_grid(point['x']),
+            'y': self._meters_to_grid(point['y'])
+        }
+    
+    # def _point_grid_to_meters(self, point: Point) -> Point:
+    #     return {
+    #         'x': self._grid_to_meters(point['x']),
+    #         'y': self._grid_to_meters(point['y'])
+    #     }
+    
+    def _line_intersects_building(self, point_1: Point, point_2: Point) -> bool:
+        """
+        Check if line between two points intersects any building.
+        Uses line segment intersection algorithm.
+        """
+        def ccw(A: tuple, B: tuple, C: tuple) -> bool:
+            """Returns True if points are counter-clockwise oriented"""
+            return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
+
+        def intersect(A: tuple, B: tuple, C: tuple, D: tuple) -> bool:
+            """Returns True if line segments AB and CD intersect"""
+            return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
+
+        for building in self.buildings:
+            bx = building['x']
+            by = building['y']
+            bw = building['width']
+            bh = building['height']
+            building_corners = [
+                (bx, by), (bx + bw, by),
+                (bx + bw, by + bh), (bx, by + bh)
+            ]
+
+            for i in range(4):
+                if intersect(
+                    (point_1['x'], point_1['y']), (point_2['x'], point_2['y']),
+                    building_corners[i], building_corners[(i + 1) % 4]
+                ):
+                    return True
+        return False
+    
+    def check_ris_cycles(self) -> bool:
+        already_checked = set()
+        def check_next_nodes_dfs(label: str, from_label: str) -> bool:
+            if label in already_checked: return True
+            already_checked.add(label)
+            for p_label, _ in self.points.items():
+                if p_label == label: continue
+                if p_label == from_label: continue
+                if not p_label.startswith('P'): continue
+                if self.graph[label][p_label] == np.inf: continue
+                if check_next_nodes_dfs(p_label, label): return True
+            return False
+        return check_next_nodes_dfs("T", "T")
+    
+    def _save_colorbar_legend(self, title: str, cmap='viridis', vmin=None, vmax=None, label='BER', orientation='horizontal'):
+        """
+        Save a standalone colorbar legend as a separate file.
+
+        Args:
+            title: Title for the file
+            cmap: Matplotlib colormap name
+            vmin: Minimum value for the color scale
+            vmax: Maximum value for the color scale
+            label: Label for the colorbar
+            orientation: 'horizontal' or 'vertical'
+        """
+        legend_filename = f"{results_folder_pdf}/{label} legend_{orientation}.pdf"
+        if os.path.exists(legend_filename):
+            return
+        fig = plt.figure(figsize=(6, 1) if orientation == 'horizontal' else (1.5, 6))
+        ax = fig.add_axes([0.1, 0.4, 0.8, 0.3] if orientation == 'horizontal' else [0.3, 0.1, 0.3, 0.8])
+
+        norm = plt.Normalize(vmin=vmin, vmax=vmax)
+        cb = plt.colorbar(
+            plt.cm.ScalarMappable(norm=norm, cmap=cmap),
+            cax=ax,
+            orientation=orientation,
+        )
+
+        plt.rcParams['text.usetex'] = True
+        plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
+        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+
+        plt.savefig(legend_filename, dpi=300, format='pdf', bbox_inches='tight')
+        print(f"Saved {legend_filename}")
+        plt.close(fig)
+    
+    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='white', vmin: float | None = None, vmax: float | None = None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True, show_legend=False):
+        """
+        Visualize the ber_heatmap with optional building outlines and points of interest.
+
+        Args:
+            cmap: Matplotlib colormap name
+            show_buildings: Whether to show building outlines
+            show_points: Whether to show points of interest
+            point_color: Color for the points
+            vmin: Minimum value for the color scale
+            vmax: Maximum value for the color scale
+            log_scale: Whether to use log scale for color scale
+            label: Label for the color
+            show_receivers_values: Whether to show values at receiver points
+            show_heatmap: Whether to show the heatmap values and legend
+            """
+        os.makedirs(results_folder_pdf, exist_ok=True)
+        os.makedirs(results_folder_data, exist_ok=True)
+
+        # TODO save npx file
+        # data_filename = f"{results_folder_data}/{title}.npz"
+
+        # np.savez(
+        #     data_filename,
+        #     grid=self.grid,
+        #     width=self.width,
+        #     height=self.height,
+        #     resolution=self.resolution,
+        #     buildings=np.array(self.buildings),
+        #     points=self.points,
+        #     log_scale=log_scale
+        # )
+        # print(f"Saved data to {data_filename}")
+
+        figure = plt.figure(figsize=(10, 8))
+
+        if log_scale and show_heatmap:
+            # * Add small offset to zero values before taking log
+            grid_for_log = np.copy(self.grid)
+            grid_for_log[grid_for_log == 0] = 1e-10
+            masked_grid = np.ma.masked_invalid(np.log10(grid_for_log))
+            title += ' (log scale)'
+        else:
+            masked_grid = np.ma.masked_invalid(self.grid)
+
+        # ! changed from list to tuple, since otherwise error
+        extent = (0, self.width, 0, self.height)
+
+        if show_heatmap:
+            plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=vmin, vmax=vmax, extent=extent)
+            if not log_scale:
+                self._save_colorbar_legend(title, cmap=cmap, vmin=vmin, vmax=vmax, label=label, orientation='horizontal')
+                self._save_colorbar_legend(title, cmap=cmap, vmin=vmin, vmax=vmax, label=label, orientation='vertical')
+            if show_legend:
+                plt.colorbar(label=label, orientation='vertical')
+        else:
+            plt.imshow(np.ones_like(masked_grid), cmap='Greys', origin='lower', vmin=0, vmax=1, extent=extent, alpha=0.1)
+
+        if show_buildings:
+            for building in self.buildings:
+                # x, y, w, h = building
+                x = building['x']
+                y = building['y']
+                w = building['width']
+                h = building['height']
+                x_array = [x, x+w, x+w, x, x]
+                y_array = [y, y, y+h, y+h, y]
+                plt.plot(x_array, y_array,'r-', linewidth=2)
+
+        if show_points and self.points:
+            c = 0.5 * self.resolution
+            for label, point in self.points.items():
+                x = point['x']
+                y = point['y']
+                if label[0] == 'R' and show_receivers_values and show_heatmap:
+                    grid_point = self._point_meters_to_grid(point)
+                    value = self.grid[grid_point]
+                    if log_scale and value > 0:
+                        value = np.log10(value)
+                    label += f" ({value:.2f})"
+                plt.plot(x + c, y + c, 'o', color=point_color, markersize=6)
+                plt.text(x + 2 * c, y + 2 * c, label, color=point_color, fontweight=1000, fontsize=20, bbox=dict(pad=0.2, boxstyle='round',  lw=0, ec=None, fc='black', alpha=0.3))
+            # * plot a line between all points if the lines is not crossing a building
+            for label1, point_1 in self.points.items():
+                x1 = point_1['x']
+                y1 = point_1['y']
+                for label2, point_2 in self.points.items():
+                    x2 = point_2['x']
+                    y2 = point_2['y']
+                    if label1 == label2: continue
+                    if label1[0] == 'R' and label2[0] == 'R': continue
+                    if self._line_intersects_building(point_1, point_2): continue
+                    plt.plot([x1 + c, x2 + c], [y1 + c, y2 + c], '--', alpha=0.5, color=point_color)
+
+        plt.rcParams['text.usetex'] = True
+        plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
+        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
+        plt.grid(True)
+        # plt.title(title)
+        plt.xlabel('$x$ [m]', fontsize=26)
+        plt.ylabel('$y$ [m]', fontsize=26)
+        plt.xticks(fontsize = 26)
+        plt.yticks(fontsize = 26)
+        plt.savefig(f"{results_folder_pdf}/{title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
+        print(f"Saved {title}.pdf")
+        plt.close(figure)
+
+
+def ber_heatmap_reflection_simulation(
+        situation: Situation
+):
+    simulation_name = situation['simulation_name']
+    calculate = situation['calculate']
+    force_recompute = situation['force_recompute']
+    width = situation['width']
+    height = situation['height']
+    buildings = situation['buildings']
+    transmitter = situation['transmitter']
+    ris_points = situation['ris_points']
+    receivers = situation['receivers']
+
+    M = len(ris_points)
+    J = len(receivers)
+
+    n_processes = min(cpu_count(), max_cpu_count)
+    print(f"Using {n_processes} CPU cores for parallel processing.")
+
+    os.makedirs(results_folder, exist_ok=True)
+    # TODO check if data is already calculated present 
+
+    ber_heatmap = HeatmapGenerator(situation)
+
+    ber_heatmap.visualize(f'{simulation_name}', label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False)
+
+def main():
+    begin_time = time.perf_counter()
+    for situation in situations:
+        if not situation['calculate']: continue
+        start_time = time.perf_counter()
+
+        ber_heatmap_reflection_simulation(
+          situation
+        )
+
+        end_time = time.perf_counter()
+        print(f"{situation['simulation_name']} simulation took {end_time - start_time:.2f} seconds for {globals['num_symbols']} symbols with K={globals['K']}, N={globals['N']}\n\n")
+    end_time = time.perf_counter()
+    print(f"Total time taken: {end_time - begin_time:.2f} seconds for {globals['num_symbols']} symbols with K={globals['K']}, N={globals['N']}")
+
+if __name__ == "__main__":
+    main()
