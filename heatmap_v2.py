@@ -334,9 +334,10 @@ class HeatmapGenerator(Heatmap):
         if os.path.exists(legend_filename):
             return
         fig = plt.figure(figsize=(6, 1) if orientation == 'horizontal' else (1.5, 6))
-        ax = fig.add_axes([0.1, 0.4, 0.8, 0.3] if orientation == 'horizontal' else [0.3, 0.1, 0.3, 0.8])
+        rect = (0.1, 0.4, 0.8, 0.3) if orientation == 'horizontal' else (0.3, 0.1, 0.3, 0.8)
+        ax = fig.add_axes(rect=rect)
 
-        norm = plt.Normalize(vmin=vmin, vmax=vmax)
+        norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
         cb = plt.colorbar(
             plt.cm.ScalarMappable(norm=norm, cmap=cmap),
             cax=ax,
@@ -463,8 +464,7 @@ def ber_heatmap_reflection_simulation(
         situation: Situation
 ):
     simulation_name = situation['simulation_name']
-    calculate = situation['calculate']
-    force_recompute = situation['force_recompute']
+    # force_recompute = situation['force_recompute']
     width = situation['width']
     height = situation['height']
     buildings = situation['buildings']
@@ -491,9 +491,7 @@ def main():
         if not situation['calculate']: continue
         start_time = time.perf_counter()
 
-        ber_heatmap_reflection_simulation(
-          situation
-        )
+        ber_heatmap_reflection_simulation(situation)
 
         end_time = time.perf_counter()
         print(f"{situation['simulation_name']} simulation took {end_time - start_time:.2f} seconds for {globals['num_symbols']} symbols with K={globals['K']}, N={globals['N']}\n\n")
