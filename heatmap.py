@@ -28,25 +28,16 @@ from noise_power_utils import (
     create_random_noise_vector_from_snr,
     create_random_noise_vector_from_noise_floor
 )
+from heatmap_utils import (
+    calculate_signal_power_from_channel_using_ssk,
+    calculate_free_space_path_loss,
+    calculate_mimo_channel_gain
+)
 
 num_symbols=1000
 use_noise_floor = True
 Pt_dbm = 0.0
 max_cpu_count = 64
-
-def calculate_signal_power_from_channel_using_ssk(K: int, H: np.ndarray, Pt_dbm = 0.0):
-    signal_power = 0.0
-    # just to make comparison more equal. But dont put this too high, otherwise it will take too long
-    n_sim = 10
-    for _ in range(n_sim):
-        index = np.random.randint(0, K)
-        x = np.zeros(K)
-        x[index] = 1
-        Pt_mw = 10**(Pt_dbm/10)
-        x = x * np.sqrt(Pt_mw)
-        signal_power += calculate_signal_power(H @ x) / n_sim
-
-    return signal_power
 
 class HeatmapGenerator:
     def __init__(self, width: int, height: int, resolution: float = 0.5):
@@ -366,107 +357,7 @@ class HeatmapGenerator:
         heatmap.grid = distances
         heatmap.visualize(title, cmap=cmap, show_buildings=False, show_points=True)
 
-def calculate_free_space_path_loss(d: float, lam = 0.08, k = 2) -> float:
-    """
-    Calculate free space path loss between transmitter and receiver
 
-    Parameters:
-    -----------
-    d : Distance between transmitter and receiver in meters
-    lam : Wavelength of the signal (default 5G = 80mm)
-    k : Exponent of path loss model (default 2)
-
-    Returns:
-    --------
-    Free space path loss in dB
-    """
-    if d == 0: d = 0.01
-    return 1 / np.sqrt((4 * np.pi / lam) ** 2 * d ** k)
-
-def calculate_unit_spatial_signature(incidence: float, K: int, delta: float):
-    """
-    Calculate the unit spatial signature vector for a given angle of incidence
-
-    Parameters:
-    -----------
-    incidence : Angle of incidence in radians
-    K : Number of antennas
-    delta : Distance between antennas in meters
-
-    Returns:
-    --------
-    Unit spatial signature vector of shape (K, 1)
-    """
-    directional_cosine = np.cos(incidence)
-    e = np.array([(1 / np.sqrt(K)) * np.exp(-1j * 2 * np.pi * (k - 1) * delta * directional_cosine) for k in range(K)])
-    return e.reshape(-1, 1)
-
-def generate_rice_matrix(L: int, K: int, nu: float, sigma = 1.0) -> np.ndarray:
-    """
-    Generate a Ricean channel matrix for a given number of transmit and receive antennas
-
-    Parameters:
-    -----------
-    L : Number of transmit antennas
-    K : Number of receive antennas
-    nu : Mean magnitude of each matrix element
-    sigma : Standard deviation of the complex Gaussian noise
-
-    Returns:
-    --------
-    Ricean channel matrix of shape (K, L)
-    """
-    return np.random.normal(nu/np.sqrt(2), sigma, (K, L)) + 1j * np.random.normal(nu/np.sqrt(2), sigma, (K, L))
-
-def generate_rice_faiding_channel(L: int, K: int, ratio: float, total_power = 1.0) -> np.ndarray:
-    """
-    Generate a Ricean fading channel matrix for a given number of transmit and receive antennas
-
-    Parameters:
-    -----------
-    L : Number of transmit antennas
-    K : Number of receive antennas
-    ratio : Ratio of directed path compared to the other paths
-    total_power : Total power from all paths
-    """
-    nu = np.sqrt(ratio * total_power / (1 + ratio))
-    sigma = np.sqrt(total_power / (2 * (1 + ratio)))
-    return generate_rice_matrix(L, K, nu, sigma)
-
-def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.08, k = 2) -> tuple[np.ndarray, float]:
-    """
-    Calculate MIMO channel gains between transmitter and receiver
-
-    Parameters:
-    -----------
-    d : Distance between transmitter and receiver in meters
-    L : Number of transmit antennas
-    K : Number of receive antennas
-    lam : Wavelength of the signal (default 5G = 80mm)
-    k : Exponent of path loss model (default 2)
-
-    Returns:
-    --------
-    H : Complex channel gain matrix of shape (K, L)
-    """
-    # return generate_random_channel_matrix(K, L)
-    if d == np.inf:
-        return np.zeros((K, L), dtype=complex)
-    if d == 0:
-        d = 0.5
-
-    delta = lam / 2
-    # a = calculate_free_space_path_loss(d, lam, k)
-    c = np.sqrt(L * K) * np.exp(-1j * 2 * np.pi * d / lam)
-    # c = a * c
-    e_r = calculate_unit_spatial_signature(0, K, delta)
-    e_t = calculate_unit_spatial_signature(0, L, delta)
-    H = c * (e_r @ e_t.T.conj())
-
-    ratio = 0.6
-    total_power = 1.0
-    H = H * generate_rice_faiding_channel(L, K, ratio, total_power)
-    return H
 
 def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -768,6 +659,9 @@ def ber_heatmap_reflection_simulation(
     # for m in range(M):
     #     HeatmapGenerator.visualize_distance_matrix(f'Distance from RIS {m+1}', distances_from_Ps[m])
 
+    ber_heatmap_sum = HeatmapGenerator.copy_from(ber_heatmap)
+    ber_heatmap_product = HeatmapGenerator.copy_from(ber_heatmap)
+    ber_heatmap_active = HeatmapGenerator.copy_from(ber_heatmap)
     snr_heatmap_from_T = HeatmapGenerator.copy_from(ber_heatmap)
     snr_heatmap_sum = HeatmapGenerator.copy_from(ber_heatmap)
     snr_heatmap_product = HeatmapGenerator.copy_from(ber_heatmap)
@@ -775,6 +669,10 @@ def ber_heatmap_reflection_simulation(
     snr_heatmap_from_Ps_sum = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
     snr_heatmap_from_Ps_product = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
     snr_heatmap_from_Ps_active = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
+
+    mean_power_per_receiver_sum = np.zeros(J, dtype=float)
+    mean_power_per_receiver_product = np.zeros(J, dtype=float)
+    mean_power_per_receiver_active = np.zeros(J, dtype=float)
 
     ber_heatmap.visualize(f'{simulation_name} (K = {K}, SNR = {snr_db})', label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False)
 
@@ -809,13 +707,6 @@ def ber_heatmap_reflection_simulation(
             ris_path_distances.append(
                 distances_from_Ps[i][ris_points[i-1][1], ris_points[i-1][0]]
             )
-
-    ber_heatmap_sum = HeatmapGenerator.copy_from(ber_heatmap)
-    ber_heatmap_product = HeatmapGenerator.copy_from(ber_heatmap)
-    ber_heatmap_active = HeatmapGenerator.copy_from(ber_heatmap)
-    mean_power_per_receiver_sum = np.zeros(J, dtype=float)
-    mean_power_per_receiver_product = np.zeros(J, dtype=float)
-    mean_power_per_receiver_active = np.zeros(J, dtype=float)
 
     args_list = []
     for grid_y in range(ber_heatmap.grid_height):
