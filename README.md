@@ -79,8 +79,6 @@ The framework supports multi-threaded execution for faster simulations. The numb
 
 For detailed mathematical descriptions and theoretical background, please refer to the following publications:
 
-### Journal Articles
-
 ```bibtex
 @inproceedings{marrocco2025exploiting,
    author = {Marrocco, Simone and Casari, Paolo and Segata, Michele},
@@ -94,8 +92,6 @@ Robust System Design (IOLTS 2025)},
    year = {2025}
 }
 ```
-
-### Conference Papers
 
 ```bibtex
 @inproceedings{marrocco2025multireceiver,
