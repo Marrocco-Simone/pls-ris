@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 # * pip install PyQt6
 import PyQt6
-from typing import List, Tuple, Callable, Literal, Dict, Any, TypedDict, List
+from typing import List, Tuple, Callable, Literal, Dict, Any, TypedDict, List, TypeVar
 from numpy import ndarray, float64, dtype
 import os
 import json
@@ -28,6 +28,11 @@ from noise_power_utils import (
     calculate_signal_power,
     create_random_noise_vector_from_snr,
     create_random_noise_vector_from_noise_floor
+)
+from heatmap_utils import (
+    calculate_signal_power_from_channel_using_ssk,
+    calculate_free_space_path_loss,
+    calculate_mimo_channel_gain
 )
 
 max_cpu_count = 64
@@ -54,8 +59,9 @@ globals: Globals = {
     'snr_db': 10,
 }
 
+PathLoss = Literal['sum', 'product', 'active']
 class PathLossType(TypedDict):
-    name: str
+    name: PathLoss
     calculate: bool
 
 path_loss_types: List[PathLossType] = [
@@ -84,6 +90,9 @@ class Building(TypedDict):
 class Point(TypedDict):
     x: int
     y: int
+
+def calculate_distance(point_1: Point, point_2: Point) -> float:
+    return np.sqrt((point_1['x'] - point_2['x'])**2 + (point_1['y'] - point_2['y'])**2)
 
 class Situation(TypedDict):
     simulation_name: str
@@ -192,17 +201,22 @@ class Grid:
         """Return the grid as a NumPy array for compatibility with np.savez"""
         return self.grid
 
-Graph = Dict[str, Dict[str, float]]
+T = TypeVar('T')
+Graph = Dict[str, Dict[str, T]]
 class Heatmap:
     width: int
     height: int
     resolution: float
     buildings: List[Building]
+    # todo add the type of the points instead of relying on the name
     points: Dict[str, Point]
     grid_width: int
     grid_height: int
     grid: Grid
-    graph: Graph
+    stat_grids: Dict[str, Grid]
+    distance_graph: Graph[float]
+    channel_graph: Graph[np.ndarray]
+    parent_tree: Dict[str, str]
 
 class HeatmapGenerator(Heatmap):
     def __init__(self, situation: Situation):
@@ -235,22 +249,62 @@ class HeatmapGenerator(Heatmap):
         for i, receiver in enumerate(situation['receivers']):
             self.points[f'R{i+1}'] = receiver
 
-        self.graph = {}
+        self.distance_graph = {}
+        self.channel_graph = {}
         for label in self.points.keys():
-            self.graph[label] = {}
+            self.distance_graph[label] = {}
+            self.channel_graph[label] = {}
         for label, point in self.points.items():
             for other_label, other_point in self.points.items():
-                if other_label in self.graph[label]: continue
+                if other_label in self.distance_graph[label]: continue
                 elif other_label == label: 
                     distance = 0
                 elif self._line_intersects_building(point, other_point):
                     distance = np.inf
                 else:
-                    distance = np.sqrt((point['x'] - other_point['x'])**2 + (point['y'] - other_point['y'])**2)
-                self.graph[label][other_label] = distance
-                self.graph[other_label][label] = distance
-                
-        # TODO check for no cycles
+                    distance = calculate_distance(point, other_point)
+                self.distance_graph[label][other_label] = distance
+                self.distance_graph[other_label][label] = distance
+
+        result = self.check_ris_cycles()
+        if result:
+            raise ValueError("The RIS configuration contains cycles, which is not allowed.")
+        
+        already_checked = set()
+        self.parent_tree = { 'T': 'T' }
+        def calculate_next_node_dfs(label: str):
+            if label in already_checked: return True
+            already_checked.add(label)
+            dim_label = globals['N'] if label[0] == 'P' else globals['K']
+            for p_label, _ in self.points.items():
+                if p_label == label: continue
+                distance = self.distance_graph[label][p_label]
+                if distance != np.inf and p_label not in self.parent_tree: 
+                    self.parent_tree[p_label] = label
+            for p_label, _ in self.points.items():
+                distance = self.distance_graph[label][p_label]
+                dim_p_label = globals['N'] if p_label[0] == 'P' else globals['K']
+                self.channel_graph[label][p_label] = calculate_mimo_channel_gain(distance, dim_label, dim_p_label)
+                calculate_next_node_dfs(p_label)
+        calculate_next_node_dfs("T")   
+
+        # todo remove
+        # self.log_graphs()   
+        
+        M = len(situation['ris_points'])
+       
+        self.stat_grids = {
+            'BER path loss sum': Grid(self.grid_width, self.grid_height),
+            'BER path loss product': Grid(self.grid_width, self.grid_height),
+            'BER path loss active': Grid(self.grid_width, self.grid_height),
+            'SNR path loss sum': Grid(self.grid_width, self.grid_height),
+            'SNR path loss product': Grid(self.grid_width, self.grid_height),
+            'SNR path loss active': Grid(self.grid_width, self.grid_height),
+            'SNR from T': Grid(self.grid_width, self.grid_height),
+        }
+        for i in range(M):
+            self.stat_grids[f'SNR from P{i+1}'] = Grid(self.grid_width, self.grid_height)
+
 
     def _meters_to_grid(self, f: int) -> int:
         """Convert meter coordinates to grid coordinates"""
@@ -272,6 +326,21 @@ class HeatmapGenerator(Heatmap):
     #         'x': self._grid_to_meters(point['x']),
     #         'y': self._grid_to_meters(point['y'])
     #     }
+
+    def log_graphs(self):
+        for s_label, children in self.distance_graph.items():
+            parent_info = f"\t(parent: {self.parent_tree[s_label]})" if s_label in self.parent_tree else ""
+            print(f"{s_label}{parent_info}:")
+            for e_label, distance in children.items():
+                if s_label in self.channel_graph:
+                    if e_label in self.channel_graph[s_label]:
+                        channel_power = calculate_channel_power(self.channel_graph[s_label][e_label])
+                        channel_shape = self.channel_graph[s_label][e_label].shape
+                        channel_info = f"channel of shape {channel_shape} and power {channel_power}"
+                    else: channel_info = f"self.channel_graph[{s_label}] does not have a link to [{e_label}]"
+                else: channel_info = f"self.channel_graph does not have a link to [{s_label}]"
+                print(f"\t{e_label}:\tdistance: {distance:.2f}\t{channel_info}")
+
     
     def _line_intersects_building(self, point_1: Point, point_2: Point) -> bool:
         """
@@ -313,11 +382,57 @@ class HeatmapGenerator(Heatmap):
                 if p_label == label: continue
                 if p_label == from_label: continue
                 if not p_label.startswith('P'): continue
-                if self.graph[label][p_label] == np.inf: continue
+                if self.distance_graph[label][p_label] == np.inf: continue
                 if check_next_nodes_dfs(p_label, label): return True
             return False
         return check_next_nodes_dfs("T", "T")
     
+    def get_new_RIS_configurations(self):
+        Ps: Dict[str, ndarray] = {}
+
+        def calculate_P(p_label):
+            if p_label[0] != 'P': return
+            if p_label in Ps: return
+
+            connected_receivers: List[str] = []
+            connected_receivers_channel_gain: List[ndarray] = []
+            for r_label, r_point in self.points.items():
+                if r_label[0] != 'R': continue
+                distance = self.distance_graph[p_label][r_label]
+                if distance == np.inf: continue
+                connected_receivers.append(r_label)
+                connected_receivers_channel_gain.append(self.channel_graph[p_label][r_label])
+
+            if len(connected_receivers) == 0:
+                P = np.diag(random_reflection_vector(globals['N'], globals['eta']))
+                Ps[p_label] = P
+            elif self.parent_tree[p_label] == 'T':
+                P, _ = calculate_ris_reflection_matrice(globals['K'], globals['N'], len(connected_receivers), connected_receivers_channel_gain, self.channel_graph['T'][p_label], globals['eta'])
+                Ps[p_label] = P
+            else:
+                P_chain: List[ndarray] = []
+                C_chain: List[ndarray] = []
+                prev_label = p_label
+                curr_label = self.parent_tree[p_label]
+                while curr_label != 'T':
+                    calculate_P(curr_label)
+                    P = Ps[curr_label]
+                    C = self.channel_graph[prev_label][curr_label]
+                    P_chain.insert(0, P)
+                    C_chain.insert(0, C)
+                    prev_label = curr_label
+                    curr_label = self.parent_tree[curr_label]
+                P_prev = unify_ris_reflection_matrices(P_chain, C_chain)
+                modified_Gs = [G @ P_prev @ C_chain[-1] for G in connected_receivers_channel_gain]
+                P, _ = calculate_ris_reflection_matrice(globals['K'], globals['N'], len(connected_receivers), modified_Gs, self.channel_graph['T'][p_label], globals['eta'])
+                Ps[p_label] = P
+
+        for p_label, p_point in self.points.items():
+            calculate_P(p_label)
+
+        return Ps
+
+
     def _save_colorbar_legend(self, title: str, cmap='viridis', vmin=None, vmax=None, label='BER', orientation='horizontal'):
         """
         Save a standalone colorbar legend as a separate file.
@@ -460,6 +575,56 @@ class HeatmapGenerator(Heatmap):
         plt.close(figure)
 
 
+def process_point(ber_heatmap: HeatmapGenerator, point: Point):
+    is_building = np.isnan(ber_heatmap.grid[point])
+    if is_building: return
+    
+    unique_seed = (int(time.time() * 1000000) % (2**32) + os.getpid() * 1000 + int(point['y'] * 100 + point['x'])) % (2**32)
+    np.random.seed(unique_seed)
+
+    distance_from: Dict[str, float] = {}
+    channel_gain_from: Dict[str, np.ndarray] = {}
+    point_label: str | None = None
+    for label, heatmap_point in ber_heatmap.points.items():
+        if heatmap_point['x'] == point['x'] and heatmap_point['y'] == point['y'] and label[0] != 'P':
+            point_label = label
+            break
+    if point_label: 
+        distance_from = ber_heatmap.distance_graph[point_label]
+        channel_gain_from = ber_heatmap.channel_graph[point_label]
+    else: 
+        can_receive_signal = False
+        for label, heatmap_point in ber_heatmap.points.items():
+            distance_from[label] = calculate_distance(point, heatmap_point)
+            if label[0] == 'R': continue
+            dim_label = globals['N'] if label[0] == 'P' else globals['K']
+            channel_gain_from[label] = calculate_mimo_channel_gain(distance_from[label], dim_label, globals['K'])
+            if distance_from[label] == np.inf: continue
+            can_receive_signal = True
+        if not can_receive_signal: return
+
+    # ! mean_power is used only to set the BER as np.nan
+    # ! power_from_Ps is not useful
+
+    if distance_from['T'] != np.inf:
+        B = channel_gain_from['T'] * calculate_free_space_path_loss(distance_from['T'])
+        power_from_T = calculate_channel_power(B)
+        signal_power_from_T = calculate_signal_power_from_channel_using_ssk(globals['K'], B, globals['Pt_dbm'])
+
+    ris_paths_to_T: List[List[str]] = []
+    for label, p_point in ber_heatmap.points.items():
+        if label[0] != 'P': continue
+        if distance_from[label] == np.inf: continue
+        curr_label = label
+        ris_paths_to_T.append([])
+        while curr_label != 'T':
+            ris_paths_to_T[-1].append(curr_label)
+            curr_label = ber_heatmap.parent_tree[curr_label]
+
+    # for _ in range(globals['num_symbols']):
+    Ps = ber_heatmap.get_new_RIS_configurations()
+    
+
 def ber_heatmap_reflection_simulation(
         situation: Situation
 ):
@@ -482,8 +647,14 @@ def ber_heatmap_reflection_simulation(
     # TODO check if data is already calculated present 
 
     ber_heatmap = HeatmapGenerator(situation)
+    ber_heatmap.visualize(f'{simulation_name}', label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False) 
 
-    ber_heatmap.visualize(f'{simulation_name}', label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False)
+    for y in range(ber_heatmap.height):
+        for x in range(ber_heatmap.width):
+            point: Point = {
+                'y': y, 'x': x
+            }
+            process_point(ber_heatmap, point)
 
 def main():
     begin_time = time.perf_counter()
