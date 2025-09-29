@@ -87,7 +87,8 @@ def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: n
     return simulate_ssk_transmission(K, noise, calculate_detected_id, Pt_dbm)
 
 def calculate_single_ber_simulation(snr_db, K, N, J, M, eta=0.9):
-    unique_seed = int(time.time() * 1000000) % (2**30) + os.getpid() * 1000 + snr_db
+    # Ensure seed is within valid range [0, 2^32 - 1]
+    unique_seed = (int(time.time() * 1000000) + os.getpid() * 1000 + int(snr_db * 100)) % (2**31 - 1)
     np.random.seed(unique_seed)
 
     H = generate_random_channel_matrix(N, K)
