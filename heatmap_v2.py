@@ -180,6 +180,8 @@ class Grid:
         
         self.grid[y_start:y_end, x_start:x_end] = value
 
+        return self
+
     def __array__(self):
         """Return the grid as a NumPy array for compatibility with np.savez"""
         return self.grid
@@ -280,18 +282,18 @@ class HeatmapGenerator(Heatmap):
         self.J = len(situation['receivers'])
        
         self.stat_grids = {
-            'BER path loss sum': Grid(self.grid_width, self.grid_height),
-            'BER path loss product': Grid(self.grid_width, self.grid_height),
-            'BER path loss active': Grid(self.grid_width, self.grid_height),
-            'SNR path loss sum': Grid(self.grid_width, self.grid_height),
-            'SNR path loss product': Grid(self.grid_width, self.grid_height),
-            'SNR path loss active': Grid(self.grid_width, self.grid_height),
+            'BER path loss sum': Grid(self.grid_width, self.grid_height).set_building(grid_building, np.nan),
+            'BER path loss product': Grid(self.grid_width, self.grid_height).set_building(grid_building, np.nan),
+            'BER path loss active': Grid(self.grid_width, self.grid_height).set_building(grid_building, np.nan),
+            'SNR path loss sum': Grid(self.grid_width, self.grid_height).set_building(grid_building, np.nan),
+            'SNR path loss product': Grid(self.grid_width, self.grid_height).set_building(grid_building, np.nan),
+            'SNR path loss active': Grid(self.grid_width, self.grid_height).set_building(grid_building, np.nan),
             # todo snr from T and RISs
-            # 'SNR from T': Grid(self.grid_width, self.grid_height),
+            # 'SNR from T': Grid(self.grid_width, self.grid_height).set_building(grid_building, np.nan),
         }
         # todo snr from T and RISs
         # for i in range(self.M):
-        #     self.stat_grids[f'SNR from P{i+1}'] = Grid(self.grid_width, self.grid_height)
+        #     self.stat_grids[f'SNR from P{i+1}'] = Grid(self.grid_width, self.grid_height).set_building(grid_building, np.nan)
 
 
     def _meters_to_grid(self, f: int) -> int:
@@ -299,9 +301,9 @@ class HeatmapGenerator(Heatmap):
         return int(f / self.resolution)
         
 
-    # def _grid_to_meters(self, i: int) -> int:
-    #     """Convert grid coordinates to meter coordinates"""
-    #     return int(i * self.resolution)
+    def _grid_to_meters(self, i: int) -> int:
+        """Convert grid coordinates to meter coordinates"""
+        return int(i * self.resolution)
     
     def _point_meters_to_grid(self, point: Point) -> Point:
         return {
@@ -309,11 +311,11 @@ class HeatmapGenerator(Heatmap):
             'y': self._meters_to_grid(point['y'])
         }
     
-    # def _point_grid_to_meters(self, point: Point) -> Point:
-    #     return {
-    #         'x': self._grid_to_meters(point['x']),
-    #         'y': self._grid_to_meters(point['y'])
-    #     }
+    def _point_grid_to_meters(self, point: Point) -> Point:
+        return {
+            'x': self._grid_to_meters(point['x']),
+            'y': self._grid_to_meters(point['y'])
+        }
 
     def log_graphs(self):
         for s_label, children in self.distance_graph.items():
@@ -563,9 +565,11 @@ class HeatmapGenerator(Heatmap):
         plt.close(figure)
 
 
-def process_point(ber_heatmap: HeatmapGenerator, point: Point):
-    is_building = np.isnan(ber_heatmap.grid[point])
+def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point):
+    is_building = np.isnan(ber_heatmap.grid[point_grid])
     if is_building: return 
+
+    point: Point = ber_heatmap._point_grid_to_meters(point_grid)
     
     unique_seed = (int(time.time() * 1000000) % (2**32) + os.getpid() * 1000 + int(point['y'] * 100 + point['x'])) % (2**32)
     np.random.seed(unique_seed)
@@ -583,7 +587,10 @@ def process_point(ber_heatmap: HeatmapGenerator, point: Point):
     else: 
         can_receive_signal = False
         for label, heatmap_point in ber_heatmap.points.items():
-            distance_from[label] = calculate_distance(point, heatmap_point)
+            if ber_heatmap._line_intersects_building(point, heatmap_point):
+                distance_from[label] = np.inf
+            else:
+                distance_from[label] = calculate_distance(point, heatmap_point)
             if label[0] == 'R': continue
             dim_label = globals['N'] if label[0] == 'P' else globals['K']
             channel_gain_from[label] = calculate_mimo_channel_gain(distance_from[label], dim_label, globals['K'])
@@ -663,6 +670,8 @@ def process_point(ber_heatmap: HeatmapGenerator, point: Point):
                 from_this_ris_effective_channel_with_path_loss = total_path_loss[path_loss] * from_this_ris_effective_channel_without_path_loss
                 effective_channel[path_loss] += from_this_ris_effective_channel_with_path_loss
                 signal_power[path_loss][p_label] = calculate_signal_power_from_channel_using_ssk(globals['K'], from_this_ris_effective_channel_with_path_loss, globals['Pt_dbm'])
+                if point_label != None:
+                    print(f"Point {point_label}, Path Loss {path_loss}, RIS {p_label}:\n\ttotal path loss: {total_path_loss[path_loss]}\n\tsignal_power: {signal_power[path_loss][p_label]}\n\n")
 
         # todo reimplement fixed snr too
         noise_floor = create_random_noise_vector_from_noise_floor(globals['K'])
