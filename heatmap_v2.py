@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 # * pip install PyQt6
 import PyQt6
-from typing import List, Tuple, Callable, Literal, Dict, Any, TypedDict, List, TypeVar
+from typing import List, Tuple, Callable, Literal, Dict, Any, TypedDict, List, TypeVar, get_args
 from numpy import ndarray, float64, dtype
 import os
 import json
@@ -60,24 +60,7 @@ globals: Globals = {
 }
 
 PathLoss = Literal['sum', 'product', 'active']
-class PathLossType(TypedDict):
-    name: PathLoss
-    calculate: bool
-
-path_loss_types: List[PathLossType] = [
-    {
-        'name': 'sum',
-        'calculate': True
-    },
-    {
-        'name': 'product',
-        'calculate': True
-    },
-    {
-        'name': 'active',
-        'calculate': True
-    }
-]
+path_loss_types: List[PathLoss] = ['sum', 'product', 'active']
 
 # Area = Tuple[int, int, int, int]
 # Point = Tuple[int, int]
@@ -110,7 +93,7 @@ situations: List[Situation] = [
     {
         "simulation_name": "Single Reflection",
         "calculate": True,
-        "force_recompute": False,
+        "force_recompute": True,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -129,7 +112,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in series, only final",
-        "calculate": True,
+        "calculate": False,
         "force_recompute": False,
         "width": 20,
         "height": 20,
@@ -150,7 +133,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in series",
-        "calculate": True,
+        "calculate": False,
         "force_recompute": False,
         "width": 20,
         "height": 20,
@@ -212,6 +195,8 @@ class Heatmap:
     points: Dict[str, Point]
     grid_width: int
     grid_height: int
+    M: int
+    J: int
     grid: Grid
     stat_grids: Dict[str, Grid]
     distance_graph: Graph[float]
@@ -291,7 +276,8 @@ class HeatmapGenerator(Heatmap):
         # todo remove
         # self.log_graphs()   
         
-        M = len(situation['ris_points'])
+        self.M = len(situation['ris_points'])
+        self.J = len(situation['receivers'])
        
         self.stat_grids = {
             'BER path loss sum': Grid(self.grid_width, self.grid_height),
@@ -300,10 +286,12 @@ class HeatmapGenerator(Heatmap):
             'SNR path loss sum': Grid(self.grid_width, self.grid_height),
             'SNR path loss product': Grid(self.grid_width, self.grid_height),
             'SNR path loss active': Grid(self.grid_width, self.grid_height),
-            'SNR from T': Grid(self.grid_width, self.grid_height),
+            # todo snr from T and RISs
+            # 'SNR from T': Grid(self.grid_width, self.grid_height),
         }
-        for i in range(M):
-            self.stat_grids[f'SNR from P{i+1}'] = Grid(self.grid_width, self.grid_height)
+        # todo snr from T and RISs
+        # for i in range(self.M):
+        #     self.stat_grids[f'SNR from P{i+1}'] = Grid(self.grid_width, self.grid_height)
 
 
     def _meters_to_grid(self, f: int) -> int:
@@ -389,6 +377,7 @@ class HeatmapGenerator(Heatmap):
     
     def get_new_RIS_configurations(self):
         Ps: Dict[str, ndarray] = {}
+        chain_to_last_P: Dict[str, ndarray] = {}
 
         def calculate_P(p_label):
             if p_label[0] != 'P': return
@@ -403,12 +392,10 @@ class HeatmapGenerator(Heatmap):
                 connected_receivers.append(r_label)
                 connected_receivers_channel_gain.append(self.channel_graph[p_label][r_label])
 
-            if len(connected_receivers) == 0:
-                P = np.diag(random_reflection_vector(globals['N'], globals['eta']))
-                Ps[p_label] = P
-            elif self.parent_tree[p_label] == 'T':
+            if self.parent_tree[p_label] == 'T':
                 P, _ = calculate_ris_reflection_matrice(globals['K'], globals['N'], len(connected_receivers), connected_receivers_channel_gain, self.channel_graph['T'][p_label], globals['eta'])
                 Ps[p_label] = P
+                chain_to_last_P[p_label] = P @ self.channel_graph['T'][p_label]
             else:
                 P_chain: List[ndarray] = []
                 C_chain: List[ndarray] = []
@@ -426,11 +413,12 @@ class HeatmapGenerator(Heatmap):
                 modified_Gs = [G @ P_prev @ C_chain[-1] for G in connected_receivers_channel_gain]
                 P, _ = calculate_ris_reflection_matrice(globals['K'], globals['N'], len(connected_receivers), modified_Gs, self.channel_graph['T'][p_label], globals['eta'])
                 Ps[p_label] = P
+                chain_to_last_P[p_label] = P_prev @ C_chain[-1] @ P @ self.channel_graph['T'][p_label]
 
         for p_label, p_point in self.points.items():
             calculate_P(p_label)
 
-        return Ps
+        return Ps, chain_to_last_P
 
 
     def _save_colorbar_legend(self, title: str, cmap='viridis', vmin=None, vmax=None, label='BER', orientation='horizontal'):
@@ -467,7 +455,7 @@ class HeatmapGenerator(Heatmap):
         print(f"Saved {legend_filename}")
         plt.close(fig)
     
-    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='white', vmin: float | None = None, vmax: float | None = None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True, show_legend=False):
+    def visualize(self, grid, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='white', vmin: float | None = None, vmax: float | None = None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True, show_legend=False):
         """
         Visualize the ber_heatmap with optional building outlines and points of interest.
 
@@ -491,7 +479,7 @@ class HeatmapGenerator(Heatmap):
 
         # np.savez(
         #     data_filename,
-        #     grid=self.grid,
+        #     grid=grid,
         #     width=self.width,
         #     height=self.height,
         #     resolution=self.resolution,
@@ -505,12 +493,12 @@ class HeatmapGenerator(Heatmap):
 
         if log_scale and show_heatmap:
             # * Add small offset to zero values before taking log
-            grid_for_log = np.copy(self.grid)
+            grid_for_log = np.copy(grid)
             grid_for_log[grid_for_log == 0] = 1e-10
             masked_grid = np.ma.masked_invalid(np.log10(grid_for_log))
             title += ' (log scale)'
         else:
-            masked_grid = np.ma.masked_invalid(self.grid)
+            masked_grid = np.ma.masked_invalid(grid)
 
         # ! changed from list to tuple, since otherwise error
         extent = (0, self.width, 0, self.height)
@@ -543,7 +531,7 @@ class HeatmapGenerator(Heatmap):
                 y = point['y']
                 if label[0] == 'R' and show_receivers_values and show_heatmap:
                     grid_point = self._point_meters_to_grid(point)
-                    value = self.grid[grid_point]
+                    value = grid[grid_point]
                     if log_scale and value > 0:
                         value = np.log10(value)
                     label += f" ({value:.2f})"
@@ -577,7 +565,7 @@ class HeatmapGenerator(Heatmap):
 
 def process_point(ber_heatmap: HeatmapGenerator, point: Point):
     is_building = np.isnan(ber_heatmap.grid[point])
-    if is_building: return
+    if is_building: return 
     
     unique_seed = (int(time.time() * 1000000) % (2**32) + os.getpid() * 1000 + int(point['y'] * 100 + point['x'])) % (2**32)
     np.random.seed(unique_seed)
@@ -591,7 +579,7 @@ def process_point(ber_heatmap: HeatmapGenerator, point: Point):
             break
     if point_label: 
         distance_from = ber_heatmap.distance_graph[point_label]
-        channel_gain_from = ber_heatmap.channel_graph[point_label]
+        channel_gain_from = { label: ber_heatmap.channel_graph[label][point_label] for label in ber_heatmap.channel_graph.keys() }
     else: 
         can_receive_signal = False
         for label, heatmap_point in ber_heatmap.points.items():
@@ -606,10 +594,9 @@ def process_point(ber_heatmap: HeatmapGenerator, point: Point):
     # ! mean_power is used only to set the BER as np.nan
     # ! power_from_Ps is not useful
 
-    if distance_from['T'] != np.inf:
-        B = channel_gain_from['T'] * calculate_free_space_path_loss(distance_from['T'])
-        power_from_T = calculate_channel_power(B)
-        signal_power_from_T = calculate_signal_power_from_channel_using_ssk(globals['K'], B, globals['Pt_dbm'])
+    B = channel_gain_from['T'] * calculate_free_space_path_loss(distance_from['T'])
+    # power_from_T = calculate_channel_power(B)
+    # signal_power_from_T = calculate_signal_power_from_channel_using_ssk(globals['K'], B, globals['Pt_dbm'])
 
     ris_paths_to_T: List[List[str]] = []
     for label, p_point in ber_heatmap.points.items():
@@ -621,8 +608,92 @@ def process_point(ber_heatmap: HeatmapGenerator, point: Point):
             ris_paths_to_T[-1].append(curr_label)
             curr_label = ber_heatmap.parent_tree[curr_label]
 
-    # for _ in range(globals['num_symbols']):
-    Ps = ber_heatmap.get_new_RIS_configurations()
+    errors: Dict[PathLoss, int] = {
+        'sum': 0,
+        'product': 0, 
+        'active': 0,
+    }
+
+    snr: Dict[str, float] = {
+        'sum': 0.0,
+        'product': 0.0, 
+        'active': 0.0,
+        'T': 0.0
+    }
+    for i in range(ber_heatmap.M):
+        snr[f'P{i}'] = 0.0
+
+    for _ in range(globals['num_symbols']):
+        Ps, chain_to_last_P = ber_heatmap.get_new_RIS_configurations()
+        effective_channel: Dict[PathLoss, ndarray] = {
+            'sum': np.zeros((globals['K'], globals['K']), dtype=complex),
+            'product': np.zeros((globals['K'], globals['K']), dtype=complex),
+            'active': np.zeros((globals['K'], globals['K']), dtype=complex)
+        }
+        signal_power: Dict[PathLoss, Dict[str, float]] = {
+            'sum': {},
+            'product': {},
+            'active': {},
+        }
+
+        for p_label, p_point in ber_heatmap.points.items():
+            if p_label[0] != 'P': continue
+            if distance_from[p_label] == np.inf: continue
+
+            F = channel_gain_from[p_label]
+            PH = chain_to_last_P[p_label]
+            from_this_ris_effective_channel_without_path_loss = F @ PH
+
+            total_distance_to_receiver = distance_from[p_label]
+            total_path_loss: Dict[PathLoss, float] = {
+                'sum': 0,
+                'product': 1,
+                'active': calculate_free_space_path_loss(distance_from[p_label])
+            }
+            curr_label = p_label
+            while curr_label != 'T':
+                parent_label = ber_heatmap.parent_tree[curr_label]
+                distance_curr_label_to_parent = ber_heatmap.distance_graph[curr_label][parent_label]
+                total_distance_to_receiver += distance_curr_label_to_parent
+                total_path_loss['product'] *= calculate_free_space_path_loss(distance_curr_label_to_parent)
+                curr_label = parent_label
+            total_path_loss['sum'] = calculate_free_space_path_loss(total_distance_to_receiver)
+
+            for path_loss in path_loss_types:
+                from_this_ris_effective_channel_with_path_loss = total_path_loss[path_loss] * from_this_ris_effective_channel_without_path_loss
+                effective_channel[path_loss] += from_this_ris_effective_channel_with_path_loss
+                signal_power[path_loss][p_label] = calculate_signal_power_from_channel_using_ssk(globals['K'], from_this_ris_effective_channel_with_path_loss, globals['Pt_dbm'])
+
+        # todo reimplement fixed snr too
+        noise_floor = create_random_noise_vector_from_noise_floor(globals['K'])
+        noise: Dict[PathLoss, ndarray] = {
+            'sum': noise_floor,
+            'product': noise_floor,
+            'active': noise_floor
+        }
+        noise_signal_power: Dict[PathLoss, float] = {
+            'sum': calculate_signal_power(noise['sum']),
+            'product': calculate_signal_power(noise['product']),
+            'active': calculate_signal_power(noise['active']),
+        }
+
+        for path_loss in path_loss_types:
+            if distance_from['T'] == np.inf:
+                errors[path_loss] += simulate_ssk_transmission_reflection(globals['K'], effective_channel[path_loss], noise[path_loss], globals['Pt_dbm'])
+            else:
+                errors[path_loss] += simulate_ssk_transmission_direct(globals['K'], B, effective_channel[path_loss], noise[path_loss], globals['Pt_dbm'])
+
+            snr[path_loss] += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(globals['K'], effective_channel[path_loss] + B, globals['Pt_dbm'])) - 10 * np.log10(noise_signal_power[path_loss])) / globals['num_symbols']
+        # todo snr from T and RISs
+
+    ber: Dict[PathLoss, float] = {
+        'sum': errors['sum'] / globals['num_symbols'],
+        'product': errors['product'] / globals['num_symbols'],
+        'active': errors['active'] / globals['num_symbols'],
+    }
+
+    return ber, snr, point_label
+
     
 
 def ber_heatmap_reflection_simulation(
@@ -647,14 +718,61 @@ def ber_heatmap_reflection_simulation(
     # TODO check if data is already calculated present 
 
     ber_heatmap = HeatmapGenerator(situation)
-    ber_heatmap.visualize(f'{simulation_name}', label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False) 
+    ber_heatmap.visualize(title=f'{simulation_name}', grid=ber_heatmap.grid, label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False) 
 
-    for y in range(ber_heatmap.height):
-        for x in range(ber_heatmap.width):
+    args_list: List[Point] = []
+    for y in range(ber_heatmap.grid_height):
+        for x in range(ber_heatmap.grid_width):
             point: Point = {
                 'y': y, 'x': x
             }
-            process_point(ber_heatmap, point)
+            args_list.append(point)
+    #         res = process_point(ber_heatmap, point)
+    #         if res is None:
+    #             continue
+    #         ber, snr, point_label = res
+    #         ber_heatmap.stat_grids['BER path loss sum'][point] = ber['sum']
+    #         ber_heatmap.stat_grids['BER path loss product'][point] = ber['product']
+    #         ber_heatmap.stat_grids['BER path loss active'][point] = ber['active']
+
+    #         ber_heatmap.stat_grids['SNR path loss sum'][point] = snr['sum']
+    #         ber_heatmap.stat_grids['SNR path loss product'][point] = snr['product']
+    #         ber_heatmap.stat_grids['SNR path loss active'][point] = snr['active']
+
+    def multithread_fn(point: Point):
+        res = process_point(ber_heatmap, point)
+        if res == None: return None
+        ber, snr, point_label = res
+        return point, ber, snr, point_label
+
+    pool = Pool(processes=n_processes)
+    results = list(tqdm(
+        pool.imap(multithread_fn, args_list),
+        total=len(args_list),
+        desc="Processing grid points"
+    ))
+    for res in results:
+        if res == None: continue
+        point, ber, snr, point_label = res
+        ber_heatmap.stat_grids['BER path loss sum'][point] = ber['sum']
+        ber_heatmap.stat_grids['BER path loss product'][point] = ber['product']
+        ber_heatmap.stat_grids['BER path loss active'][point] = ber['active']
+
+        ber_heatmap.stat_grids['SNR path loss sum'][point] = snr['sum']
+        ber_heatmap.stat_grids['SNR path loss product'][point] = snr['product']
+        ber_heatmap.stat_grids['SNR path loss active'][point] = snr['active']
+
+    title = f'{simulation_name} (K = {globals['K']}, SNR = {globals['snr_db']})'
+    viridis = matplotlib.colormaps['viridis']
+
+    ber_heatmap.visualize(title=f"{title} - BER path loss sum", grid=ber_heatmap.stat_grids['BER path loss sum'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=True)
+    ber_heatmap.visualize(title=f"{title} - BER path loss product", grid=ber_heatmap.stat_grids['BER path loss product'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=True)
+    ber_heatmap.visualize(title=f"{title} - BER path loss active", grid=ber_heatmap.stat_grids['BER path loss active'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=True)
+
+    ber_heatmap.visualize(title=f"{title} - SNR path loss sum", grid=ber_heatmap.stat_grids['SNR path loss sum'], label='SNR', show_receivers_values=True, show_legend=True)
+    ber_heatmap.visualize(title=f"{title} - SNR path loss product", grid=ber_heatmap.stat_grids['SNR path loss product'], label='SNR', show_receivers_values=True, show_legend=True)
+    ber_heatmap.visualize(title=f"{title} - SNR path loss active", grid=ber_heatmap.stat_grids['SNR path loss active'], label='SNR', show_receivers_values=True, show_legend=True)
+    
 
 def main():
     begin_time = time.perf_counter()
