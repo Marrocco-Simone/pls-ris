@@ -86,6 +86,11 @@ def calculate_ris_reflection_matrice(
         P: diagonal reflection matrice
         dor: Degree of randomness achieved
     """
+    # No receivers, we setup the RIS randomly
+    if J == 0:
+        # todo correct dor
+        return np.diag(random_reflection_vector(N, eta)), 0
+
     W = calculate_W_multiple(K, N, J, Gs, H)
     R, sigma, Vh = np.linalg.svd(W)
 
