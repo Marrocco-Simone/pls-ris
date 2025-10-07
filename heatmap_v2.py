@@ -158,6 +158,33 @@ situations: List[Situation] = [
             {'x': 11, 'y': 3},
             {'x': 15, 'y': 1},
         ]
+    },
+    {
+        "simulation_name": "RISs in parallel",
+        "calculate": True,
+        "force_recompute": True,
+        "width": 20,
+        "height": 20,
+        "resolution": 0.5,
+        "buildings": [
+            { 'x': 8, 'y': 0, 'width': 1, 'height': 7 },
+            { 'x': 12, 'y': 0, 'width': 1, 'height': 7 },
+            { 'x': 8, 'y': 11, 'width': 5, 'height': 1 },
+            { 'x': 8, 'y': 15, 'width': 5, 'height': 5 },
+        ],
+        "transmitter": {'x': 10, 'y': 1},
+        "ris_points": [
+            {'x': 10, 'y': 10},
+            {'x': 2, 'y': 2},
+            {'x': 18, 'y': 18},
+            {'x': 2, 'y': 18},
+            {'x': 18, 'y': 2},
+        ],
+        "receivers": [
+            {'x': 10, 'y': 12},
+            {'x': 5, 'y': 13},
+            {'x': 15, 'y': 7},
+        ]
     }
 ]
 
@@ -210,6 +237,9 @@ class HeatmapGenerator(Heatmap):
         self.width = situation['width']
         self.height = situation['height']
         self.resolution = situation['resolution']
+
+        self.M = len(situation['ris_points'])
+        self.J = len(situation['receivers'])
         
         # * Calculate grid dimensions based on resolution
         self.grid_width = int(self.width / self.resolution)
@@ -240,9 +270,11 @@ class HeatmapGenerator(Heatmap):
                 self.distance_graph[label][other_label] = distance
                 self.distance_graph[other_label][label] = distance
 
+        self.visualize(title=f'{situation['simulation_name']}', grid=self.grid, label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False) 
+
         result = self.check_ris_cycles()
         if result:
-            raise ValueError("The RIS configuration contains cycles, which is not allowed.")
+            raise ValueError("The RIS configuration contains cycles, or has orphan RIS, which is not allowed.")
         
         already_checked = set()
         self.parent_tree = { 'T': 'T' }
@@ -264,9 +296,6 @@ class HeatmapGenerator(Heatmap):
 
         # todo remove
         # self.log_graphs()   
-        
-        self.M = len(situation['ris_points'])
-        self.J = len(situation['receivers'])
        
         self.stat_grids = {
             'BER path loss sum': Grid(self.grid_width, self.grid_height),
@@ -373,9 +402,15 @@ class HeatmapGenerator(Heatmap):
                 if p_label == from_label: continue
                 if not p_label.startswith('P'): continue
                 if self.distance_graph[label][p_label] == np.inf: continue
-                if check_next_nodes_dfs(p_label, label): return True
+                if check_next_nodes_dfs(p_label, label): 
+                    print(f"Found cycle: {p_label} went back to {label}")
+                    return True
             return False
-        return check_next_nodes_dfs("T", "T")
+        result = check_next_nodes_dfs("T", "T")
+        if len(already_checked) != self.M + 1: # include T in already_checked
+            print(f"Not all RIS were visited: {len(already_checked)} != {self.M}")
+            return True
+        return result
     
     def get_new_RIS_configurations(self):
         Ps: Dict[str, ndarray] = {}
@@ -707,7 +742,6 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point):
 def ber_heatmap_reflection_simulation(
         situation: Situation
 ):
-    simulation_name = situation['simulation_name']
     # force_recompute = situation['force_recompute']
     width = situation['width']
     height = situation['height']
@@ -726,26 +760,14 @@ def ber_heatmap_reflection_simulation(
     # TODO check if data is already calculated present 
 
     ber_heatmap = HeatmapGenerator(situation)
-    ber_heatmap.visualize(title=f'{simulation_name}', grid=ber_heatmap.grid, label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False) 
 
-    args_list: List[Point] = []
+    points_list: List[Point] = []
     for y in range(ber_heatmap.grid_height):
         for x in range(ber_heatmap.grid_width):
             point: Point = {
                 'y': y, 'x': x
             }
-            args_list.append(point)
-    #         res = process_point(ber_heatmap, point)
-    #         if res is None:
-    #             continue
-    #         ber, snr, point_label = res
-    #         ber_heatmap.stat_grids['BER path loss sum'][point] = ber['sum']
-    #         ber_heatmap.stat_grids['BER path loss product'][point] = ber['product']
-    #         ber_heatmap.stat_grids['BER path loss active'][point] = ber['active']
-
-    #         ber_heatmap.stat_grids['SNR path loss sum'][point] = snr['sum']
-    #         ber_heatmap.stat_grids['SNR path loss product'][point] = snr['product']
-    #         ber_heatmap.stat_grids['SNR path loss active'][point] = snr['active']
+            points_list.append(point)
 
     def multithread_fn(point: Point):
         res = process_point(ber_heatmap, point)
@@ -755,10 +777,15 @@ def ber_heatmap_reflection_simulation(
 
     pool = Pool(processes=n_processes)
     results = list(tqdm(
-        pool.imap(multithread_fn, args_list),
-        total=len(args_list),
+        pool.imap(multithread_fn, points_list),
+        total=len(points_list),
         desc="Processing grid points"
     ))
+
+    # results = []
+    # for point in points_list:
+    #     results.append(multithread_fn(point))
+
     for res in results:
         if res == None: continue
         point, ber, snr, point_label = res
@@ -770,7 +797,7 @@ def ber_heatmap_reflection_simulation(
         ber_heatmap.stat_grids['SNR path loss product'][point] = snr['product']
         ber_heatmap.stat_grids['SNR path loss active'][point] = snr['active']
 
-    title = f'{simulation_name} (K = {globals['K']}, SNR = {globals['snr_db']})'
+    title = f'{situation['simulation_name']} (K = {globals['K']}, SNR = {globals['snr_db']})'
     viridis = matplotlib.colormaps['viridis']
 
     ber_heatmap.visualize(title=f"{title} - BER path loss sum", grid=ber_heatmap.stat_grids['BER path loss sum'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=True)
