@@ -308,13 +308,9 @@ def merge_multiple_load_data(filenames, weights):
             # For confidence intervals, we take the conservative approach of using the widest range
             # Filter out zero values when calculating minimum to avoid zero lower bounds
             non_zero_lowers = [l for l in lowers if l > 0]
-            combined_lower = np.min(non_zero_lowers) if non_zero_lowers else 1e-8
+            combined_lower = np.min(non_zero_lowers) if len(non_zero_lowers) != 0 else 0
             combined_upper = np.max(uppers)
-            
-            # Ensure lower confidence interval has a minimum value greater than zero
-            min_ber_threshold = 1e-8  # Minimum BER threshold to avoid zero or negative values
-            combined_lower = max(combined_lower, min_ber_threshold)
-            
+                        
             merged_data[key]['mean'].append(combined_mean)
             merged_data[key]['lower'].append(combined_lower)
             merged_data[key]['upper'].append(combined_upper)
