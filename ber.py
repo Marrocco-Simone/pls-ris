@@ -255,6 +255,78 @@ def load_ber_data(filename):
         }
     except (FileNotFoundError, IOError):
         return None
+    
+def merge_multiple_load_data(filenames, weights):
+    """Load BER data from multiple numpy files and merge them
+    
+    Args:
+        filenames: List of filenames to load and merge
+        weights: List of weights (number of simulations) for each dataset
+    """
+    datas = []
+    valid_weights = []
+    
+    for filename, weight in zip(filenames, weights):
+        new_data = load_ber_data(filename)
+        if new_data is None: continue
+        datas.append(new_data)
+        valid_weights.append(weight)
+    
+    if len(datas) == 0: return None
+    
+    # Check that all datasets have the same SNR range
+    base_snr = datas[0]['snr_range_db']
+    for data in datas[1:]:
+        if not np.array_equal(data['snr_range_db'], base_snr):
+            raise ValueError("All datasets must have the same SNR range for merging")
+    
+    # Convert weights to numpy array for easier computation
+    weights_array = np.array(valid_weights)
+    total_weight = np.sum(weights_array)
+    
+    # Merge the data by weighted averaging across all datasets
+    merged_data = {
+        'snr_range_db': base_snr,
+        'ber_receiver': {'mean': [], 'lower': [], 'upper': []},
+        'ber_eavesdropper': {'mean': [], 'lower': [], 'upper': []},
+        'ber_direct': {'mean': [], 'lower': [], 'upper': []},
+        'ber_receiver_double': {'mean': [], 'lower': [], 'upper': []},
+        'ber_eavesdropper_double': {'mean': [], 'lower': [], 'upper': []}
+    }
+    
+    # For each SNR point, combine the data from all files
+    for snr_idx in range(len(base_snr)):
+        for key in ['ber_receiver', 'ber_eavesdropper', 'ber_direct', 'ber_receiver_double', 'ber_eavesdropper_double']:
+            # Collect all mean values for this SNR point
+            means = np.array([data[key]['mean'][snr_idx] for data in datas])
+            lowers = [data[key]['lower'][snr_idx] for data in datas]
+            uppers = [data[key]['upper'][snr_idx] for data in datas]
+            
+            # Calculate weighted mean
+            combined_mean = np.sum(means * weights_array) / total_weight
+            
+            # For confidence intervals, we take the conservative approach of using the widest range
+            # Filter out zero values when calculating minimum to avoid zero lower bounds
+            non_zero_lowers = [l for l in lowers if l > 0]
+            combined_lower = np.min(non_zero_lowers) if non_zero_lowers else 1e-8
+            combined_upper = np.max(uppers)
+            
+            # Ensure lower confidence interval has a minimum value greater than zero
+            min_ber_threshold = 1e-8  # Minimum BER threshold to avoid zero or negative values
+            combined_lower = max(combined_lower, min_ber_threshold)
+            
+            merged_data[key]['mean'].append(combined_mean)
+            merged_data[key]['lower'].append(combined_lower)
+            merged_data[key]['upper'].append(combined_upper)
+    
+    # Convert lists to numpy arrays for consistency
+    for key in ['ber_receiver', 'ber_eavesdropper', 'ber_direct', 'ber_receiver_double', 'ber_eavesdropper_double']:
+        merged_data[key]['mean'] = np.array(merged_data[key]['mean'])
+        merged_data[key]['lower'] = np.array(merged_data[key]['lower'])
+        merged_data[key]['upper'] = np.array(merged_data[key]['upper'])
+    
+    return merged_data
+
 
 def plot_ber_curves():
     N = 16    # * Number of reflecting elements
@@ -271,7 +343,20 @@ def plot_ber_curves():
             os.makedirs(data_dir, exist_ok=True)
 
             data_filename = f"{data_dir}/ber_data_K{K}_N{N}_J{J}_M{M}.npz"
-            plot_data = load_ber_data(data_filename)
+            weights = [
+                    1000000,
+                    1000000,
+                    1000000
+                ]
+            # plot_data = load_ber_data(data_filename)
+            plot_data = merge_multiple_load_data(
+                [
+                    f"{data_dir}/ber_data_K{K}_N{N}_J{J}_M{M} - 1.npz", 
+                    f"{data_dir}/ber_data_K{K}_N{N}_J{J}_M{M} - 2.npz",
+                    f"{data_dir}/ber_data_K{K}_N{N}_J{J}_M{M} - 3.npz"
+                ], 
+                weights
+            )
 
             if plot_data is None:
                 print(f"No existing data found. Running simulations...")
@@ -321,7 +406,8 @@ def plot_ber_curves():
                 save_ber_data(data_filename, plot_data)
             else:
                 print(f"Loading existing data from {data_filename}")
-
+            num_symbols = 0
+            for weight in weights: num_symbols+=weight
             plt_name = f'SSK BER Performance with RIS (K={K}, N={N}, J={J}, M={M}, num_symbols={num_symbols})'
             plt.figure(figsize=(10, 6))
 
