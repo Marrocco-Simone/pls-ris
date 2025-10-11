@@ -17,7 +17,7 @@ warnings.filterwarnings('ignore', category=RuntimeWarning)
 from diagonalization import (
   calculate_ris_reflection_matrice,
   unify_ris_reflection_matrices,
-  random_reflection_vector,
+  verify_matrix_is_diagonal,
 )
 from ber import (
     simulate_ssk_transmission_reflection,
@@ -53,7 +53,7 @@ globals: Globals = {
     'K': 4,
     'N': 36,
     'eta': 0.9,
-    'num_symbols': 1000,
+    'num_symbols': 10000,
     'use_noise_floor': True,
     'Pt_dbm': 0.0,
     'snr_db': 10,
@@ -112,8 +112,8 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in series, only final",
-        "calculate": False,
-        "force_recompute": False,
+        "calculate": True,
+        "force_recompute": True,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -133,8 +133,8 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in series",
-        "calculate": False,
-        "force_recompute": False,
+        "calculate": True,
+        "force_recompute": True,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -430,9 +430,10 @@ class HeatmapGenerator(Heatmap):
                 connected_receivers_channel_gain.append(self.channel_graph[p_label][r_label])
 
             if self.parent_tree[p_label] == 'T':
-                P, _ = calculate_ris_reflection_matrice(globals['K'], globals['N'], len(connected_receivers), connected_receivers_channel_gain, self.channel_graph['T'][p_label], globals['eta'])
+                H = self.channel_graph['T'][p_label]
+                P, _ = calculate_ris_reflection_matrice(globals['K'], globals['N'], len(connected_receivers), connected_receivers_channel_gain, H, globals['eta'])
                 Ps[p_label] = P
-                chain_to_last_P[p_label] = P @ self.channel_graph['T'][p_label]
+                chain_to_last_P[p_label] = P @ H
             else:
                 P_chain: List[ndarray] = []
                 C_chain: List[ndarray] = []
@@ -446,11 +447,12 @@ class HeatmapGenerator(Heatmap):
                     C_chain.insert(0, C)
                     prev_label = curr_label
                     curr_label = self.parent_tree[curr_label]
+                H = self.channel_graph['T'][prev_label]
                 P_prev = unify_ris_reflection_matrices(P_chain, C_chain)
                 modified_Gs = [G @ P_prev @ C_chain[-1] for G in connected_receivers_channel_gain]
-                P, _ = calculate_ris_reflection_matrice(globals['K'], globals['N'], len(connected_receivers), modified_Gs, self.channel_graph['T'][p_label], globals['eta'])
+                P, _ = calculate_ris_reflection_matrice(globals['K'], globals['N'], len(connected_receivers), modified_Gs, H, globals['eta'])
                 Ps[p_label] = P
-                chain_to_last_P[p_label] = P_prev @ C_chain[-1] @ P @ self.channel_graph['T'][p_label]
+                chain_to_last_P[p_label] = P_prev @ C_chain[-1] @ P @ H
 
         for p_label, p_point in self.points.items():
             calculate_P(p_label)
@@ -663,9 +665,12 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point):
         'T': 0.0
     }
     for i in range(ber_heatmap.M):
-        snr[f'P{i}'] = 0.0
+        snr[f'P{i+1}'] = 0.0
+
+    not_diagonal_errors: Dict[str, int] = {}
 
     for _ in range(globals['num_symbols']):
+        should_be_diagonal = point_label != None and point_label[0] == 'R'
         Ps, chain_to_last_P = ber_heatmap.get_new_RIS_configurations()
         effective_channel: Dict[PathLoss, ndarray] = {
             'sum': np.zeros((globals['K'], globals['K']), dtype=complex),
@@ -685,6 +690,12 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point):
             F = channel_gain_from[p_label]
             PH = chain_to_last_P[p_label]
             from_this_ris_effective_channel_without_path_loss = F @ PH
+
+            if should_be_diagonal and not verify_matrix_is_diagonal(from_this_ris_effective_channel_without_path_loss):
+                key = f"{p_label} -> {point_label}"
+                if key not in not_diagonal_errors: 
+                    not_diagonal_errors[key] = 0
+                not_diagonal_errors[key] += 1
 
             total_distance_to_receiver = distance_from[p_label]
             # todo maybe this can be moved out the num_symbol loop?
@@ -735,6 +746,12 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point):
         'active': errors['active'] / globals['num_symbols'],
     }
 
+    for key, value in not_diagonal_errors.items():
+        print(f"ERROR: for path {key} the effective channel matrix was not diagonal in {value} cases")
+
+    if len(not_diagonal_errors.keys()) == 0:
+        print(f"All receivers got correctly the channel matrixes as diagonal")
+
     return ber, snr, point_label
 
     
@@ -755,6 +772,7 @@ def ber_heatmap_reflection_simulation(
 
     n_processes = min(cpu_count(), max_cpu_count)
     print(f"Using {n_processes} CPU cores for parallel processing.")
+    print(f"N simulations per point: {globals['num_symbols']}")
 
     os.makedirs(results_folder, exist_ok=True)
     # TODO check if data is already calculated present 
