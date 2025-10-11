@@ -35,7 +35,7 @@ from heatmap_utils import (
     calculate_mimo_channel_gain
 )
 
-max_cpu_count = 64
+max_cpu_count = 100
 results_folder = './results_data_v2'
 results_folder_pdf = results_folder + '/pdf'
 results_folder_data = results_folder + '/data'
@@ -93,7 +93,7 @@ situations: List[Situation] = [
     {
         "simulation_name": "Single Reflection",
         "calculate": True,
-        "force_recompute": True,
+        "force_recompute": False,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -113,7 +113,7 @@ situations: List[Situation] = [
     {
         "simulation_name": "RISs in series, only final",
         "calculate": True,
-        "force_recompute": True,
+        "force_recompute": False,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -134,7 +134,7 @@ situations: List[Situation] = [
     {
         "simulation_name": "RISs in series",
         "calculate": True,
-        "force_recompute": True,
+        "force_recompute": False,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -162,7 +162,7 @@ situations: List[Situation] = [
     {
         "simulation_name": "RISs in parallel",
         "calculate": True,
-        "force_recompute": True,
+        "force_recompute": False,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -513,21 +513,6 @@ class HeatmapGenerator(Heatmap):
         os.makedirs(results_folder_pdf, exist_ok=True)
         os.makedirs(results_folder_data, exist_ok=True)
 
-        # TODO save npx file
-        # data_filename = f"{results_folder_data}/{title}.npz"
-
-        # np.savez(
-        #     data_filename,
-        #     grid=grid,
-        #     width=self.width,
-        #     height=self.height,
-        #     resolution=self.resolution,
-        #     buildings=np.array(self.buildings),
-        #     points=self.points,
-        #     log_scale=log_scale
-        # )
-        # print(f"Saved data to {data_filename}")
-
         figure = plt.figure(figsize=(10, 8))
 
         if log_scale and show_heatmap:
@@ -749,9 +734,6 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point):
     for key, value in not_diagonal_errors.items():
         print(f"ERROR: for path {key} the effective channel matrix was not diagonal in {value} cases")
 
-    if len(not_diagonal_errors.keys()) == 0:
-        print(f"All receivers got correctly the channel matrixes as diagonal")
-
     return ber, snr, point_label
 
     
@@ -775,48 +757,67 @@ def ber_heatmap_reflection_simulation(
     print(f"N simulations per point: {globals['num_symbols']}")
 
     os.makedirs(results_folder, exist_ok=True)
-    # TODO check if data is already calculated present 
-
-    ber_heatmap = HeatmapGenerator(situation)
-
-    points_list: List[Point] = []
-    for y in range(ber_heatmap.grid_height):
-        for x in range(ber_heatmap.grid_width):
-            point: Point = {
-                'y': y, 'x': x
-            }
-            points_list.append(point)
-
-    def multithread_fn(point: Point):
-        res = process_point(ber_heatmap, point)
-        if res == None: return None
-        ber, snr, point_label = res
-        return point, ber, snr, point_label
-
-    pool = Pool(processes=n_processes)
-    results = list(tqdm(
-        pool.imap(multithread_fn, points_list),
-        total=len(points_list),
-        desc="Processing grid points"
-    ))
-
-    # results = []
-    # for point in points_list:
-    #     results.append(multithread_fn(point))
-
-    for res in results:
-        if res == None: continue
-        point, ber, snr, point_label = res
-        ber_heatmap.stat_grids['BER path loss sum'][point] = ber['sum']
-        ber_heatmap.stat_grids['BER path loss product'][point] = ber['product']
-        ber_heatmap.stat_grids['BER path loss active'][point] = ber['active']
-
-        ber_heatmap.stat_grids['SNR path loss sum'][point] = snr['sum']
-        ber_heatmap.stat_grids['SNR path loss product'][point] = snr['product']
-        ber_heatmap.stat_grids['SNR path loss active'][point] = snr['active']
-
     title = f'{situation['simulation_name']} (K = {globals['K']}, SNR = {globals['snr_db']})'
-    viridis = matplotlib.colormaps['viridis']
+    data_filename = f"{results_folder_data}/{title}.npz"
+    data_already_present = os.path.exists(data_filename) and not situation['force_recompute']
+
+    if not data_already_present:
+        ber_heatmap = HeatmapGenerator(situation)
+
+        points_list: List[Point] = []
+        for y in range(ber_heatmap.grid_height):
+            for x in range(ber_heatmap.grid_width):
+                point: Point = {
+                    'y': y, 'x': x
+                }
+                points_list.append(point)
+
+        def multithread_fn(point: Point):
+            res = process_point(ber_heatmap, point)
+            if res == None: return None
+            ber, snr, point_label = res
+            return point, ber, snr, point_label
+
+        pool = Pool(processes=n_processes)
+        results = list(tqdm(
+            pool.imap(multithread_fn, points_list),
+            total=len(points_list),
+            desc="Processing grid points"
+        ))
+
+        # results = []
+        # for point in points_list:
+        #     results.append(multithread_fn(point))
+
+        for res in results:
+            if res == None: continue
+            point, ber, snr, point_label = res
+            ber_heatmap.stat_grids['BER path loss sum'][point] = ber['sum']
+            ber_heatmap.stat_grids['BER path loss product'][point] = ber['product']
+            ber_heatmap.stat_grids['BER path loss active'][point] = ber['active']
+
+            ber_heatmap.stat_grids['SNR path loss sum'][point] = snr['sum']
+            ber_heatmap.stat_grids['SNR path loss product'][point] = snr['product']
+            ber_heatmap.stat_grids['SNR path loss active'][point] = snr['active']
+
+        np.savez(
+            data_filename,
+            globals=np.array([globals], dtype=object),
+            ber_heatmap=np.array([ber_heatmap], dtype=object)
+        )
+        print(f"Saved data to {data_filename}")
+    else:
+        print(f"Loading existing data from {data_filename}")
+        loaded_data = np.load(data_filename, allow_pickle=True)
+        loaded_globals = loaded_data['globals'].item()
+        ber_heatmap: HeatmapGenerator = loaded_data['ber_heatmap'].item()
+        
+        if loaded_globals['K'] != globals['K'] or loaded_globals['N'] != globals['N'] or loaded_globals['num_symbols'] != globals['num_symbols']:
+            print("Warning: Loaded data has different parameters than current globals")
+            print(f"Loaded: K={loaded_globals['K']}, N={loaded_globals['N']}, num_symbols={loaded_globals['num_symbols']}")
+            print(f"Current: K={globals['K']}, N={globals['N']}, num_symbols={globals['num_symbols']}")
+        
+        print(f"Successfully loaded data with {ber_heatmap.width}x{ber_heatmap.height} grid")
 
     ber_heatmap.visualize(title=f"{title} - BER path loss sum", grid=ber_heatmap.stat_grids['BER path loss sum'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=True)
     ber_heatmap.visualize(title=f"{title} - BER path loss product", grid=ber_heatmap.stat_grids['BER path loss product'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=True)
