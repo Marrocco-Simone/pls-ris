@@ -185,7 +185,26 @@ situations: List[Situation] = [
             {'x': 5, 'y': 13},
             {'x': 15, 'y': 7},
         ]
-    }
+    },
+    {
+        "simulation_name": "Long Corridor",
+        "calculate": True,
+        "force_recompute": False,
+        "width": 100 * 1000,
+        "height": 20 * 1000,
+        "resolution": 1000,
+        "buildings": [],
+        "transmitter": {'x': 95 * 1000, 'y': 10 * 1000},
+        "ris_points": [],
+        "receivers": [
+            {'x': 5 * 1000, 'y': 15 * 1000},
+            {'x': 25 * 1000, 'y': 5 * 1000},
+            {'x': 45 * 1000, 'y': 15 * 1000},
+            {'x': 65 * 1000, 'y': 5 * 1000},
+            {'x': 85 * 1000, 'y': 15 * 1000},
+            {'x': 90 * 1000, 'y': 5 * 1000},
+        ]
+    },
 ]
 
 class Grid:
