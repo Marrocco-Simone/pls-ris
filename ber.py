@@ -432,7 +432,15 @@ def plot_ber_curves():
             results_dir = "./results_pdf"
             os.makedirs(results_dir, exist_ok=True)
 
-            plt.savefig(f"{results_dir}/{plt_name}.pdf", dpi=300, format='pdf', bbox_inches='tight')
+            try:
+                plt.savefig(f"{results_dir}/{plt_name}.pdf", dpi=300, format='pdf', bbox_inches='tight')
+            except RuntimeError as e:
+                if "latex could not be found" in str(e):
+                    print(f"Warning: LaTeX not available, using default font for {plt_name}.pdf")
+                    plt.rcParams['text.usetex'] = False
+                    plt.savefig(f"{results_dir}/{plt_name}.pdf", dpi=300, format='pdf', bbox_inches='tight')
+                else:
+                    raise
             print(f"Saved {plt_name}.pdf\n\n")
 
 if __name__ == "__main__":

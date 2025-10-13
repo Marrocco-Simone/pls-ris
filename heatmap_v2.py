@@ -40,6 +40,15 @@ results_folder = './results_data_v2'
 results_folder_pdf = results_folder + '/pdf'
 results_folder_data = results_folder + '/data'
 
+def configure_latex():
+    """Configure matplotlib to use LaTeX for better text rendering."""
+    try:
+        plt.rcParams['text.usetex'] = True
+        plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
+        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+    except Exception:
+        plt.rcParams['text.usetex'] = False
+
 class Globals(TypedDict):
     K: int
     N: int
@@ -478,7 +487,6 @@ class HeatmapGenerator(Heatmap):
 
         return Ps, chain_to_last_P
 
-
     def _save_colorbar_legend(self, title: str, cmap='viridis', vmin=None, vmax=None, label='BER', orientation='horizontal'):
         """
         Save a standalone colorbar legend as a separate file.
@@ -494,6 +502,13 @@ class HeatmapGenerator(Heatmap):
         legend_filename = f"{results_folder_pdf}/{label} legend_{orientation}.pdf"
         if os.path.exists(legend_filename):
             return
+
+        if plt.rcParams.get('text.usetex', None) is not False:
+            try:
+                configure_latex()
+            except Exception:
+                plt.rcParams['text.usetex'] = False
+
         fig = plt.figure(figsize=(6, 1) if orientation == 'horizontal' else (1.5, 6))
         rect = (0.1, 0.4, 0.8, 0.3) if orientation == 'horizontal' else (0.3, 0.1, 0.3, 0.8)
         ax = fig.add_axes(rect=rect)
@@ -505,12 +520,19 @@ class HeatmapGenerator(Heatmap):
             orientation=orientation,
         )
 
-        plt.rcParams['text.usetex'] = True
-        plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
-        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
-
-        plt.savefig(legend_filename, dpi=300, format='pdf', bbox_inches='tight')
-        print(f"Saved {legend_filename}")
+        try:
+            plt.savefig(legend_filename, dpi=300, format='pdf', bbox_inches='tight')
+            print(f"Saved {legend_filename}")
+        except RuntimeError as e:
+            if "latex could not be found" in str(e):
+                print(f"Warning: LaTeX rendering failed, retrying with default font for {legend_filename}")
+                plt.close(fig)
+                plt.rcParams['text.usetex'] = False
+                self._save_colorbar_legend(title, cmap, vmin, vmax, label, orientation)
+                return
+            else:
+                print('Could not print the image - the data was still saved')
+                raise
         plt.close(fig)
     
     def visualize(self, grid, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='white', vmin: float | None = None, vmax: float | None = None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True, show_legend=False):
@@ -531,6 +553,12 @@ class HeatmapGenerator(Heatmap):
             """
         os.makedirs(results_folder_pdf, exist_ok=True)
         os.makedirs(results_folder_data, exist_ok=True)
+
+        if plt.rcParams.get('text.usetex', None) is not False:
+            try:
+                configure_latex()
+            except Exception:
+                plt.rcParams['text.usetex'] = False
 
         figure = plt.figure(figsize=(10, 8))
 
@@ -592,17 +620,29 @@ class HeatmapGenerator(Heatmap):
                     if self._line_intersects_building(point_1, point_2): continue
                     plt.plot([x1 + c, x2 + c], [y1 + c, y2 + c], '--', alpha=0.5, color=point_color)
 
-        plt.rcParams['text.usetex'] = True
-        plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
-        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
+        plt.rc('font', **{'size': 18})
         plt.grid(True)
         # plt.title(title)
         plt.xlabel('$x$ [m]', fontsize=26)
         plt.ylabel('$y$ [m]', fontsize=26)
         plt.xticks(fontsize = 26)
         plt.yticks(fontsize = 26)
-        plt.savefig(f"{results_folder_pdf}/{title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
-        print(f"Saved {title}.pdf")
+
+        try:
+            plt.savefig(f"{results_folder_pdf}/{title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
+            print(f"Saved {title}.pdf")
+        except RuntimeError as e:
+            if "latex could not be found" in str(e):
+                print(f"Warning: LaTeX rendering failed, retrying with default font for {title}.pdf")
+                plt.close(figure)
+                plt.rcParams['text.usetex'] = False
+                self.visualize(grid=grid, title=title, cmap=cmap, show_buildings=show_buildings,
+                             show_points=show_points, point_color=point_color, vmin=vmin, vmax=vmax,
+                             log_scale=log_scale, label=label, show_receivers_values=show_receivers_values,
+                             show_heatmap=show_heatmap, show_legend=show_legend)
+                return
+            else:
+                raise
         plt.close(figure)
 
 
