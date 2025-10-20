@@ -535,7 +535,7 @@ class HeatmapGenerator(Heatmap):
                 raise
         plt.close(fig)
     
-    def visualize(self, grid, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='white', vmin: float | None = None, vmax: float | None = None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True, show_legend=False):
+    def visualize(self, grid: Grid, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='white', vmin: float | None = None, vmax: float | None = None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True, show_legend=False):
         """
         Visualize the ber_heatmap with optional building outlines and points of interest.
 
@@ -645,10 +645,39 @@ class HeatmapGenerator(Heatmap):
                 raise
         plt.close(figure)
 
+def can_point_receive_signal(ber_heatmap: HeatmapGenerator, point_grid: Point) -> bool:
+    point: Point = ber_heatmap._point_grid_to_meters(point_grid)
+    can_receive_signal = False
+    for label, heatmap_point in ber_heatmap.points.items():
+        if label[0] == 'R': 
+            continue
+        if ber_heatmap._line_intersects_building(point, heatmap_point):
+            continue
+        if calculate_distance(point, heatmap_point) == np.inf: 
+            continue
+        can_receive_signal = True
+    return can_receive_signal
 
-def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point):
+empty_ber: Dict[PathLoss, float] = {
+    'sum': np.nan,
+    'product': np.nan, 
+    'active': np.nan,
+}
+empty_snr: Dict[str, float] = {
+    'sum': np.nan,
+    'product': np.nan, 
+    'active': np.nan,
+    'T': np.nan
+}
+
+def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
+    Dict[PathLoss, float], 
+    Dict[str, float], 
+    str | None
+]:
     is_building = np.isnan(ber_heatmap.grid[point_grid])
-    if is_building: return 
+    if is_building: return empty_ber, empty_snr, None
+    if not can_point_receive_signal(ber_heatmap, point_grid): return empty_ber, empty_snr, None
 
     point: Point = ber_heatmap._point_grid_to_meters(point_grid)
     
@@ -666,7 +695,6 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point):
         distance_from = ber_heatmap.distance_graph[point_label]
         channel_gain_from = { label: ber_heatmap.channel_graph[label][point_label] for label in ber_heatmap.channel_graph.keys() }
     else: 
-        can_receive_signal = False
         for label, heatmap_point in ber_heatmap.points.items():
             if ber_heatmap._line_intersects_building(point, heatmap_point):
                 distance_from[label] = np.inf
@@ -676,8 +704,6 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point):
             dim_label = globals['N'] if label[0] == 'P' else globals['K']
             channel_gain_from[label] = calculate_mimo_channel_gain(distance_from[label], dim_label, globals['K'])
             if distance_from[label] == np.inf: continue
-            can_receive_signal = True
-        if not can_receive_signal: return
 
     # ! mean_power is used only to set the BER as np.nan
     # ! power_from_Ps is not useful
@@ -877,6 +903,25 @@ def ber_heatmap_reflection_simulation(
             print(f"Current: K={globals['K']}, N={globals['N']}, num_symbols={globals['num_symbols']}")
         
         print(f"Successfully loaded data with {ber_heatmap.width}x{ber_heatmap.height} grid")
+
+    for y in range(ber_heatmap.grid_height):
+        for x in range(ber_heatmap.grid_width):
+            point: Point = {
+                'y': y, 'x': x
+            }
+            if can_point_receive_signal(ber_heatmap, point): continue
+            is_building = np.isnan(ber_heatmap.grid[point])
+            if is_building: continue
+            # for unreachable points, set the ber to nan
+            # todo this is a fix for an old, long generation that put zero instead. Will remove
+            ber_heatmap.stat_grids['BER path loss sum'][point] = np.nan 
+            ber_heatmap.stat_grids['BER path loss product'][point] = np.nan 
+            ber_heatmap.stat_grids['BER path loss active'][point] = np.nan 
+
+            ber_heatmap.stat_grids['SNR path loss sum'][point] = np.nan 
+            ber_heatmap.stat_grids['SNR path loss product'][point] = np.nan 
+            ber_heatmap.stat_grids['SNR path loss active'][point] = np.nan 
+
 
     ber_heatmap.visualize(title=f"{title} - BER path loss sum", grid=ber_heatmap.stat_grids['BER path loss sum'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=True)
     ber_heatmap.visualize(title=f"{title} - BER path loss product", grid=ber_heatmap.stat_grids['BER path loss product'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=True)
