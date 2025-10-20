@@ -6,3 +6,5 @@ simulations/results/*.png
 *.pdf
 *.log
 *.zip
+*/target/
+Cargo.lock
