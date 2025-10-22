@@ -36,7 +36,7 @@ from heatmap_utils import (
 )
 
 max_cpu_count = 100
-results_folder = './results_data_v2'
+results_folder = './heatmap'
 results_folder_pdf = results_folder + '/pdf'
 results_folder_data = results_folder + '/data'
 
@@ -842,7 +842,7 @@ def ber_heatmap_reflection_simulation(
     print(f"N simulations per point: {globals['num_symbols']}")
 
     os.makedirs(results_folder, exist_ok=True)
-    title = f'{situation['simulation_name']} (K = {globals['K']}, SNR = {globals['snr_db']})'
+    title = f'{situation['simulation_name']} (K = {globals['K']}, N = {globals['N']})'
     data_filename = f"{results_folder_data}/{title}.npz"
     data_already_present = os.path.exists(data_filename) and not situation['force_recompute']
 
@@ -923,9 +923,9 @@ def ber_heatmap_reflection_simulation(
             ber_heatmap.stat_grids['SNR path loss active'][point] = np.nan 
 
 
-    ber_heatmap.visualize(title=f"{title} - BER path loss sum", grid=ber_heatmap.stat_grids['BER path loss sum'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=True)
-    ber_heatmap.visualize(title=f"{title} - BER path loss product", grid=ber_heatmap.stat_grids['BER path loss product'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=True)
-    ber_heatmap.visualize(title=f"{title} - BER path loss active", grid=ber_heatmap.stat_grids['BER path loss active'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=True)
+    ber_heatmap.visualize(title=f"{title} - BER path loss sum", grid=ber_heatmap.stat_grids['BER path loss sum'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=False)
+    ber_heatmap.visualize(title=f"{title} - BER path loss product", grid=ber_heatmap.stat_grids['BER path loss product'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=False)
+    ber_heatmap.visualize(title=f"{title} - BER path loss active", grid=ber_heatmap.stat_grids['BER path loss active'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=False)
 
     ber_heatmap.visualize(title=f"{title} - SNR path loss sum", grid=ber_heatmap.stat_grids['SNR path loss sum'], label='SNR', show_receivers_values=True, show_legend=True)
     ber_heatmap.visualize(title=f"{title} - SNR path loss product", grid=ber_heatmap.stat_grids['SNR path loss product'], label='SNR', show_receivers_values=True, show_legend=True)
