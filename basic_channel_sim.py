@@ -1,16 +1,11 @@
-try:
-    import sionna.rt
-except ImportError as e:
-    import os
-    os.system("pip install sionna-rt")
-    import sionna.rt
+import sionna.rt
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 no_preview = True
 
 from sionna.rt import load_scene, PlanarArray, Transmitter, Receiver, Camera,\
-                      PathSolver, RadioMapSolver, subcarrier_frequencies
+                      PathSolver, RadioMapSolver, subcarrier_frequencies, mi
 
 
 scene = load_scene("mesh_scene/scene.xml")
@@ -29,15 +24,15 @@ scene.rx_array = PlanarArray(num_rows=2,
                              pattern="iso",
                              polarization="V")
 
-tx = Transmitter("tx", position=[0, -8, 2], orientation=[0, 0, 0])
-rx = Receiver("rx", position=[0, 8, 2], orientation=[0, 180, 0])
+tx = Transmitter("tx", position=mi.Point3f([0, -8, 2]), orientation=mi.Point3f([0, 0, 0]))
+rx = Receiver("rx", position=mi.Point3f([0, 8, 2]), orientation=mi.Point3f([0, 180, 0]))
 
 scene.add(tx)
 scene.add(rx)
 
 
-my_cam = Camera(position=[-250,250,150], look_at=[-15,30,28])
-scene.render(camera=my_cam, resolution=[650, 500], num_samples=512)
+my_cam = Camera(position=mi.Point3f([-250,250,150]), look_at=[-15,30,28])
+scene.render(camera=my_cam, resolution=(650, 500), num_samples=512)
 
 
 # Ray tracing
@@ -60,7 +55,7 @@ else:
 a, tau = paths.cir(normalize_delays=True, out_type="numpy")
 
 # Shape: [num_rx, num_rx_ant, num_tx, num_tx_ant, num_paths, num_time_steps]
-print("Shape of a: ", a.shape)
+print("Shape of a: ", a.shape) # type: ignore
 
 # Shape: [num_rx, num_rx_ant, num_tx, num_tx_ant, num_paths]
 print("Shape of tau: ", tau.shape)
