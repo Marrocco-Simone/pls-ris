@@ -6,7 +6,7 @@ from typing import Tuple, TypedDict
 from diagonalization import calculate_ris_reflection_matrice, verify_matrix_is_diagonal
 import gc
 
-no_preview = True
+# no_preview = True
 
 class Actor(TypedDict):
     name: str
@@ -84,11 +84,11 @@ def compute_channel_matrix(
         seed=42
     )
 
-    # Render or preview
-    if no_preview:
-        scene.render(camera=my_cam, paths=paths, clip_at=20)
-    else:
-        scene.preview(paths=paths, clip_at=20)
+    # Skip rendering to save memory
+    # if no_preview:
+    #     scene.render(camera=my_cam, paths=paths, clip_at=20)
+    # else:
+    #     scene.preview(paths=paths, clip_at=20)
 
     # Get channel impulse response
     a, tau = paths.cir(normalize_delays=True, out_type="numpy")
