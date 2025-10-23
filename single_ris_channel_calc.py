@@ -3,7 +3,7 @@ import tensorflow as tf
 from sionna.rt import load_scene, PlanarArray, Transmitter, Receiver, Camera, PathSolver, mi
 import time
 from typing import Tuple, TypedDict
-from diagonalization import calculate_ris_reflection_matrice, verify_matrix_is_diagonal
+from diagonalization import calculate_ris_reflection_matrice, verify_matrix_is_diagonal, print_effective_channel
 import gc
 import drjit as dr
 import os
@@ -169,13 +169,34 @@ def main():
     my_cam = Camera(position=mi.Point3f([10, 10, 30]), look_at=[10, 10, 0])
     print("Scene loaded successfully\n")
 
+    # Configurable test point distances from receivers
+    distance_U1_from_R1 = 0.15  # meters
+    distance_U2_from_R2 = 0.05  # meters
+
     # Define positions from heatmap_v2.py "Single Reflection" scenario
     pos_T = (3, 3, 1.5)
     pos_P = (7, 9, 1.5)
     pos_R1 = (16, 11, 1.5)
-    pos_R2 = (13, 9, 1.5)  # NEW position
-    pos_U1 = (15.5, 11, 1.5)  # 0.5m closer to P from R1
-    pos_U2 = (12.75, 9, 1.5)  # 0.25m closer to P from R2
+    pos_R2 = (13, 9, 1.5)
+
+    # Calculate test point positions based on distance from receivers toward P
+    vec_R1_to_P = (pos_P[0] - pos_R1[0], pos_P[1] - pos_R1[1])
+    dist_R1_to_P = np.sqrt(vec_R1_to_P[0]**2 + vec_R1_to_P[1]**2)
+    unit_R1_to_P = (vec_R1_to_P[0] / dist_R1_to_P, vec_R1_to_P[1] / dist_R1_to_P)
+    pos_U1 = (
+        pos_R1[0] + unit_R1_to_P[0] * distance_U1_from_R1,
+        pos_R1[1] + unit_R1_to_P[1] * distance_U1_from_R1,
+        pos_R1[2]
+    )
+
+    vec_R2_to_P = (pos_P[0] - pos_R2[0], pos_P[1] - pos_R2[1])
+    dist_R2_to_P = np.sqrt(vec_R2_to_P[0]**2 + vec_R2_to_P[1]**2)
+    unit_R2_to_P = (vec_R2_to_P[0] / dist_R2_to_P, vec_R2_to_P[1] / dist_R2_to_P)
+    pos_U2 = (
+        pos_R2[0] + unit_R2_to_P[0] * distance_U2_from_R2,
+        pos_R2[1] + unit_R2_to_P[1] * distance_U2_from_R2,
+        pos_R2[2]
+    )
 
     # Calculate orientations based on geometry
     # Transmitter T -> RIS P
@@ -230,8 +251,8 @@ def main():
     print(f"  P (RIS): {pos_P[:2]}")
     print(f"  R1 (Receiver 1): {pos_R1[:2]}")
     print(f"  R2 (Receiver 2): {pos_R2[:2]}")
-    print(f"  U1 (Test point, 0.5m from R1): {pos_U1[:2]}")
-    print(f"  U2 (Test point, 0.25m from R2): {pos_U2[:2]}")
+    print(f"  U1 (Test point, {distance_U1_from_R1}m from R1): {pos_U1[:2]}")
+    print(f"  U2 (Test point, {distance_U2_from_R2}m from R2): {pos_U2[:2]}")
     print(f"\nOrientations (roll, yaw, pitch in degrees):")
     print(f"  T: {orient_T}")
     print(f"  P: {orient_P}")
@@ -372,8 +393,8 @@ def main():
     receivers = [
         ("R1", G_R1, "Receiver 1 (used for RIS config)"),
         ("R2", G_R2, "Receiver 2 (used for RIS config)"),
-        ("U1", channel_matrices["P-U1"], "Test point U1 (0.5m from R1)"),
-        ("U2", channel_matrices["P-U2"], "Test point U2 (0.25m from R2)")
+        ("U1", channel_matrices["P-U1"], f"Test point U1 ({distance_U1_from_R1}m from R1)"),
+        ("U2", channel_matrices["P-U2"], f"Test point U2 ({distance_U2_from_R2}m from R2)")
     ]
 
     results = []
@@ -385,7 +406,7 @@ def main():
         print(f"\n{description}:")
         print(f"  Is diagonal: {is_diagonal}")
         print(f"  Effective channel |GPH|:")
-        print(f"  {np.round(np.abs(effective_channel), 4)}")
+        print_effective_channel(G, H, P)
 
         # Calculate off-diagonal to diagonal ratio
         diag_power = np.sum(np.abs(np.diag(effective_channel))**2)
@@ -403,8 +424,8 @@ def main():
     print(f"Diagonalization successful for {diagonal_count}/4 receivers")
     print(f"  R1 (intended): {'✓' if results[0][1] else '✗'}")
     print(f"  R2 (intended): {'✓' if results[1][1] else '✗'}")
-    print(f"  U1 (0.5m away): {'✓' if results[2][1] else '✗'}")
-    print(f"  U2 (0.25m away): {'✓' if results[3][1] else '✗'}")
+    print(f"  U1 ({distance_U1_from_R1}m away): {'✓' if results[2][1] else '✗'}")
+    print(f"  U2 ({distance_U2_from_R2}m away): {'✓' if results[3][1] else '✗'}")
 
     print("\nThis demonstrates the 'area of understanding' around intended receivers")
     print("mentioned in the paper regarding mobility challenges.")
