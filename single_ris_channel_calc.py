@@ -6,6 +6,20 @@ from typing import Tuple, TypedDict
 from diagonalization import calculate_ris_reflection_matrice, verify_matrix_is_diagonal
 import gc
 import drjit as dr
+import os
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1' # proviamo ad usare direttamente la cpu
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # per evitare i messaggi di warning continui  
+tf.config.set_visible_devices([], 'GPU')  
+
+dr.set_expand_threshold(1024 * 1024 * 1024)  # setta la memoria massima che Dr.Jit può usare, in questo caso 1GB
+
+# proviamo così
+try:
+    dr.set_backend('cpu')
+    print("Dr.Jit backend set to CPU")
+except:
+    print("Could not set Dr.Jit backend to CPU, continuing...")
 
 # no_preview = True
 
@@ -20,7 +34,8 @@ def compute_channel_matrix(
     scene,
     my_cam,
     tx: Actor,
-    rx: Actor
+    rx: Actor,
+    fallback_mode: bool = False
 ) -> np.ndarray:
     """
     Compute channel matrix between transmitter and receiver.
@@ -40,10 +55,20 @@ def compute_channel_matrix(
     print(f"Transmitter: {tx['name']} at {tx['position'][:2]} with {tx['rows']}x{tx['cols']} antennas")
     print(f"Receiver: {rx['name']} at {rx['position'][:2]} with {rx['rows']}x{rx['cols']} antennas")
 
-    # Configure antenna arrays
+    # fallback per semplificare l'array antenna
+    if fallback_mode:
+        tx_rows = min(tx['rows'], 1)
+        tx_cols = min(tx['cols'], 1)
+        rx_rows = min(rx['rows'], 1)
+        rx_cols = min(rx['cols'], 1)
+        print(f"FALLBACK MODE: Using reduced antenna arrays ({tx_rows}x{tx_cols} -> {rx_rows}x{rx_cols})")
+    else:
+        tx_rows, tx_cols = tx['rows'], tx['cols']
+        rx_rows, rx_cols = rx['rows'], rx['cols']
+
     scene.tx_array = PlanarArray(
-        num_rows=tx['rows'],
-        num_cols=tx['cols'],
+        num_rows=tx_rows,
+        num_cols=tx_cols,
         vertical_spacing=0.5,
         horizontal_spacing=0.5,
         pattern="iso",
@@ -51,8 +76,8 @@ def compute_channel_matrix(
     )
 
     scene.rx_array = PlanarArray(
-        num_rows=rx['rows'],
-        num_cols=rx['cols'],
+        num_rows=rx_rows,
+        num_cols=rx_cols,
         vertical_spacing=0.5,
         horizontal_spacing=0.5,
         pattern="iso",
@@ -111,14 +136,20 @@ def compute_channel_matrix(
     # Force synchronization - wait for GPU operations to complete
     dr.sync_thread()
 
-    # Clear TensorFlow and Dr.Jit memory
+    # cancella la sessione di tensorflow?? può liberare spazio
     tf.keras.backend.clear_session()
     dr.flush_malloc_cache()
     gc.collect()
 
+    # cancella il grafo di tensorflow?? può liberare spazio
+    tf.compat.v1.reset_default_graph()
+    tf.keras.backend.clear_session()
+    for _ in range(3):
+        gc.collect()
+    
     # Additional wait to ensure async cleanup completes
     import time as time_module
-    time_module.sleep(0.5)
+    time_module.sleep(0.5) 
 
     return h_numpy
 
@@ -261,27 +292,44 @@ def main():
     # Dictionary to store channel matrices
     channel_matrices = {}
 
-    # Compute T→P channel (K=2 to N=16)
+    #  resettiamo la scena per ogni calcolo
+    print("Computing T→P channel...")
     channel_matrices["T-P"] = compute_channel_matrix(
         scene, my_cam, actor_T, actor_P
     )
-
-    # Compute P→R1 channel (N=16 to K=2)
+    print("Resetting scene for next computation...")
+    del scene
+    gc.collect()
+    scene = load_scene(scene_path)
+    scene.frequency = 3.5e9
+    print("Computing P→R1 channel...")
     channel_matrices["P-R1"] = compute_channel_matrix(
         scene, my_cam, actor_P, actor_R1
     )
-
-    # Compute P→R2 channel (N=16 to K=2)
+    print("Resetting scene for next computation...")
+    del scene
+    gc.collect()
+    scene = load_scene(scene_path)
+    scene.frequency = 3.5e9
+    print("Computing P→R2 channel...")
     channel_matrices["P-R2"] = compute_channel_matrix(
         scene, my_cam, actor_P, actor_R2
     )
-
-    # Compute P→U1 channel (N=16 to K=2)
+    print("Resetting scene for next computation...")
+    del scene
+    gc.collect()
+    scene = load_scene(scene_path)
+    scene.frequency = 3.5e9
+    print("Computing P→U1 channel...")
     channel_matrices["P-U1"] = compute_channel_matrix(
         scene, my_cam, actor_P, actor_U1
     )
-
-    # Compute P→U2 channel (N=16 to K=2)
+    print("Resetting scene for next computation...")
+    del scene
+    gc.collect()
+    scene = load_scene(scene_path)
+    scene.frequency = 3.5e9
+    print("Computing P→U2 channel...")
     channel_matrices["P-U2"] = compute_channel_matrix(
         scene, my_cam, actor_P, actor_U2
     )
