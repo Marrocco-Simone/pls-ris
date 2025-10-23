@@ -107,9 +107,18 @@ def compute_channel_matrix(
 
     # Aggressive memory cleanup (delete PathSolver to force Dr.Jit to free GPU memory)
     del paths, a, tau, h, tx_obj, rx_obj, p_solver
+
+    # Force synchronization - wait for GPU operations to complete
+    dr.sync_thread()
+
+    # Clear TensorFlow and Dr.Jit memory
     tf.keras.backend.clear_session()
     dr.flush_malloc_cache()
     gc.collect()
+
+    # Additional wait to ensure async cleanup completes
+    import time as time_module
+    time_module.sleep(0.5)
 
     return h_numpy
 
