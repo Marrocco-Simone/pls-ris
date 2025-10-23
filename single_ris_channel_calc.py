@@ -17,7 +17,9 @@ class Actor(TypedDict):
     cols: int
 
 def compute_channel_matrix(
-    scene_path: str,
+    scene,
+    p_solver,
+    my_cam,
     tx: Actor,
     rx: Actor
 ) -> np.ndarray:
@@ -25,7 +27,9 @@ def compute_channel_matrix(
     Compute channel matrix between transmitter and receiver.
 
     Args:
-        scene_path: Path to the scene XML file
+        scene: Loaded Sionna scene object
+        p_solver: PathSolver instance
+        my_cam: Camera instance
         tx: Transmitter actor with name, position, orientation, rows, cols
         rx: Receiver actor with name, position, orientation, rows, cols
 
@@ -37,9 +41,6 @@ def compute_channel_matrix(
     print(f"Computing channel matrix: {tx['name']} → {rx['name']}")
     print(f"Transmitter: {tx['name']} at {tx['position'][:2]} with {tx['rows']}x{tx['cols']} antennas")
     print(f"Receiver: {rx['name']} at {rx['position'][:2]} with {rx['rows']}x{rx['cols']} antennas")
-
-    # Load scene
-    scene = load_scene(scene_path)
 
     # Configure antenna arrays
     scene.tx_array = PlanarArray(
@@ -65,13 +66,6 @@ def compute_channel_matrix(
     rx_obj = Receiver(rx['name'], position=mi.Point3f(rx['position']), orientation=mi.Point3f(rx['orientation']))
     scene.add(tx_obj)
     scene.add(rx_obj)
-
-    # Camera for visualization
-    my_cam = Camera(position=mi.Point3f([10, 10, 30]), look_at=[10, 10, 0])
-
-    # Ray tracing setup
-    scene.frequency = 3.5e9
-    p_solver = PathSolver()
 
     # Compute paths
     paths = p_solver(
@@ -106,8 +100,12 @@ def compute_channel_matrix(
     print(f"Computation time: {elapsed_time:.2f} seconds")
     print(f"{'='*60}")
 
+    # Remove actors from scene before cleanup
+    scene.remove(tx['name'])
+    scene.remove(rx['name'])
+
     # Aggressive memory cleanup
-    del paths, a, tau, h, scene, tx_obj, rx_obj, p_solver
+    del paths, a, tau, h, tx_obj, rx_obj
     tf.keras.backend.clear_session()
     dr.flush_malloc_cache()
     gc.collect()
@@ -117,6 +115,18 @@ def compute_channel_matrix(
 
 def main():
     scene_path = "mesh_scene/single_ris_reflection_scene.xml"
+
+    # Load scene once (reused for all channel computations)
+    print("\n" + "="*60)
+    print("Loading scene and initializing ray tracing...")
+    print("="*60)
+    scene = load_scene(scene_path)
+    scene.frequency = 3.5e9
+
+    # Create PathSolver and Camera once (reused for all computations)
+    p_solver = PathSolver()
+    my_cam = Camera(position=mi.Point3f([10, 10, 30]), look_at=[10, 10, 0])
+    print("Scene loaded successfully\n")
 
     # Define positions from heatmap_v2.py "Single Reflection" scenario
     pos_T = (3, 3, 1.5)
@@ -243,27 +253,27 @@ def main():
 
     # Compute T→P channel (K=2 to N=16)
     channel_matrices["T-P"] = compute_channel_matrix(
-        scene_path, actor_T, actor_P
+        scene, p_solver, my_cam, actor_T, actor_P
     )
 
     # Compute P→R1 channel (N=16 to K=2)
     channel_matrices["P-R1"] = compute_channel_matrix(
-        scene_path, actor_P, actor_R1
+        scene, p_solver, my_cam, actor_P, actor_R1
     )
 
     # Compute P→R2 channel (N=16 to K=2)
     channel_matrices["P-R2"] = compute_channel_matrix(
-        scene_path, actor_P, actor_R2
+        scene, p_solver, my_cam, actor_P, actor_R2
     )
 
     # Compute P→U1 channel (N=16 to K=2)
     channel_matrices["P-U1"] = compute_channel_matrix(
-        scene_path, actor_P, actor_U1
+        scene, p_solver, my_cam, actor_P, actor_U1
     )
 
     # Compute P→U2 channel (N=16 to K=2)
     channel_matrices["P-U2"] = compute_channel_matrix(
-        scene_path, actor_P, actor_U2
+        scene, p_solver, my_cam, actor_P, actor_U2
     )
 
     # Save all channel matrices to NPZ format
