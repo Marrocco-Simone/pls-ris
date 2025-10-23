@@ -5,6 +5,7 @@ import time
 from typing import Tuple, TypedDict
 from diagonalization import calculate_ris_reflection_matrice, verify_matrix_is_diagonal
 import gc
+import drjit as dr
 
 # no_preview = True
 
@@ -105,8 +106,10 @@ def compute_channel_matrix(
     print(f"Computation time: {elapsed_time:.2f} seconds")
     print(f"{'='*60}")
 
-    # Clear GPU memory
+    # Aggressive memory cleanup
+    del paths, a, tau, h, scene, tx_obj, rx_obj, p_solver
     tf.keras.backend.clear_session()
+    dr.flush_malloc_cache()
     gc.collect()
 
     return h_numpy
