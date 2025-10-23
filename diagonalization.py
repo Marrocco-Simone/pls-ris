@@ -252,8 +252,9 @@ def print_effective_channel(G: np.ndarray, H: np.ndarray, P: np.ndarray):
         P: Reflection matrix
     """
     effective_channel = G @ P @ H
-    rounded_matrix = np.round(np.abs(effective_channel), 2)
-    print(rounded_matrix)
+    abs_matrix = np.abs(effective_channel)
+    with np.printoptions(precision=2, suppress=False, formatter={'float_kind': lambda x: f'{x:.2e}'}):
+        print(abs_matrix)
 
 def verify_results(
     Ps: List[np.ndarray],
