@@ -121,16 +121,16 @@ def main():
     # Calculate orientations based on geometry
     # Transmitter T -> RIS P
     vec_T_to_P = (pos_P[0] - pos_T[0], pos_P[1] - pos_T[1])
-    angle_T = np.degrees(np.arctan2(vec_T_to_P[1], vec_T_to_P[0]))
-    orient_T = (0, angle_T, 0)
+    angle_T = float(np.degrees(np.arctan2(vec_T_to_P[1], vec_T_to_P[0])))
+    orient_T = (0.0, angle_T, 0.0)
 
     # RIS P orientation for reflection
     # Incident ray from T: angle_T
     # Reflected rays to R1 and R2
     vec_P_to_R1 = (pos_R1[0] - pos_P[0], pos_R1[1] - pos_P[1])
     vec_P_to_R2 = (pos_R2[0] - pos_P[0], pos_R2[1] - pos_P[1])
-    angle_P_to_R1 = np.degrees(np.arctan2(vec_P_to_R1[1], vec_P_to_R1[0]))
-    angle_P_to_R2 = np.degrees(np.arctan2(vec_P_to_R2[1], vec_P_to_R2[0]))
+    angle_P_to_R1 = float(np.degrees(np.arctan2(vec_P_to_R1[1], vec_P_to_R1[0])))
+    angle_P_to_R2 = float(np.degrees(np.arctan2(vec_P_to_R2[1], vec_P_to_R2[0])))
 
     # Average outgoing angle
     avg_outgoing = (angle_P_to_R1 + angle_P_to_R2) / 2
@@ -139,16 +139,16 @@ def main():
     # Surface normal bisects incident and reflected
     bisector = (incident_angle + avg_outgoing) / 2
     # Surface orientation is perpendicular to normal
-    orient_P = (0, bisector - 90, 0)
+    orient_P = (0.0, bisector - 90, 0.0)
 
     # Receivers face RIS
     vec_R1_to_P = (pos_P[0] - pos_R1[0], pos_P[1] - pos_R1[1])
-    angle_R1 = np.degrees(np.arctan2(vec_R1_to_P[1], vec_R1_to_P[0]))
-    orient_R1 = (0, angle_R1, 0)
+    angle_R1 = float(np.degrees(np.arctan2(vec_R1_to_P[1], vec_R1_to_P[0])))
+    orient_R1 = (0.0, angle_R1, 0.0)
 
     vec_R2_to_P = (pos_P[0] - pos_R2[0], pos_P[1] - pos_R2[1])
-    angle_R2 = np.degrees(np.arctan2(vec_R2_to_P[1], vec_R2_to_P[0]))
-    orient_R2 = (0, angle_R2, 0)
+    angle_R2 = float(np.degrees(np.arctan2(vec_R2_to_P[1], vec_R2_to_P[0])))
+    orient_R2 = (0.0, angle_R2, 0.0)
 
     # U1 and U2 have approximately same orientations as R1 and R2
     orient_U1 = orient_R1
