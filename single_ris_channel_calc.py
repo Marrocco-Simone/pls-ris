@@ -85,8 +85,13 @@ def compute_channel_matrix(
     )
 
     # Add transmitter and receiver with explicit orientations
-    tx_obj = Transmitter(tx['name'], position=mi.Point3f(tx['position']), orientation=mi.Point3f(tx['orientation']))
-    rx_obj = Receiver(rx['name'], position=mi.Point3f(rx['position']), orientation=mi.Point3f(rx['orientation']))
+    tx_pos = [float(x) for x in tx['position']]
+    tx_orient = [float(x) for x in tx['orientation']]
+    rx_pos = [float(x) for x in rx['position']]
+    rx_orient = [float(x) for x in rx['orientation']]
+
+    tx_obj = Transmitter(tx['name'], position=mi.Point3f(tx_pos), orientation=mi.Point3f(tx_orient))
+    rx_obj = Receiver(rx['name'], position=mi.Point3f(rx_pos), orientation=mi.Point3f(rx_orient))
     scene.add(tx_obj)
     scene.add(rx_obj)
 
