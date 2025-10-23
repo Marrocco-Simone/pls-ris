@@ -4,6 +4,7 @@ from sionna.rt import load_scene, PlanarArray, Transmitter, Receiver, Camera, Pa
 import time
 from typing import Tuple, TypedDict
 from diagonalization import calculate_ris_reflection_matrice, verify_matrix_is_diagonal
+import gc
 
 no_preview = True
 
@@ -74,7 +75,7 @@ def compute_channel_matrix(
     # Compute paths
     paths = p_solver(
         scene=scene,
-        max_depth=5,
+        max_depth=3,
         los=True,
         specular_reflection=True,
         diffuse_reflection=False,
@@ -103,6 +104,10 @@ def compute_channel_matrix(
     print(f"Channel power: {np.sum(np.abs(h_numpy)**2):.6f}")
     print(f"Computation time: {elapsed_time:.2f} seconds")
     print(f"{'='*60}")
+
+    # Clear GPU memory
+    tf.keras.backend.clear_session()
+    gc.collect()
 
     return h_numpy
 
