@@ -18,7 +18,6 @@ class Actor(TypedDict):
 
 def compute_channel_matrix(
     scene,
-    p_solver,
     my_cam,
     tx: Actor,
     rx: Actor
@@ -28,7 +27,6 @@ def compute_channel_matrix(
 
     Args:
         scene: Loaded Sionna scene object
-        p_solver: PathSolver instance
         my_cam: Camera instance
         tx: Transmitter actor with name, position, orientation, rows, cols
         rx: Receiver actor with name, position, orientation, rows, cols
@@ -67,6 +65,9 @@ def compute_channel_matrix(
     scene.add(tx_obj)
     scene.add(rx_obj)
 
+    # Create fresh PathSolver for each computation to avoid memory accumulation
+    p_solver = PathSolver()
+
     # Compute paths
     paths = p_solver(
         scene=scene,
@@ -104,8 +105,8 @@ def compute_channel_matrix(
     scene.remove(tx['name'])
     scene.remove(rx['name'])
 
-    # Aggressive memory cleanup
-    del paths, a, tau, h, tx_obj, rx_obj
+    # Aggressive memory cleanup (delete PathSolver to force Dr.Jit to free GPU memory)
+    del paths, a, tau, h, tx_obj, rx_obj, p_solver
     tf.keras.backend.clear_session()
     dr.flush_malloc_cache()
     gc.collect()
@@ -123,8 +124,8 @@ def main():
     scene = load_scene(scene_path)
     scene.frequency = 3.5e9
 
-    # Create PathSolver and Camera once (reused for all computations)
-    p_solver = PathSolver()
+    # Create Camera once (reused for all computations)
+    # PathSolver will be created fresh for each computation to avoid memory accumulation
     my_cam = Camera(position=mi.Point3f([10, 10, 30]), look_at=[10, 10, 0])
     print("Scene loaded successfully\n")
 
@@ -253,27 +254,27 @@ def main():
 
     # Compute T→P channel (K=2 to N=16)
     channel_matrices["T-P"] = compute_channel_matrix(
-        scene, p_solver, my_cam, actor_T, actor_P
+        scene, my_cam, actor_T, actor_P
     )
 
     # Compute P→R1 channel (N=16 to K=2)
     channel_matrices["P-R1"] = compute_channel_matrix(
-        scene, p_solver, my_cam, actor_P, actor_R1
+        scene, my_cam, actor_P, actor_R1
     )
 
     # Compute P→R2 channel (N=16 to K=2)
     channel_matrices["P-R2"] = compute_channel_matrix(
-        scene, p_solver, my_cam, actor_P, actor_R2
+        scene, my_cam, actor_P, actor_R2
     )
 
     # Compute P→U1 channel (N=16 to K=2)
     channel_matrices["P-U1"] = compute_channel_matrix(
-        scene, p_solver, my_cam, actor_P, actor_U1
+        scene, my_cam, actor_P, actor_U1
     )
 
     # Compute P→U2 channel (N=16 to K=2)
     channel_matrices["P-U2"] = compute_channel_matrix(
-        scene, p_solver, my_cam, actor_P, actor_U2
+        scene, my_cam, actor_P, actor_U2
     )
 
     # Save all channel matrices to NPZ format
