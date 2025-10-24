@@ -8,3 +8,5 @@ simulations/results/*.png
 *.zip
 */target/
 Cargo.lock
+*.md
+!README.md
