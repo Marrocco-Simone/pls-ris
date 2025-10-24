@@ -175,8 +175,8 @@ def main():
     print("Scene loaded successfully\n")
 
     # Configurable test point distances from receivers
-    distance_U1_from_R1 = 0.01  # meters
-    distance_U2_from_R2 = 0.05  # meters
+    distance_U1_from_R1 = 0.50 # meters
+    distance_U2_from_R2 = 1.00 # meters
 
     # Define positions from heatmap_v2.py "Single Reflection" scenario
     pos_T = (3, 3, 1.5)
