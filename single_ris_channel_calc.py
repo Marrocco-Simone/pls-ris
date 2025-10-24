@@ -160,7 +160,7 @@ def compute_channel_matrix(
 
 
 def main():
-    scene_path = "mesh_scene/single_ris_reflection_scene.xml"
+    scene_path = "mesh_scene/Single Reflection.xml"
 
     # Load scene once (reused for all channel computations)
     print("\n" + "="*60)
