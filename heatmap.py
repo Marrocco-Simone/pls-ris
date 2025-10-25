@@ -43,6 +43,67 @@ results_folder = './heatmap'
 results_folder_pdf = results_folder + '/pdf'
 results_folder_data = results_folder + '/data'
 
+class SionnaChannelLoader:
+    """Loader for pre-computed Sionna channel matrices with fallback to random generation."""
+    def __init__(self, filepath: str):
+        self.channels: Dict | None = None
+        self.available = False
+        if os.path.exists(filepath):
+            try:
+                print(f"Loading Sionna channel matrices from {filepath}...")
+                data = np.load(filepath, allow_pickle=True)
+                self.channels = data['channels'].item()
+                self.available = True
+                print(f"✓ Loaded channel matrices for {len(self.channels)} scenarios")
+            except Exception as e:
+                print(f"Failed to load Sionna channels: {e}")
+                print("Falling back to random channel generation")
+        else:
+            print(f"Sionna channel file not found: {filepath}")
+            print("Using random channel generation")
+
+    def get_channel(
+        self,
+        scenario_name: str,
+        source_label: str,
+        dest_point: Point | str,
+        expected_shape: Tuple[int, int]
+    ) -> ndarray | None:
+        """
+        Get a channel matrix from pre-computed Sionna data.
+
+        Args:
+            scenario_name: Name of the simulation scenario
+            source_label: Label of source point (e.g., 'T', 'P1')
+            dest_point: Either a Point dict with grid coords, or a string label for point-to-point
+            expected_shape: Expected (rows, cols) shape of the channel matrix
+
+        Returns:
+            Channel matrix if found and shape matches, None otherwise
+        """
+        if not self.available:
+            return None
+
+        scenario = self.channels.get(scenario_name)
+        if not scenario:
+            return None
+
+        metadata = scenario['metadata']
+        if (metadata['K'], metadata['N']) != (globals['K'], globals['N']):
+            return None
+
+        if isinstance(dest_point, str):
+            key = (source_label, dest_point)
+            channel = scenario['point_to_point'].get(key)
+        else:
+            grid_x = int(dest_point['x'] / metadata['resolution'])
+            grid_y = int(dest_point['y'] / metadata['resolution'])
+            channel = scenario['source_to_grid'].get(source_label, {}).get((grid_x, grid_y))
+
+        if channel is not None and channel.shape == expected_shape:
+            return channel
+        return None
+
 def configure_latex():
     """Configure matplotlib to use LaTeX for better text rendering."""
     try:
@@ -121,9 +182,11 @@ class Heatmap:
     parent_tree: Dict[str, str]
 
 class HeatmapGenerator(Heatmap):
-    def __init__(self, situation: Situation):
+    def __init__(self, situation: Situation, sionna_loader: SionnaChannelLoader | None = None):
         # TODO precheck that the situation data is ok (points outside the grid, ecc)
 
+        self.situation_name = situation['simulation_name']
+        self.sionna_loader = sionna_loader
         self.width = situation['width']
         self.height = situation['height']
         self.resolution = situation['resolution']
@@ -151,7 +214,7 @@ class HeatmapGenerator(Heatmap):
         for label, point in self.points.items():
             for other_label, other_point in self.points.items():
                 if other_label in self.distance_graph[label]: continue
-                elif other_label == label: 
+                elif other_label == label:
                     distance = 0
                 elif self._line_intersects_building(point, other_point):
                     distance = np.inf
@@ -180,7 +243,20 @@ class HeatmapGenerator(Heatmap):
             for p_label, _ in self.points.items():
                 distance = self.distance_graph[label][p_label]
                 dim_p_label = globals['N'] if p_label[0] == 'P' else globals['K']
-                self.channel_graph[label][p_label] = calculate_mimo_channel_gain(distance, dim_label, dim_p_label)
+
+                channel = None
+                if self.sionna_loader is not None:
+                    channel = self.sionna_loader.get_channel(
+                        self.situation_name,
+                        label,
+                        p_label,
+                        (dim_p_label, dim_label)
+                    )
+
+                if channel is None:
+                    channel = calculate_mimo_channel_gain(distance, dim_label, dim_p_label)
+
+                self.channel_graph[label][p_label] = channel
                 calculate_next_node_dfs(p_label)
         calculate_next_node_dfs("T")   
 
@@ -564,7 +640,20 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
                 distance_from[label] = calculate_distance(point, heatmap_point)
             if label[0] == 'R': continue
             dim_label = globals['N'] if label[0] == 'P' else globals['K']
-            channel_gain_from[label] = calculate_mimo_channel_gain(distance_from[label], dim_label, globals['K'])
+
+            channel = None
+            if ber_heatmap.sionna_loader is not None:
+                channel = ber_heatmap.sionna_loader.get_channel(
+                    ber_heatmap.situation_name,
+                    label,
+                    point,
+                    (globals['K'], dim_label)
+                )
+
+            if channel is None:
+                channel = calculate_mimo_channel_gain(distance_from[label], dim_label, globals['K'])
+
+            channel_gain_from[label] = channel
             if distance_from[label] == np.inf: continue
 
     # ! mean_power is used only to set the BER as np.nan
@@ -708,8 +797,10 @@ def ber_heatmap_reflection_simulation(
     data_filename = f"{results_folder_data}/{title}.npz"
     data_already_present = os.path.exists(data_filename) and not situation['force_recompute']
 
+    sionna_loader = SionnaChannelLoader('heatmap/channel_matrices/sionna_channels.npz')
+
     if not data_already_present:
-        ber_heatmap = HeatmapGenerator(situation)
+        ber_heatmap = HeatmapGenerator(situation, sionna_loader)
 
         points_list: List[Point] = []
         for y in range(ber_heatmap.grid_height):
@@ -758,12 +849,14 @@ def ber_heatmap_reflection_simulation(
         loaded_data = np.load(data_filename, allow_pickle=True)
         loaded_globals = loaded_data['globals'].item()
         ber_heatmap: HeatmapGenerator = loaded_data['ber_heatmap'].item()
-        
+
+        ber_heatmap.sionna_loader = sionna_loader
+
         if loaded_globals['K'] != globals['K'] or loaded_globals['N'] != globals['N'] or loaded_globals['num_symbols'] != globals['num_symbols']:
             print("Warning: Loaded data has different parameters than current globals")
             print(f"Loaded: K={loaded_globals['K']}, N={loaded_globals['N']}, num_symbols={loaded_globals['num_symbols']}")
             print(f"Current: K={globals['K']}, N={globals['N']}, num_symbols={globals['num_symbols']}")
-        
+
         print(f"Successfully loaded data with {ber_heatmap.width}x{ber_heatmap.height} grid")
 
     for y in range(ber_heatmap.grid_height):
