@@ -128,7 +128,7 @@ def compute_channel_matrix(
     elapsed_time = time.time() - start_time
 
     if normalize:
-        h_numpy = h_numpy / np.linalg.norm(h_numpy)
+        h_numpy = h_numpy / np.abs(h_numpy)
     print(f"Channel matrix shape: {h_numpy.shape}")
     print(f"Channel power: {np.sum(np.abs(h_numpy)**2):.6e}")
     print("Channel Matrix:")
