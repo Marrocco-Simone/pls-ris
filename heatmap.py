@@ -53,6 +53,8 @@ class SionnaChannelLoader:
                 print(f"Loading Sionna channel matrices from {filepath}...")
                 data = np.load(filepath, allow_pickle=True)
                 self.channels = data['channels'].item()
+                if not self.channels:
+                    raise Exception('Channels found but it is None')
                 self.available = True
                 print(f"✓ Loaded channel matrices for {len(self.channels)} scenarios")
             except Exception as e:
@@ -82,6 +84,9 @@ class SionnaChannelLoader:
             Channel matrix if found and shape matches, None otherwise
         """
         if not self.available:
+            return None
+        
+        if not self.channels:
             return None
 
         scenario = self.channels.get(scenario_name)
