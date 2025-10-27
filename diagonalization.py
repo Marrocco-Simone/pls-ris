@@ -242,7 +242,7 @@ def verify_multi_ris_diagonalization(
         results.append(verify_matrix_is_diagonal(effective_channel))
     return results
 
-def print_effective_channel(G: np.ndarray, H: np.ndarray, P: np.ndarray):
+def print_effective_channel(effective_channel: np.ndarray):
     """
     Print the effective channel matrix GPH.
 
@@ -251,7 +251,6 @@ def print_effective_channel(G: np.ndarray, H: np.ndarray, P: np.ndarray):
         H: Channel matrix from transmitter to RIS
         P: Reflection matrix
     """
-    effective_channel = G @ P @ H
     abs_matrix = np.abs(effective_channel)
     with np.printoptions(precision=2, suppress=False, formatter={'float_kind': lambda x: f'{x:.2e}'}):
         print(abs_matrix)
@@ -284,7 +283,7 @@ def verify_results(
 
     print("\nEffective channel matrix for first receiver:")
     P = unify_ris_reflection_matrices(Ps, Cs)
-    print_effective_channel(Gs[0], H, P)
+    print_effective_channel(Gs[0] @ P @ H)
 
 def main():
     N = 16    # * Number of reflecting elements
