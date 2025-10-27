@@ -101,7 +101,7 @@ def compute_channel_matrix(
     # Compute paths
     paths = p_solver(
         scene=scene,
-        max_depth=1,
+        max_depth=0,
         los=True,
         specular_reflection=True,
         diffuse_reflection=False,
