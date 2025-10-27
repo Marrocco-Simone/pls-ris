@@ -166,7 +166,12 @@ def compute_channel_matrix(
 
 
 def main():
-    scene_path = "mesh_scene/Single Reflection.xml"
+    scale_factor = 100 # either 1 or 100
+    if scale_factor != 1:
+        scene_name = "Single Reflection BIG"
+    else:
+        scene_name = "Single Reflection"
+    scene_path = f"mesh_scene/{scene_name}.xml"
 
     # Load scene once (reused for all channel computations)
     print("\n" + "="*60)
@@ -177,18 +182,18 @@ def main():
 
     # Create Camera once (reused for all computations)
     # PathSolver will be created fresh for each computation to avoid memory accumulation
-    my_cam = Camera(position=mi.Point3f([10, 10, 30]), look_at=[10, 10, 0])
+    my_cam = Camera(position=mi.Point3f([10 * scale_factor, 10 * scale_factor, 30 * scale_factor]), look_at=[10 * scale_factor, 10 * scale_factor, 0])
     print("Scene loaded successfully\n")
 
     # Configurable test point distances from receivers
-    distance_U1_from_R1 = 0.01 # meters
-    distance_U2_from_R2 = 0.005 # meters
+    distance_U1_from_R1 = 1.0 * scale_factor # meters
+    distance_U2_from_R2 = 0.5 * scale_factor # meters
 
-    # Define positions from heatmap_v2.py "Single Reflection" scenario
-    pos_T = (0, 0, 1.5)
-    pos_P = (7, 9, 1.5)
-    pos_R1 = (20, 11, 1.5)
-    pos_R2 = (20, 9, 1.5)
+    # Define positions from "Single Reflection BIG" scenario
+    pos_T = (3 * scale_factor, 3 * scale_factor, 1.5)
+    pos_P = (7 * scale_factor, 9 * scale_factor, 1.5)
+    pos_R1 = (16 * scale_factor, 11 * scale_factor, 1.5)
+    pos_R2 = (10 * scale_factor, 18 * scale_factor, 1.5)
 
     # Calculate test point positions based on distance from receivers toward P
     vec_R1_to_P = (pos_P[0] - pos_R1[0], pos_P[1] - pos_R1[1])
@@ -251,7 +256,7 @@ def main():
     eta = 0.9  # Reflection efficiency
 
     print("\n" + "="*60)
-    print("SINGLE RIS REFLECTION - CHANNEL MATRIX COMPUTATION")
+    print(f"{scene_name} - CHANNEL MATRIX COMPUTATION")
     print("="*60)
     print(f"Parameters:")
     print(f"  K (antennas): {K} (configured as 2x1)")
