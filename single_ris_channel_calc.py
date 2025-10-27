@@ -127,12 +127,12 @@ def compute_channel_matrix(
 
     elapsed_time = time.time() - start_time
 
+    if normalize:
+        h_numpy = h_numpy / np.linalg.norm(h_numpy)
     print(f"Channel matrix shape: {h_numpy.shape}")
     print(f"Channel power: {np.sum(np.abs(h_numpy)**2):.6e}")
     print("Channel Matrix:")
-    print(h_numpy)
-    if normalize:
-        h_numpy = h_numpy / np.linalg.norm(h_numpy)
+    print_effective_channel(h_numpy)
     print(f"{'='*60}")
 
     # Remove actors from scene before cleanup
@@ -420,7 +420,7 @@ def main():
         print(f"\n{description}:")
         print(f"  Is diagonal: {is_diagonal}")
         print(f"  Effective channel |GPH|:")
-        print(G @ P @ H)
+        # print(G @ P @ H)
         print_effective_channel(G @ P @ H)
 
         # Calculate off-diagonal to diagonal ratio
