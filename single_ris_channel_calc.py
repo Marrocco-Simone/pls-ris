@@ -186,8 +186,8 @@ def main():
     print("Scene loaded successfully\n")
 
     # Configurable test point distances from receivers
-    distance_U1_from_R1 = 1.0 * scale_factor # meters
-    distance_U2_from_R2 = 0.5 * scale_factor # meters
+    distance_U1_from_R1 = 0.10 * scale_factor # meters
+    distance_U2_from_R2 = 0.05 * scale_factor # meters
 
     # Define positions from "Single Reflection BIG" scenario
     pos_T = (3 * scale_factor, 3 * scale_factor, 1.5)
