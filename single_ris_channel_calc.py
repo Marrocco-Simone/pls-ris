@@ -164,7 +164,7 @@ def compute_channel_matrix(
 
 
 def main():
-    scale_factor = 100 # either 1 or 100
+    scale_factor = 1 # either 1 or 100
     if scale_factor != 1:
         scene_name = "Single Reflection BIG"
     else:
