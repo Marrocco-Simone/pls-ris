@@ -35,7 +35,8 @@ def compute_channel_matrix(
     my_cam,
     tx: Actor,
     rx: Actor,
-    fallback_mode: bool = False
+    fallback_mode: bool = False,
+    normalize: bool = False
 ) -> np.ndarray:
     """
     Compute channel matrix between transmitter and receiver.
@@ -130,11 +131,8 @@ def compute_channel_matrix(
     print(f"Channel power: {np.sum(np.abs(h_numpy)**2):.6e}")
     print("Channel Matrix:")
     print(h_numpy)
-    h_amplified = h_numpy / np.linalg.norm(h_numpy)
-    print(f"Channel power: {np.sum(np.abs(h_amplified)**2):.6e}")
-    print("Channel Matrix:")
-    print(h_amplified)
-    print(f"Computation time: {elapsed_time:.2f} seconds")
+    if normalize:
+        h_numpy = h_numpy / np.linalg.norm(h_numpy)
     print(f"{'='*60}")
 
     # Remove actors from scene before cleanup
@@ -162,7 +160,7 @@ def compute_channel_matrix(
     import time as time_module
     time_module.sleep(0.5) 
 
-    return h_amplified
+    return h_numpy
 
 
 def main():
@@ -332,7 +330,7 @@ def main():
     #  resettiamo la scena per ogni calcolo
     print("Computing T→P channel...")
     channel_matrices["T-P"] = compute_channel_matrix(
-        scene, my_cam, actor_T, actor_P
+        scene, my_cam, actor_T, actor_P, normalize=True
     )
     print("Resetting scene for next computation...")
     del scene
