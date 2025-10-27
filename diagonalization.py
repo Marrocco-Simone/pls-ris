@@ -1,7 +1,7 @@
 import numpy as np
 from typing import List, Tuple
 
-tolerance = 1e-10
+tolerance = 1e-4
 
 def calculate_W_single(K: int, N: int, G: np.ndarray, H: np.ndarray) -> np.ndarray:
     """
