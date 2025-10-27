@@ -38,13 +38,33 @@ situations: List[Situation] = [
             {'x': 7,'y': 9}
         ],
         "receivers": [
-            {'x': 16,'y': 11}, 
+            {'x': 16,'y': 11},
             {'x': 10,'y': 18}
         ]
     },
     {
+        "simulation_name": "Single Reflection BIG",
+        "calculate": False,
+        "force_recompute": False,
+        "width": 2000,
+        "height": 2000,
+        "resolution": 50,
+        "buildings": [
+            {'x': 0, 'y': 1000, 'width': 700, 'height': 1000},
+            {'x': 800, 'y': 0, 'width': 1200, 'height': 800},
+        ],
+        "transmitter": {'x': 300, 'y': 300},
+        "ris_points": [
+            {'x': 700, 'y': 900}
+        ],
+        "receivers": [
+            {'x': 1600, 'y': 1100},
+            {'x': 1000, 'y': 1800}
+        ]
+    },
+    {
         "simulation_name": "RISs in series, only final",
-        "calculate": True,
+        "calculate": False,
         "force_recompute": False,
         "width": 20,
         "height": 20,
@@ -65,7 +85,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in series",
-        "calculate": True,
+        "calculate": False,
         "force_recompute": False,
         "width": 20,
         "height": 20,
@@ -93,7 +113,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in parallel",
-        "calculate": True,
+        "calculate": False,
         "force_recompute": False,
         "width": 20,
         "height": 20,
@@ -120,7 +140,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "Long Corridor",
-        "calculate": True,
+        "calculate": False,
         "force_recompute": False,
         "width": 100 * 1000,
         "height": 20 * 1000,
