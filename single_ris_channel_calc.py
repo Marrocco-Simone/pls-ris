@@ -418,6 +418,7 @@ def main():
         print(f"  Is diagonal: {is_diagonal}")
         print(f"  Effective channel |GPH|:")
         print(G @ P @ H)
+        print_effective_channel(G @ P @ H)
 
         # Calculate off-diagonal to diagonal ratio
         diag_power = np.sum(np.abs(np.diag(effective_channel))**2)
