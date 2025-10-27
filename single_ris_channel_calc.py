@@ -129,11 +129,11 @@ def compute_channel_matrix(
     print(f"Channel matrix shape: {h_numpy.shape}")
     print(f"Channel power: {np.sum(np.abs(h_numpy)**2):.6e}")
     print("Channel Matrix:")
-    print_effective_channel(h_numpy)
+    print(h_numpy)
     h_amplified = h_numpy / np.linalg.norm(h_numpy)
     print(f"Channel power: {np.sum(np.abs(h_amplified)**2):.6e}")
     print("Channel Matrix:")
-    print_effective_channel(h_amplified)
+    print(h_amplified)
     print(f"Computation time: {elapsed_time:.2f} seconds")
     print(f"{'='*60}")
 
@@ -162,7 +162,7 @@ def compute_channel_matrix(
     import time as time_module
     time_module.sleep(0.5) 
 
-    return h_numpy
+    return h_amplified
 
 
 def main():
@@ -417,7 +417,7 @@ def main():
         print(f"\n{description}:")
         print(f"  Is diagonal: {is_diagonal}")
         print(f"  Effective channel |GPH|:")
-        print_effective_channel(G @ P @ H)
+        print(G @ P @ H)
 
         # Calculate off-diagonal to diagonal ratio
         diag_power = np.sum(np.abs(np.diag(effective_channel))**2)
