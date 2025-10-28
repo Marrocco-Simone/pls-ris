@@ -29,7 +29,9 @@ from noise_power_utils import (
 from heatmap_utils import (
     calculate_signal_power_from_channel_using_ssk,
     calculate_free_space_path_loss,
-    calculate_mimo_channel_gain
+    calculate_mimo_channel_gain,
+    line_intersects_building,
+    is_point_inside_building
 )
 from heatmap_situations import (
     Building,
@@ -57,6 +59,11 @@ class SionnaChannelLoader:
                     raise Exception('Channels found but it is None')
                 self.available = True
                 print(f"✓ Loaded channel matrices for {len(self.channels)} scenarios")
+                for situation_name, situation_dict in self.channels.items():
+                    print(f"Situation Name: {situation_name}")
+                    for key, value in situation_dict.items():
+                        print(key)
+                        print(value)
             except Exception as e:
                 print(f"Failed to load Sionna channels: {e}")
                 print("Falling back to random channel generation")
@@ -221,7 +228,7 @@ class HeatmapGenerator(Heatmap):
                 if other_label in self.distance_graph[label]: continue
                 elif other_label == label:
                     distance = 0
-                elif self._line_intersects_building(point, other_point):
+                elif line_intersects_building(self.buildings, point, other_point):
                     distance = np.inf
                 else:
                     distance = calculate_distance(point, other_point)
@@ -330,38 +337,6 @@ class HeatmapGenerator(Heatmap):
                     else: channel_info = f"self.channel_graph[{s_label}] does not have a link to [{e_label}]"
                 else: channel_info = f"self.channel_graph does not have a link to [{s_label}]"
                 print(f"\t{e_label}:\tdistance: {distance:.2f}\t{channel_info}")
-
-    
-    def _line_intersects_building(self, point_1: Point, point_2: Point) -> bool:
-        """
-        Check if line between two points intersects any building.
-        Uses line segment intersection algorithm.
-        """
-        def ccw(A: tuple, B: tuple, C: tuple) -> bool:
-            """Returns True if points are counter-clockwise oriented"""
-            return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
-
-        def intersect(A: tuple, B: tuple, C: tuple, D: tuple) -> bool:
-            """Returns True if line segments AB and CD intersect"""
-            return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
-
-        for building in self.buildings:
-            bx = building['x']
-            by = building['y']
-            bw = building['width']
-            bh = building['height']
-            building_corners = [
-                (bx, by), (bx + bw, by),
-                (bx + bw, by + bh), (bx, by + bh)
-            ]
-
-            for i in range(4):
-                if intersect(
-                    (point_1['x'], point_1['y']), (point_2['x'], point_2['y']),
-                    building_corners[i], building_corners[(i + 1) % 4]
-                ):
-                    return True
-        return False
     
     def check_ris_cycles(self) -> bool:
         already_checked = set()
@@ -560,7 +535,7 @@ class HeatmapGenerator(Heatmap):
                     y2 = point_2['y']
                     if label1 == label2: continue
                     if label1[0] == 'R' and label2[0] == 'R': continue
-                    if self._line_intersects_building(point_1, point_2): continue
+                    if line_intersects_building(self.buildings, point_1, point_2): continue
                     plt.plot([x1 + c, x2 + c], [y1 + c, y2 + c], '--', alpha=0.5, color=point_color)
 
         plt.rc('font', **{'size': 18})
@@ -594,7 +569,7 @@ def can_point_receive_signal(ber_heatmap: HeatmapGenerator, point_grid: Point) -
     for label, heatmap_point in ber_heatmap.points.items():
         if label[0] == 'R': 
             continue
-        if ber_heatmap._line_intersects_building(point, heatmap_point):
+        if line_intersects_building(ber_heatmap.buildings, point, heatmap_point):
             continue
         if calculate_distance(point, heatmap_point) == np.inf: 
             continue
@@ -639,7 +614,7 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
         channel_gain_from = { label: ber_heatmap.channel_graph[label][point_label] for label in ber_heatmap.channel_graph.keys() }
     else: 
         for label, heatmap_point in ber_heatmap.points.items():
-            if ber_heatmap._line_intersects_building(point, heatmap_point):
+            if line_intersects_building(ber_heatmap.buildings, point, heatmap_point):
                 distance_from[label] = np.inf
             else:
                 distance_from[label] = calculate_distance(point, heatmap_point)
@@ -813,6 +788,7 @@ def ber_heatmap_reflection_simulation(
                 point: Point = {
                     'y': y, 'x': x
                 }
+                if is_point_inside_building(point, ber_heatmap.buildings): continue
                 points_list.append(point)
 
         def multithread_fn(point: Point):

@@ -1,14 +1,15 @@
 import numpy as np
-import tensorflow as tf
-from sionna.rt import load_scene, PlanarArray, Transmitter, Receiver, Camera, PathSolver, mi
+import tensorflow as tf # pyright: ignore[reportMissingImports]
+from sionna.rt import load_scene, PlanarArray, Transmitter, Receiver, Camera, PathSolver, mi # pyright: ignore[reportMissingImports]
 import time
 import os
 import gc
-import drjit as dr
+import drjit as dr # pyright: ignore[reportMissingImports]
 from typing import Tuple, Dict, List
 from tqdm import tqdm
 from heatmap_situations import situations, Situation, Point, Building
-from multiprocess import Pool, cpu_count
+from heatmap_utils import line_intersects_building, is_point_inside_building
+from multiprocess import Pool, cpu_count # pyright: ignore[reportAttributeAccessIssue]
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -30,44 +31,6 @@ class Actor:
         self.orientation = orientation
         self.rows = rows
         self.cols = cols
-
-def calculate_distance(point_1: Point, point_2: Point) -> float:
-    """Calculate Euclidean distance between two points."""
-    return np.sqrt((point_1['x'] - point_2['x'])**2 + (point_1['y'] - point_2['y'])**2)
-
-def line_intersects_building(point_1: Point, point_2: Point, buildings: List[Building]) -> bool:
-    """Check if line between two points intersects any building."""
-    def ccw(A: tuple, B: tuple, C: tuple) -> bool:
-        return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
-
-    def intersect(A: tuple, B: tuple, C: tuple, D: tuple) -> bool:
-        return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
-
-    for building in buildings:
-        bx = building['x']
-        by = building['y']
-        bw = building['width']
-        bh = building['height']
-        building_corners = [
-            (bx, by), (bx + bw, by),
-            (bx + bw, by + bh), (bx, by + bh)
-        ]
-
-        for i in range(4):
-            if intersect(
-                (point_1['x'], point_1['y']), (point_2['x'], point_2['y']),
-                building_corners[i], building_corners[(i + 1) % 4]
-            ):
-                return True
-    return False
-
-def is_point_inside_building(point: Point, buildings: List[Building]) -> bool:
-    """Check if a point is inside any building."""
-    for building in buildings:
-        if (building['x'] <= point['x'] < building['x'] + building['width'] and
-            building['y'] <= point['y'] < building['y'] + building['height']):
-            return True
-    return False
 
 def calculate_orientation(from_point: Point, to_point: Point) -> Tuple[float, float, float]:
     """Calculate orientation (roll, yaw, pitch) from one point toward another."""
@@ -219,7 +182,7 @@ def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Dict:
 
     actors_P = []
     for i, ris_point in enumerate(ris_points):
-        visible_receivers = [r for r in receivers if not line_intersects_building(ris_point, r, buildings)]
+        visible_receivers = [r for r in receivers if not line_intersects_building(buildings, ris_point, r)]
         orientation = calculate_ris_orientation(ris_point, transmitter, visible_receivers)
         actors_P.append(Actor(
             f'P{i+1}',
@@ -258,7 +221,7 @@ def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Dict:
     print("\nComputing P→R channels...")
     for i, actor_P in enumerate(actors_P):
         for j, actor_R in enumerate(actors_R):
-            if line_intersects_building(ris_points[i], receivers[j], buildings):
+            if line_intersects_building(buildings, ris_points[i], receivers[j]):
                 continue
             print(f"  P{i+1} → R{j+1}...", end=' ', flush=True)
             try:
@@ -276,7 +239,7 @@ def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Dict:
     print("\nComputing P→P channels (cascaded RIS)...")
     for i in range(M):
         for j in range(i+1, M):
-            if line_intersects_building(ris_points[i], ris_points[j], buildings):
+            if line_intersects_building(buildings, ris_points[i], ris_points[j]):
                 continue
             print(f"  P{i+1} → P{j+1}...", end=' ', flush=True)
             try:
@@ -321,7 +284,7 @@ def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Dict:
             cols=int(np.sqrt(K))
         )
 
-        if not line_intersects_building(transmitter, point, buildings):
+        if not line_intersects_building(buildings, transmitter, point ):
             try:
                 channel = compute_channel_matrix(scene, my_cam, actor_T, grid_actor)
                 result['source_to_grid']['T'][(grid_x, grid_y)] = channel
@@ -334,7 +297,7 @@ def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Dict:
                 pass
 
         for i, ris_point in enumerate(ris_points):
-            if not line_intersects_building(ris_point, point, buildings):
+            if not line_intersects_building(buildings, ris_point, point):
                 try:
                     channel = compute_channel_matrix(scene, my_cam, actors_P[i], grid_actor)
                     result['source_to_grid'][f'P{i+1}'][(grid_x, grid_y)] = channel

@@ -2,6 +2,9 @@ import numpy as np
 from noise_power_utils import (
   calculate_signal_power
 )
+from heatmap_situations import (
+    List, Building, Point
+)
 
 def calculate_signal_power_from_channel_using_ssk(K: int, H: np.ndarray, Pt_dbm = 0.0):
     signal_power = 0.0
@@ -118,3 +121,42 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.08, k = 2) -> 
     total_power = 1.0
     H = H * generate_rice_faiding_channel(L, K, ratio, total_power)
     return H
+
+def line_intersects_building(buildings: List[Building], point_1: Point, point_2: Point) -> bool:
+        """
+        Check if line between two points intersects any building.
+        Uses line segment intersection algorithm.
+        """
+        def ccw(A: tuple, B: tuple, C: tuple) -> bool:
+            """Returns True if points are counter-clockwise oriented"""
+            return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
+
+        def intersect(A: tuple, B: tuple, C: tuple, D: tuple) -> bool:
+            """Returns True if line segments AB and CD intersect"""
+            return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
+
+        for building in buildings:
+            bx = building['x']
+            by = building['y']
+            bw = building['width']
+            bh = building['height']
+            building_corners = [
+                (bx, by), (bx + bw, by),
+                (bx + bw, by + bh), (bx, by + bh)
+            ]
+
+            for i in range(4):
+                if intersect(
+                    (point_1['x'], point_1['y']), (point_2['x'], point_2['y']),
+                    building_corners[i], building_corners[(i + 1) % 4]
+                ):
+                    return True
+        return False
+
+def is_point_inside_building(point: Point, buildings: List[Building]) -> bool:
+    """Check if a point is inside any building."""
+    for building in buildings:
+        if (building['x'] <= point['x'] < building['x'] + building['width'] and
+            building['y'] <= point['y'] < building['y'] + building['height']):
+            return True
+    return False
