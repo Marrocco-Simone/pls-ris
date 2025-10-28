@@ -105,7 +105,6 @@ def compute_channel_matrix(scene, my_cam, tx: Actor, rx: Actor) -> np.ndarray:
     h = tf.reduce_sum(a, axis=-2)
     h = tf.squeeze(h)
     h_numpy = h.numpy() 
-    h_normalized = h_numpy / np.linalg.norm(h_numpy)
 
     scene.remove(tx.name)
     scene.remove(rx.name)
@@ -116,9 +115,9 @@ def compute_channel_matrix(scene, my_cam, tx: Actor, rx: Actor) -> np.ndarray:
     dr.flush_malloc_cache()
     gc.collect()
 
-    return h_normalized
+    return h_numpy
 
-def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Dict:
+def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Dict | None:
     """Compute all channel matrices for a single scenario."""
     simulation_name = situation['simulation_name']
     print(f"\n{'='*60}")
