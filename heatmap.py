@@ -37,7 +37,8 @@ from heatmap_situations import (
     Building,
     Point,
     Situation,
-    situations
+    situations,
+    ChannelMatrix
 )
 
 max_cpu_count = 100
@@ -45,76 +46,138 @@ results_folder = './heatmap'
 results_folder_pdf = results_folder + '/pdf'
 results_folder_data = results_folder + '/data'
 
-class SionnaChannelLoader:
-    """Loader for pre-computed Sionna channel matrices with fallback to random generation."""
-    def __init__(self, filepath: str):
-        self.channels: Dict | None = None
-        self.available = False
-        if os.path.exists(filepath):
-            try:
-                print(f"Loading Sionna channel matrices from {filepath}...")
-                data = np.load(filepath, allow_pickle=True)
-                self.channels = data['channels'].item()
-                if not self.channels:
-                    raise Exception('Channels found but it is None')
-                self.available = True
-                print(f"✓ Loaded channel matrices for {len(self.channels)} scenarios")
-                for situation_name, situation_dict in self.channels.items():
-                    print(f"Situation Name: {situation_name}")
-                    for key, value in situation_dict.items():
-                        print(key)
-                        print(value)
-            except Exception as e:
-                print(f"Failed to load Sionna channels: {e}")
-                print("Falling back to random channel generation")
+def load_or_create_channel_matrix(situation: Situation) -> ChannelMatrix:
+    """
+    Load pre-computed Sionna channel matrix from file, or create a new random one.
+
+    Args:
+        situation: The simulation situation
+
+    Returns:
+        ChannelMatrix instance (either loaded from Sionna or with random generation)
+    """
+    filepath = 'heatmap/channel_matrices/sionna_channels.npz'
+    simulation_name = situation['simulation_name']
+
+    if os.path.exists(filepath):
+        try:
+            print(f"Loading Sionna channel matrices from {filepath}...")
+            data = np.load(filepath, allow_pickle=True)
+            all_channels = data['channels'].item()
+
+            if simulation_name in all_channels:
+                channel_matrix: ChannelMatrix = all_channels[simulation_name]
+
+                if (channel_matrix.metadata['K'] == globals['K'] and
+                    channel_matrix.metadata['N'] == globals['N'] and
+                    channel_matrix.metadata['resolution'] == situation['resolution']):
+                    print(f"✓ Loaded Sionna channels for '{simulation_name}'")
+                    return channel_matrix
+                else:
+                    print(f"⚠ Metadata mismatch for '{simulation_name}', generating random channels")
+            else:
+                print(f"⚠ No Sionna data for '{simulation_name}', generating random channels")
+
+        except Exception as e:
+            print(f"⚠ Failed to load Sionna channels: {e}")
+            print("Generating random channels")
+
+    else:
+        print(f"⚠ Sionna file not found: {filepath}")
+        print("Generating random channels")
+
+    print(f"Creating random channel matrix for '{simulation_name}'...")
+    channel_matrix = _create_random_channel_matrix(situation)
+    print(f"✓ Created random channel matrix")
+    return channel_matrix
+
+def _create_random_channel_matrix(situation: Situation) -> ChannelMatrix:
+    """Create a ChannelMatrix with randomly generated channels for all connections."""
+    channel_matrix = ChannelMatrix()
+    channel_matrix.situation_name = situation['simulation_name']
+    channel_matrix.metadata = {
+        'K': globals['K'],
+        'N': globals['N'],
+        'width': situation['width'],
+        'height': situation['height'],
+        'resolution': situation['resolution']
+    }
+
+    transmitter = situation['transmitter']
+    ris_points = situation['ris_points']
+    buildings = situation['buildings']
+    resolution = situation['resolution']
+
+    # source_points = [transmitter] + ris_points
+
+    grid_width = int(situation['width'] / resolution)
+    grid_height = int(situation['height'] / resolution)
+
+    points = []
+    # First, add RIS and receiver points as destinations
+    for ris_point in ris_points:
+        points.append(ris_point)
+    for receiver in situation['receivers']:
+        points.append(receiver)
+    
+    # Then add all grid points
+    for y in range(grid_height):
+        for x in range(grid_width):
+            grid_point: Point = {
+                'x': x,
+                'y': y
+            }
+            point: Point = {
+                'x': grid_point['x'] * resolution,
+                'y': grid_point['y'] * resolution
+            }
+            if not is_point_inside_building(point, buildings):
+                # Skip if this point is already a RIS or receiver
+                is_special_point = any(
+                    point['x'] == p['x'] and point['y'] == p['y'] 
+                    for p in ris_points + situation['receivers']
+                )
+                if not is_special_point:
+                    points.append(point)
+
+    def compute_grid_channels(point: Point):
+        """Compute all channels from source points to a single grid point."""
+        channels: List[Tuple[Point, Point, ndarray]] = []
+        is_ris_dest = any(point['x'] == ris['x'] and point['y'] == ris['y'] for ris in ris_points)
+        dim_dest = globals['N'] if is_ris_dest else globals['K']
+
+        distance = calculate_distance(transmitter, point)
+        dim_source = globals['K']
+        if line_intersects_building(buildings, transmitter, point) or distance == np.inf:
+            channel = np.zeros((dim_dest, dim_source))
         else:
-            print(f"Sionna channel file not found: {filepath}")
-            print("Using random channel generation")
+            channel = calculate_mimo_channel_gain(distance, dim_source, dim_dest)
+        channels.append((transmitter, point, channel))
+    
+        for source_point in ris_points:
+            distance = calculate_distance(source_point, point)
+            dim_source = globals['N']
 
-    def get_channel(
-        self,
-        scenario_name: str,
-        source_label: str,
-        dest_point: Point | str,
-        expected_shape: Tuple[int, int]
-    ) -> ndarray | None:
-        """
-        Get a channel matrix from pre-computed Sionna data.
+            if line_intersects_building(buildings, source_point, point) or distance == np.inf:
+                channel = np.zeros((dim_dest, dim_source))
+            else:
+                channel = calculate_mimo_channel_gain(distance, dim_source, dim_dest)
+            channels.append((source_point, point, channel))
+        return channels
 
-        Args:
-            scenario_name: Name of the simulation scenario
-            source_label: Label of source point (e.g., 'T', 'P1')
-            dest_point: Either a Point dict with grid coords, or a string label for point-to-point
-            expected_shape: Expected (rows, cols) shape of the channel matrix
+    n_processes = min(cpu_count(), max_cpu_count)
+    print(f"Generating random channels from {len(ris_points)+1} sources to {len(points)} grid points using {n_processes} CPUs...")
+    with Pool(processes=n_processes) as pool:
+        results: List[List[Tuple[Point, Point, ndarray]]] = list(tqdm(
+            pool.imap(compute_grid_channels, points),
+            total=len(points),
+            desc="Generating channels"
+        ))
 
-        Returns:
-            Channel matrix if found and shape matches, None otherwise
-        """
-        if not self.available:
-            return None
-        
-        if not self.channels:
-            return None
-
-        scenario = self.channels.get(scenario_name)
-        if not scenario:
-            return None
-
-        metadata = scenario['metadata']
-        if (metadata['K'], metadata['N']) != (globals['K'], globals['N']):
-            return None
-
-        if isinstance(dest_point, str):
-            key = (source_label, dest_point)
-            channel = scenario['point_to_point'].get(key)
-        else:
-            grid_x = int(dest_point['x'] / metadata['resolution'])
-            grid_y = int(dest_point['y'] / metadata['resolution'])
-            channel = scenario['source_to_grid'].get(source_label, {}).get((grid_x, grid_y))
-
-        if channel is not None and channel.shape == expected_shape:
-            return channel
-        return None
+    for channel_list in results:
+        for source_point, point, channel in channel_list:
+            channel_matrix.set(source_point, point, channel)
+    return channel_matrix
 
 def configure_latex():
     """Configure matplotlib to use LaTeX for better text rendering."""
@@ -138,7 +201,7 @@ globals: Globals = {
     'K': 4,
     'N': 36,
     'eta': 0.9,
-    'num_symbols': 10000,
+    'num_symbols': 1000,
     'use_noise_floor': True,
     'Pt_dbm': 30.0,
     'snr_db': 10,
@@ -194,11 +257,11 @@ class Heatmap:
     parent_tree: Dict[str, str]
 
 class HeatmapGenerator(Heatmap):
-    def __init__(self, situation: Situation, sionna_loader: SionnaChannelLoader | None = None):
+    def __init__(self, situation: Situation, channel_matrix: ChannelMatrix):
         # TODO precheck that the situation data is ok (points outside the grid, ecc)
 
         self.situation_name = situation['simulation_name']
-        self.sionna_loader = sionna_loader
+        self.channel_matrix = channel_matrix
         self.width = situation['width']
         self.height = situation['height']
         self.resolution = situation['resolution']
@@ -247,26 +310,18 @@ class HeatmapGenerator(Heatmap):
             if label in already_checked: return True
             already_checked.add(label)
             dim_label = globals['N'] if label[0] == 'P' else globals['K']
+            label_point = self.points[label]
             for p_label, _ in self.points.items():
                 if p_label == label: continue
                 distance = self.distance_graph[label][p_label]
-                if distance != np.inf and p_label not in self.parent_tree: 
+                if distance != np.inf and p_label not in self.parent_tree:
                     self.parent_tree[p_label] = label
-            for p_label, _ in self.points.items():
+            if label[0] == 'R': return True
+            for p_label, p_point in self.points.items():
                 distance = self.distance_graph[label][p_label]
-                dim_p_label = globals['N'] if p_label[0] == 'P' else globals['K']
-
-                channel = None
-                if self.sionna_loader is not None:
-                    channel = self.sionna_loader.get_channel(
-                        self.situation_name,
-                        label,
-                        p_label,
-                        (dim_p_label, dim_label)
-                    )
-
+                channel = self.channel_matrix.get(label_point, p_point)
                 if channel is None:
-                    channel = calculate_mimo_channel_gain(distance, dim_label, dim_p_label)
+                    raise Exception(f"Channel from {label} ({label_point['x']},{label_point['y']}) to {p_label} ({p_point['x']},{p_point['y']}) is None!")
 
                 self.channel_graph[label][p_label] = channel
                 calculate_next_node_dfs(p_label)
@@ -611,7 +666,8 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
             break
     if point_label: 
         distance_from = ber_heatmap.distance_graph[point_label]
-        channel_gain_from = { label: ber_heatmap.channel_graph[label][point_label] for label in ber_heatmap.channel_graph.keys() }
+        labels = filter(lambda l: l[0] != 'R', ber_heatmap.channel_graph.keys())
+        channel_gain_from = { label: ber_heatmap.channel_graph[label][point_label] for label in labels}
     else: 
         for label, heatmap_point in ber_heatmap.points.items():
             if line_intersects_building(ber_heatmap.buildings, point, heatmap_point):
@@ -619,19 +675,9 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
             else:
                 distance_from[label] = calculate_distance(point, heatmap_point)
             if label[0] == 'R': continue
-            dim_label = globals['N'] if label[0] == 'P' else globals['K']
-
-            channel = None
-            if ber_heatmap.sionna_loader is not None:
-                channel = ber_heatmap.sionna_loader.get_channel(
-                    ber_heatmap.situation_name,
-                    label,
-                    point,
-                    (globals['K'], dim_label)
-                )
-
+            channel = ber_heatmap.channel_matrix.get(heatmap_point, point)
             if channel is None:
-                channel = calculate_mimo_channel_gain(distance_from[label], dim_label, globals['K'])
+                raise Exception(f"Channel from {label} ({heatmap_point['x']},{heatmap_point['y']}) to ({point['x']},{point['y']}) is None!")
 
             channel_gain_from[label] = channel
             if distance_from[label] == np.inf: continue
@@ -690,6 +736,11 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
 
             F = channel_gain_from[p_label]
             PH = chain_to_last_P[p_label]
+
+            if F.shape != (4, 36):
+                print(f"ERROR IN F SHAPE FOR POINT {point['x']},{point['y']}: {channel_gain_from[p_label].shape}")
+                # raise Exception(f"F shape is not correct: {F.shape} instead of (4, 36)")
+                return empty_ber, empty_snr, None
             from_this_ris_effective_channel_without_path_loss = F @ PH
 
             if should_be_diagonal and not verify_matrix_is_diagonal(from_this_ris_effective_channel_without_path_loss):
@@ -777,10 +828,10 @@ def ber_heatmap_reflection_simulation(
     data_filename = f"{results_folder_data}/{title}.npz"
     data_already_present = os.path.exists(data_filename) and not situation['force_recompute']
 
-    sionna_loader = SionnaChannelLoader('heatmap/channel_matrices/sionna_channels.npz')
+    channel_matrix = load_or_create_channel_matrix(situation)
 
     if not data_already_present:
-        ber_heatmap = HeatmapGenerator(situation, sionna_loader)
+        ber_heatmap = HeatmapGenerator(situation, channel_matrix)
 
         points_list: List[Point] = []
         for y in range(ber_heatmap.grid_height):
@@ -788,7 +839,9 @@ def ber_heatmap_reflection_simulation(
                 point: Point = {
                     'y': y, 'x': x
                 }
-                if is_point_inside_building(point, ber_heatmap.buildings): continue
+                og_point: Point = ber_heatmap._point_grid_to_meters(point)
+                if is_point_inside_building(og_point, ber_heatmap.buildings): continue
+                if og_point in ris_points: continue
                 points_list.append(point)
 
         def multithread_fn(point: Point):
@@ -805,7 +858,7 @@ def ber_heatmap_reflection_simulation(
         ))
 
         # results = []
-        # for point in points_list:
+        # for point in tqdm(points_list, desc="Processing grid points"):
         #     results.append(multithread_fn(point))
 
         for res in results:
@@ -831,7 +884,7 @@ def ber_heatmap_reflection_simulation(
         loaded_globals = loaded_data['globals'].item()
         ber_heatmap: HeatmapGenerator = loaded_data['ber_heatmap'].item()
 
-        ber_heatmap.sionna_loader = sionna_loader
+        ber_heatmap.channel_matrix = channel_matrix
 
         if loaded_globals['K'] != globals['K'] or loaded_globals['N'] != globals['N'] or loaded_globals['num_symbols'] != globals['num_symbols']:
             print("Warning: Loaded data has different parameters than current globals")

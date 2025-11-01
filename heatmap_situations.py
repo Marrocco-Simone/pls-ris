@@ -1,13 +1,85 @@
-from typing import List, TypedDict
+from typing import List, TypedDict, Dict, Tuple, Any
+from numpy import ndarray
+import numpy as np
 
 class Building(TypedDict):
     x: int
     y: int
     width: int
     height: int
+
 class Point(TypedDict):
     x: float
     y: float
+
+class ChannelMatrixView:
+    """Helper class to enable channel_matrix[source][dest] syntax."""
+    def __init__(self, parent: 'ChannelMatrix', source_key: Tuple[float, float]):
+        self.parent = parent
+        self.source_key = source_key
+
+    def __getitem__(self, dest: Point) -> ndarray:
+        dest_key = self.parent._point_to_key(dest)
+        if self.source_key not in self.parent.data:
+            raise KeyError(f"No channels from source {self.source_key}")
+        if dest_key not in self.parent.data[self.source_key]:
+            raise KeyError(f"No channel from {self.source_key} to {dest_key}")
+        return self.parent.data[self.source_key][dest_key]
+
+    def get(self, dest: Point, default=None) -> ndarray | None:
+        dest_key = self.parent._point_to_key(dest)
+        if self.source_key not in self.parent.data:
+            return default
+        return self.parent.data[self.source_key].get(dest_key, default)
+
+class ChannelMatrix:
+    """
+    Channel matrix storage with dict-like access using Point dicts only.
+
+    Usage:
+        channel_matrix[point1][point2]  # Get channel from point1 to point2
+        channel_matrix.get(point1, point2)  # Alternative access
+        channel_matrix.set(point1, point2, H)  # Set channel
+    """
+    def __init__(self):
+        self.data: Dict[Tuple[float, float], Dict[Tuple[float, float], ndarray]] = {}
+        self.metadata: Dict[str, Any] = {}
+        self.situation_name: str = ""
+
+    def _point_to_key(self, point: Point) -> Tuple[float, float]:
+        """Convert Point dict to hashable tuple key."""
+        return (point['x'], point['y'])
+
+    def _key_to_point(self, key: Tuple[float, float]) -> Point:
+        """Convert tuple key back to Point dict."""
+        return {'x': key[0], 'y': key[1]}
+
+    def __getitem__(self, source: Point) -> ChannelMatrixView:
+        """Support channel_matrix[source][dest] syntax."""
+        source_key = self._point_to_key(source)
+        return ChannelMatrixView(self, source_key)
+
+    def get(self, source: Point, dest: Point, default=None) -> ndarray | None:
+        """Get channel matrix from source to dest."""
+        source_key = self._point_to_key(source)
+        dest_key = self._point_to_key(dest)
+        if source_key not in self.data:
+            return default
+        return self.data[source_key].get(dest_key, default)
+
+    def set(self, source: Point, dest: Point, channel: ndarray):
+        """Set channel matrix from source to dest."""
+        source_key = self._point_to_key(source)
+        dest_key = self._point_to_key(dest)
+        if source_key not in self.data:
+            self.data[source_key] = {}
+        self.data[source_key][dest_key] = channel
+
+    def has_channel(self, source: Point, dest: Point) -> bool:
+        """Check if channel exists from source to dest."""
+        source_key = self._point_to_key(source)
+        dest_key = self._point_to_key(dest)
+        return source_key in self.data and dest_key in self.data[source_key]
 
 class Situation(TypedDict):
     simulation_name: str
@@ -44,7 +116,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "Single Reflection BIG",
-        "calculate": False,
+        "calculate": True,
         "force_recompute": False,
         "width": 2000,
         "height": 2000,
@@ -64,7 +136,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in series, only final",
-        "calculate": False,
+        "calculate": True,
         "force_recompute": False,
         "width": 20,
         "height": 20,
@@ -85,7 +157,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in series",
-        "calculate": False,
+        "calculate": True,
         "force_recompute": False,
         "width": 20,
         "height": 20,
@@ -113,7 +185,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in parallel",
-        "calculate": False,
+        "calculate": True,
         "force_recompute": False,
         "width": 20,
         "height": 20,
@@ -130,7 +202,7 @@ situations: List[Situation] = [
             {'x': 2, 'y': 2},
             {'x': 18, 'y': 18},
             {'x': 2, 'y': 18},
-            {'x': 18, 'y': 2},
+            {'x': 18, 'y': 3},
         ],
         "receivers": [
             {'x': 10, 'y': 12},

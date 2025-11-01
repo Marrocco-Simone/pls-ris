@@ -7,7 +7,7 @@ import gc
 import drjit as dr # pyright: ignore[reportMissingImports]
 from typing import Tuple, Dict, List
 from tqdm import tqdm
-from heatmap_situations import situations, Situation, Point, Building
+from heatmap_situations import situations, Situation, Point, Building, ChannelMatrix
 from heatmap_utils import line_intersects_building, is_point_inside_building
 from multiprocess import Pool, cpu_count # pyright: ignore[reportAttributeAccessIssue]
 
@@ -117,7 +117,7 @@ def compute_channel_matrix(scene, my_cam, tx: Actor, rx: Actor) -> np.ndarray:
 
     return h_numpy
 
-def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Dict | None:
+def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> ChannelMatrix | None:
     """Compute all channel matrices for a single scenario."""
     simulation_name = situation['simulation_name']
     print(f"\n{'='*60}")
@@ -138,18 +138,16 @@ def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Dict 
     grid_width = int(situation['width'] / situation['resolution'])
     grid_height = int(situation['height'] / situation['resolution'])
 
-    result = {
-        'metadata': {
-            'K': K,
-            'N': N,
-            'width': situation['width'],
-            'height': situation['height'],
-            'resolution': situation['resolution'],
-            'grid_width': grid_width,
-            'grid_height': grid_height
-        },
-        'point_to_point': {},
-        'source_to_grid': {}
+    channel_matrix = ChannelMatrix()
+    channel_matrix.situation_name = simulation_name
+    channel_matrix.metadata = {
+        'K': K,
+        'N': N,
+        'width': situation['width'],
+        'height': situation['height'],
+        'resolution': situation['resolution'],
+        'grid_width': grid_width,
+        'grid_height': grid_height
     }
 
     transmitter = situation['transmitter']
@@ -202,67 +200,22 @@ def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Dict 
             cols=int(np.sqrt(K))
         ))
 
-    print("Computing T→P channels...")
-    for i, actor_P in enumerate(actors_P):
-        print(f"  T → P{i+1}...", end=' ', flush=True)
-        try:
-            channel = compute_channel_matrix(scene, my_cam, actor_T, actor_P)
-            result['point_to_point'][('T', f'P{i+1}')] = channel
-            print(f"✓ (shape: {channel.shape})")
-
-            del scene
-            gc.collect()
-            scene = load_scene(scene_path)
-            scene.frequency = 3.5e9
-        except Exception as e:
-            print(f"✗ Error: {e}")
-
-    print("\nComputing P→R channels...")
-    for i, actor_P in enumerate(actors_P):
-        for j, actor_R in enumerate(actors_R):
-            if line_intersects_building(buildings, ris_points[i], receivers[j]):
-                continue
-            print(f"  P{i+1} → R{j+1}...", end=' ', flush=True)
-            try:
-                channel = compute_channel_matrix(scene, my_cam, actor_P, actor_R)
-                result['point_to_point'][(f'P{i+1}', f'R{j+1}')] = channel
-                print(f"✓ (shape: {channel.shape})")
-
-                del scene
-                gc.collect()
-                scene = load_scene(scene_path)
-                scene.frequency = 3.5e9
-            except Exception as e:
-                print(f"✗ Error: {e}")
-
-    print("\nComputing P→P channels (cascaded RIS)...")
-    for i in range(M):
-        for j in range(i+1, M):
-            if line_intersects_building(buildings, ris_points[i], ris_points[j]):
-                continue
-            print(f"  P{i+1} → P{j+1}...", end=' ', flush=True)
-            try:
-                channel = compute_channel_matrix(scene, my_cam, actors_P[i], actors_P[j])
-                result['point_to_point'][(f'P{i+1}', f'P{j+1}')] = channel
-                result['point_to_point'][(f'P{j+1}', f'P{i+1}')] = channel.T
-                print(f"✓ (shape: {channel.shape})")
-
-                del scene
-                gc.collect()
-                scene = load_scene(scene_path)
-                scene.frequency = 3.5e9
-            except Exception as e:
-                print(f"✗ Error: {e}")
-
     print(f"\n{'='*60}")
-    print("Computing grid point channels...")
+    print("Computing channels from sources to all grid points...")
     print(f"{'='*60}")
 
-    result['source_to_grid']['T'] = {}
-    for i in range(M):
-        result['source_to_grid'][f'P{i+1}'] = {}
-
     grid_points = []
+    # First, add RIS and receiver points as destinations
+    for ris_point in ris_points:
+        grid_points.append((int(ris_point['x'] / situation['resolution']), 
+                          int(ris_point['y'] / situation['resolution']), 
+                          ris_point))
+    for receiver in receivers:
+        grid_points.append((int(receiver['x'] / situation['resolution']), 
+                          int(receiver['y'] / situation['resolution']), 
+                          receiver))
+    
+    # Then add all grid points
     for y in range(grid_height):
         for x in range(grid_width):
             point: Point = {
@@ -270,36 +223,37 @@ def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Dict 
                 'y': y * situation['resolution']
             }
             if not is_point_inside_building(point, buildings):
-                grid_points.append((x, y, point))
+                # Skip if this point is already a RIS or receiver
+                is_special_point = any(
+                    point['x'] == p['x'] and point['y'] == p['y'] 
+                    for p in ris_points + receivers
+                )
+                if not is_special_point:
+                    grid_points.append((x, y, point))
 
-    print(f"Processing {len(grid_points)} grid points (skipped {grid_width * grid_height - len(grid_points)} inside buildings)")
+    source_actors = [actor_T] + actors_P
+    source_points = [transmitter] + ris_points
+
+    print(f"Processing {len(source_actors)} sources × {len(grid_points)} grid points = {len(source_actors) * len(grid_points)} channels")
+    print(f"(Skipped {grid_width * grid_height - len(grid_points)} points inside buildings)")
 
     for grid_x, grid_y, point in tqdm(grid_points, desc="Grid points"):
+        is_ris_dest = point in ris_points
+        dim_dest = N if is_ris_dest else K
+
         grid_actor = Actor(
             f'Grid_{grid_x}_{grid_y}',
             (point['x'], point['y'], 1.5),
             (0.0, 0.0, 0.0),
-            rows=int(np.sqrt(K)),
-            cols=int(np.sqrt(K))
+            rows=int(np.sqrt(dim_dest)),
+            cols=int(np.sqrt(dim_dest))
         )
 
-        if not line_intersects_building(buildings, transmitter, point ):
-            try:
-                channel = compute_channel_matrix(scene, my_cam, actor_T, grid_actor)
-                result['source_to_grid']['T'][(grid_x, grid_y)] = channel
-
-                del scene
-                gc.collect()
-                scene = load_scene(scene_path)
-                scene.frequency = 3.5e9
-            except:
-                pass
-
-        for i, ris_point in enumerate(ris_points):
-            if not line_intersects_building(buildings, ris_point, point):
+        for source_actor, source_point in zip(source_actors, source_points):
+            if not line_intersects_building(buildings, source_point, point):
                 try:
-                    channel = compute_channel_matrix(scene, my_cam, actors_P[i], grid_actor)
-                    result['source_to_grid'][f'P{i+1}'][(grid_x, grid_y)] = channel
+                    channel = compute_channel_matrix(scene, my_cam, source_actor, grid_actor)
+                    channel_matrix.set(source_point, point, channel)
 
                     del scene
                     gc.collect()
@@ -311,15 +265,22 @@ def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Dict 
     del scene
     gc.collect()
 
+    transmitter_key = channel_matrix._point_to_key(transmitter)
+    ris_keys = [channel_matrix._point_to_key(rp) for rp in ris_points]
+
+    total_from_T = len(channel_matrix.data.get(transmitter_key, {}))
+
     print(f"\n{'='*60}")
     print(f"Completed scenario: {simulation_name}")
-    print(f"  Point-to-point channels: {len(result['point_to_point'])}")
-    print(f"  Grid channels from T: {len(result['source_to_grid']['T'])}")
-    for i in range(M):
-        print(f"  Grid channels from P{i+1}: {len(result['source_to_grid'][f'P{i+1}'])}")
+    print(f"  Channels from T: {total_from_T}")
+    for i, ris_key in enumerate(ris_keys):
+        total_from_P = len(channel_matrix.data.get(ris_key, {}))
+        print(f"  Channels from P{i+1}: {total_from_P}")
+    total_channels = sum(len(dests) for dests in channel_matrix.data.values())
+    print(f"  Total channels: {total_channels}")
     print(f"{'='*60}")
 
-    return result
+    return channel_matrix
 
 def main():
     """Main function to compute all channel matrices."""
@@ -339,16 +300,16 @@ def main():
     print(f"  Output: {output_file}")
     print("="*60)
 
-    all_results = {}
+    all_results: Dict[str, ChannelMatrix] = {}
 
     for situation in situations:
         if not situation['calculate']:
             print(f"\nSkipping {situation['simulation_name']} (calculate=False)")
             continue
 
-        result = compute_channels_for_scenario(situation, K, N)
-        if result is not None:
-            all_results[situation['simulation_name']] = result
+        channel_matrix = compute_channels_for_scenario(situation, K, N)
+        if channel_matrix is not None:
+            all_results[situation['simulation_name']] = channel_matrix
 
     print(f"\n{'='*60}")
     print("Saving results...")
