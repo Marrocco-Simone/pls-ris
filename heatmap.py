@@ -318,7 +318,10 @@ class HeatmapGenerator(Heatmap):
                     self.parent_tree[p_label] = label
             if label[0] == 'R': return True
             for p_label, p_point in self.points.items():
+                if p_label == label: continue
                 distance = self.distance_graph[label][p_label]
+                if distance == np.inf:
+                    continue
                 channel = self.channel_matrix.get(label_point, p_point)
                 if channel is None:
                     raise Exception(f"Channel from {label} ({label_point['x']},{label_point['y']}) to {p_label} ({p_point['x']},{p_point['y']}) is None!")
