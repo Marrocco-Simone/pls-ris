@@ -110,9 +110,9 @@ def calculate_mimo_channel_gain(d: float, L: int, K: int, lam = 0.08, k = 2) -> 
         d = 0.5
 
     delta = lam / 2
-    # a = calculate_free_space_path_loss(d, lam, k)
+    a = calculate_free_space_path_loss(d, lam, k)
     c = np.sqrt(L * K) * np.exp(-1j * 2 * np.pi * d / lam)
-    # c = a * c
+    c = a * c
     e_r = calculate_unit_spatial_signature(0, K, delta)
     e_t = calculate_unit_spatial_signature(0, L, delta)
     H = c * (e_r @ e_t.T.conj())

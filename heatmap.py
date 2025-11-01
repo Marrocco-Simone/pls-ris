@@ -207,8 +207,8 @@ globals: Globals = {
     'snr_db': 10,
 }
 
-PathLoss = Literal['sum', 'product', 'active']
-path_loss_types: List[PathLoss] = ['sum', 'product', 'active']
+PathLoss = Literal['product', 'active']
+path_loss_types: List[PathLoss] = ['product', 'active']
 
 
 def calculate_distance(point_1: Point, point_2: Point) -> float:
@@ -331,10 +331,8 @@ class HeatmapGenerator(Heatmap):
         # self.log_graphs()   
        
         self.stat_grids = {
-            'BER path loss sum': Grid(self.grid_width, self.grid_height),
             'BER path loss product': Grid(self.grid_width, self.grid_height),
             'BER path loss active': Grid(self.grid_width, self.grid_height),
-            'SNR path loss sum': Grid(self.grid_width, self.grid_height),
             'SNR path loss product': Grid(self.grid_width, self.grid_height),
             'SNR path loss active': Grid(self.grid_width, self.grid_height),
             # todo snr from T and RISs
@@ -632,12 +630,10 @@ def can_point_receive_signal(ber_heatmap: HeatmapGenerator, point_grid: Point) -
     return can_receive_signal
 
 empty_ber: Dict[PathLoss, float] = {
-    'sum': np.nan,
     'product': np.nan, 
     'active': np.nan,
 }
 empty_snr: Dict[str, float] = {
-    'sum': np.nan,
     'product': np.nan, 
     'active': np.nan,
     'T': np.nan
@@ -685,7 +681,7 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
     # ! mean_power is used only to set the BER as np.nan
     # ! power_from_Ps is not useful
 
-    B = channel_gain_from['T'] * calculate_free_space_path_loss(distance_from['T'])
+    B = channel_gain_from['T']
     # power_from_T = calculate_channel_power(B)
     # signal_power_from_T = calculate_signal_power_from_channel_using_ssk(globals['K'], B, globals['Pt_dbm'])
 
@@ -700,13 +696,11 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
             curr_label = ber_heatmap.parent_tree[curr_label]
 
     errors: Dict[PathLoss, int] = {
-        'sum': 0,
         'product': 0, 
         'active': 0,
     }
 
     snr: Dict[str, float] = {
-        'sum': 0.0,
         'product': 0.0, 
         'active': 0.0,
         'T': 0.0
@@ -720,12 +714,10 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
         should_be_diagonal = point_label != None and point_label[0] == 'R'
         Ps, chain_to_last_P = ber_heatmap.get_new_RIS_configurations()
         effective_channel: Dict[PathLoss, ndarray] = {
-            'sum': np.zeros((globals['K'], globals['K']), dtype=complex),
             'product': np.zeros((globals['K'], globals['K']), dtype=complex),
             'active': np.zeros((globals['K'], globals['K']), dtype=complex)
         }
         signal_power: Dict[PathLoss, Dict[str, float]] = {
-            'sum': {},
             'product': {},
             'active': {},
         }
@@ -741,44 +733,31 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
                 print(f"ERROR IN F SHAPE FOR POINT {point['x']},{point['y']}: {channel_gain_from[p_label].shape}")
                 # raise Exception(f"F shape is not correct: {F.shape} instead of (4, 36)")
                 return empty_ber, empty_snr, None
-            from_this_ris_effective_channel_without_path_loss = F @ PH
-
-            if should_be_diagonal and not verify_matrix_is_diagonal(from_this_ris_effective_channel_without_path_loss):
+            from_this_ris_effective_channel = F @ PH
+            if should_be_diagonal and not verify_matrix_is_diagonal(from_this_ris_effective_channel):
                 key = f"{p_label} -> {point_label}"
                 if key not in not_diagonal_errors: 
                     not_diagonal_errors[key] = 0
                 not_diagonal_errors[key] += 1
 
-            total_distance_to_receiver = distance_from[p_label]
-            # todo maybe this can be moved out the num_symbol loop?
-            total_path_loss: Dict[PathLoss, float] = {
-                'sum': 0,
-                'product': calculate_free_space_path_loss(distance_from[p_label]),
-                'active': calculate_free_space_path_loss(distance_from[p_label])
-            }
-            curr_label = p_label
-            while curr_label != 'T':
-                parent_label = ber_heatmap.parent_tree[curr_label]
-                distance_curr_label_to_parent = ber_heatmap.distance_graph[curr_label][parent_label]
-                total_distance_to_receiver += distance_curr_label_to_parent
-                total_path_loss['product'] *= calculate_free_space_path_loss(distance_curr_label_to_parent)
-                curr_label = parent_label
-            total_path_loss['sum'] = calculate_free_space_path_loss(total_distance_to_receiver)
+            effective_channel['product'] += from_this_ris_effective_channel
+            signal_power['product'][p_label] = calculate_signal_power_from_channel_using_ssk(
+                globals['K'], from_this_ris_effective_channel, globals['Pt_dbm'])
 
-            for path_loss in path_loss_types:
-                from_this_ris_effective_channel_with_path_loss = total_path_loss[path_loss] * from_this_ris_effective_channel_without_path_loss
-                effective_channel[path_loss] += from_this_ris_effective_channel_with_path_loss
-                signal_power[path_loss][p_label] = calculate_signal_power_from_channel_using_ssk(globals['K'], from_this_ris_effective_channel_with_path_loss, globals['Pt_dbm'])
+            # ACTIVE MODE: Normalize PH element-wise, then use F (which has embedded path loss)
+            PH_normalized = PH / np.abs(PH)
+            from_this_ris_effective_channel_active = F @ PH_normalized
+            effective_channel['active'] += from_this_ris_effective_channel_active
+            signal_power['active'][p_label] = calculate_signal_power_from_channel_using_ssk(
+                globals['K'], from_this_ris_effective_channel_active, globals['Pt_dbm'])
 
         # todo reimplement fixed snr too
         noise_floor = create_random_noise_vector_from_noise_floor(globals['K'])
         noise: Dict[PathLoss, ndarray] = {
-            'sum': noise_floor,
             'product': noise_floor,
             'active': noise_floor
         }
         noise_signal_power: Dict[PathLoss, float] = {
-            'sum': calculate_signal_power(noise['sum']),
             'product': calculate_signal_power(noise['product']),
             'active': calculate_signal_power(noise['active']),
         }
@@ -793,7 +772,6 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
         # todo snr from T and RISs
 
     ber: Dict[PathLoss, float] = {
-        'sum': errors['sum'] / globals['num_symbols'],
         'product': errors['product'] / globals['num_symbols'],
         'active': errors['active'] / globals['num_symbols'],
     }
@@ -864,11 +842,9 @@ def ber_heatmap_reflection_simulation(
         for res in results:
             if res == None: continue
             point, ber, snr, point_label = res
-            ber_heatmap.stat_grids['BER path loss sum'][point] = ber['sum']
             ber_heatmap.stat_grids['BER path loss product'][point] = ber['product']
             ber_heatmap.stat_grids['BER path loss active'][point] = ber['active']
 
-            ber_heatmap.stat_grids['SNR path loss sum'][point] = snr['sum']
             ber_heatmap.stat_grids['SNR path loss product'][point] = snr['product']
             ber_heatmap.stat_grids['SNR path loss active'][point] = snr['active']
 
@@ -903,20 +879,16 @@ def ber_heatmap_reflection_simulation(
             if is_building: continue
             # for unreachable points, set the ber to nan
             # todo this is a fix for an old, long generation that put zero instead. Will remove
-            ber_heatmap.stat_grids['BER path loss sum'][point] = np.nan 
             ber_heatmap.stat_grids['BER path loss product'][point] = np.nan 
             ber_heatmap.stat_grids['BER path loss active'][point] = np.nan 
 
-            ber_heatmap.stat_grids['SNR path loss sum'][point] = np.nan 
             ber_heatmap.stat_grids['SNR path loss product'][point] = np.nan 
             ber_heatmap.stat_grids['SNR path loss active'][point] = np.nan 
 
 
-    ber_heatmap.visualize(title=f"{title} - BER path loss sum", grid=ber_heatmap.stat_grids['BER path loss sum'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=False)
     ber_heatmap.visualize(title=f"{title} - BER path loss product", grid=ber_heatmap.stat_grids['BER path loss product'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=False)
     ber_heatmap.visualize(title=f"{title} - BER path loss active", grid=ber_heatmap.stat_grids['BER path loss active'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=False)
 
-    ber_heatmap.visualize(title=f"{title} - SNR path loss sum", grid=ber_heatmap.stat_grids['SNR path loss sum'], label='SNR', show_receivers_values=True, show_legend=True)
     ber_heatmap.visualize(title=f"{title} - SNR path loss product", grid=ber_heatmap.stat_grids['SNR path loss product'], label='SNR', show_receivers_values=True, show_legend=True)
     ber_heatmap.visualize(title=f"{title} - SNR path loss active", grid=ber_heatmap.stat_grids['SNR path loss active'], label='SNR', show_receivers_values=True, show_legend=True)
     
