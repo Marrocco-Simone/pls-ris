@@ -665,26 +665,30 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
             break
     if point_label: 
         distance_from = ber_heatmap.distance_graph[point_label]
-        labels = filter(lambda l: l[0] != 'R', ber_heatmap.channel_graph.keys())
-        channel_gain_from = { label: ber_heatmap.channel_graph[label][point_label] for label in labels}
+        for label in ber_heatmap.channel_graph.keys():
+            if label[0] == 'R': 
+                continue
+            if point_label in ber_heatmap.channel_graph[label]:
+                channel_gain_from[label] = ber_heatmap.channel_graph[label][point_label]
     else: 
         for label, heatmap_point in ber_heatmap.points.items():
             if line_intersects_building(ber_heatmap.buildings, point, heatmap_point):
                 distance_from[label] = np.inf
             else:
                 distance_from[label] = calculate_distance(point, heatmap_point)
-            if label[0] == 'R': continue
+            if label[0] == 'R': 
+                continue
+            if distance_from[label] == np.inf: 
+                continue
             channel = ber_heatmap.channel_matrix.get(heatmap_point, point)
             if channel is None:
                 raise Exception(f"Channel from {label} ({heatmap_point['x']},{heatmap_point['y']}) to ({point['x']},{point['y']}) is None!")
-
             channel_gain_from[label] = channel
-            if distance_from[label] == np.inf: continue
 
     # ! mean_power is used only to set the BER as np.nan
     # ! power_from_Ps is not useful
 
-    B = channel_gain_from['T']
+    B = channel_gain_from.get('T', np.zeros((globals['K'], globals['K']), dtype=complex))
     # power_from_T = calculate_channel_power(B)
     # signal_power_from_T = calculate_signal_power_from_channel_using_ssk(globals['K'], B, globals['Pt_dbm'])
 
@@ -728,6 +732,7 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
         for p_label, p_point in ber_heatmap.points.items():
             if p_label[0] != 'P': continue
             if distance_from[p_label] == np.inf: continue
+            if p_label not in channel_gain_from: continue
 
             F = channel_gain_from[p_label]
             PH = chain_to_last_P[p_label]
