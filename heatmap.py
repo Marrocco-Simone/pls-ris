@@ -308,15 +308,16 @@ class HeatmapGenerator(Heatmap):
         self.parent_tree = { 'T': 'T' }
         def calculate_next_node_dfs(label: str):
             if label in already_checked: return True
+            if label[0] == 'R': return True
             already_checked.add(label)
             dim_label = globals['N'] if label[0] == 'P' else globals['K']
             label_point = self.points[label]
             for p_label, _ in self.points.items():
                 if p_label == label: continue
+                if p_label[0] == 'R': continue
                 distance = self.distance_graph[label][p_label]
                 if distance != np.inf and p_label not in self.parent_tree:
                     self.parent_tree[p_label] = label
-            if label[0] == 'R': return True
             for p_label, p_point in self.points.items():
                 if p_label == label: continue
                 distance = self.distance_graph[label][p_label]
@@ -442,6 +443,9 @@ class HeatmapGenerator(Heatmap):
                 prev_label = p_label
                 curr_label = self.parent_tree[p_label]
                 while curr_label != 'T':
+                    if curr_label[0] != 'P':
+                        curr_label = self.parent_tree[curr_label]
+                        continue
                     calculate_P(curr_label)
                     P = Ps[curr_label]
                     C = self.channel_graph[prev_label][curr_label]
@@ -682,7 +686,7 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
                 continue
             channel = ber_heatmap.channel_matrix.get(heatmap_point, point)
             if channel is None:
-                raise Exception(f"Channel from {label} ({heatmap_point['x']},{heatmap_point['y']}) to ({point['x']},{point['y']}) is None!")
+                continue
             channel_gain_from[label] = channel
 
     # ! mean_power is used only to set the BER as np.nan
