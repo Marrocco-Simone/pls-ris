@@ -56,27 +56,24 @@ def load_or_create_channel_matrix(situation: Situation) -> ChannelMatrix:
     Returns:
         ChannelMatrix instance (either loaded from Sionna or with random generation)
     """
-    filepath = 'heatmap/channel_matrices/sionna_channels.npz'
     simulation_name = situation['simulation_name']
+    filepath = f'heatmap/channel_matrices/sionna_channels_{simulation_name}.npz'
 
     if os.path.exists(filepath):
         try:
-            print(f"Loading Sionna channel matrices from {filepath}...")
+            print(f"Loading Sionna channel matrix from {filepath}...")
             data = np.load(filepath, allow_pickle=True)
-            all_channels = data['channels'].item()
+            channel_matrix: ChannelMatrix = data['channel_matrix'].item()
 
-            if simulation_name in all_channels:
-                channel_matrix: ChannelMatrix = all_channels[simulation_name]
-
-                if (channel_matrix.metadata['K'] == globals['K'] and
-                    channel_matrix.metadata['N'] == globals['N'] and
-                    channel_matrix.metadata['resolution'] == situation['resolution']):
-                    print(f"✓ Loaded Sionna channels for '{simulation_name}'")
-                    return channel_matrix
-                else:
-                    print(f"⚠ Metadata mismatch for '{simulation_name}', generating random channels")
+            if (channel_matrix.metadata['K'] == globals['K'] and
+                channel_matrix.metadata['N'] == globals['N'] and
+                channel_matrix.metadata['resolution'] == situation['resolution']):
+                print(f"✓ Loaded Sionna channels for '{simulation_name}'")
+                return channel_matrix
             else:
-                print(f"⚠ No Sionna data for '{simulation_name}', generating random channels")
+                print(f"⚠ Metadata mismatch for '{simulation_name}', generating random channels")
+                print(f"   Expected: K={globals['K']}, N={globals['N']}, resolution={situation['resolution']}")
+                print(f"   Found: K={channel_matrix.metadata['K']}, N={channel_matrix.metadata['N']}, resolution={channel_matrix.metadata['resolution']}")
 
         except Exception as e:
             print(f"⚠ Failed to load Sionna channels: {e}")

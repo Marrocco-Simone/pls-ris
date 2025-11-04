@@ -289,7 +289,6 @@ def main():
 
     output_dir = "heatmap/channel_matrices"
     os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, "sionna_channels.npz")
 
     print("="*60)
     print("SIONNA CHANNEL MATRIX COMPUTATION")
@@ -297,34 +296,49 @@ def main():
     print(f"Parameters:")
     print(f"  K (antennas): {K}")
     print(f"  N (RIS elements): {N}")
-    print(f"  Output: {output_file}")
+    print(f"  Output directory: {output_dir}")
+    print(f"  File pattern: sionna_channels_<situation_name>.npz")
     print("="*60)
 
-    all_results: Dict[str, ChannelMatrix] = {}
+    processed_scenarios = []
 
     for situation in situations:
+        simulation_name = situation['simulation_name']
         if not situation['calculate']:
-            print(f"\nSkipping {situation['simulation_name']} (calculate=False)")
+            print(f"\nSkipping {simulation_name} (calculate=False)")
             continue
 
         channel_matrix = compute_channels_for_scenario(situation, K, N)
         if channel_matrix is not None:
-            all_results[situation['simulation_name']] = channel_matrix
+            # Save individual file for this situation
+            individual_file = os.path.join(output_dir, f"sionna_channels_{simulation_name}.npz")
+
+            print(f"\n{'='*60}")
+            print(f"Saving results for {simulation_name}...")
+            print(f"{'='*60}")
+
+            np.savez(
+                individual_file,
+                channel_matrix=np.array([channel_matrix], dtype=object)
+            )
+
+            file_size_mb = os.path.getsize(individual_file) / (1024 * 1024)
+            print(f"✓ Saved to {individual_file}")
+            print(f"  File size: {file_size_mb:.2f} MB")
+            processed_scenarios.append(simulation_name)
 
     print(f"\n{'='*60}")
-    print("Saving results...")
-    print(f"{'='*60}")
-
-    np.savez(
-        output_file,
-        channels=np.array([all_results], dtype=object)
-    )
-
-    print(f"✓ Saved to {output_file}")
-    print(f"  Scenarios: {len(all_results)}")
-
-    file_size_mb = os.path.getsize(output_file) / (1024 * 1024)
-    print(f"  File size: {file_size_mb:.2f} MB")
+    if processed_scenarios:
+        print(f"✓ Successfully processed {len(processed_scenarios)} scenario(s):")
+        for name in processed_scenarios:
+            print(f"  - {name}")
+        total_size_mb = sum(
+            os.path.getsize(os.path.join(output_dir, f"sionna_channels_{name}.npz")) / (1024 * 1024)
+            for name in processed_scenarios
+        )
+        print(f"  Total file size: {total_size_mb:.2f} MB")
+    else:
+        print("⚠ No scenarios were processed")
     print("="*60)
     print("Complete!")
 
