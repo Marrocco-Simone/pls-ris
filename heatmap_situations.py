@@ -135,6 +135,27 @@ situations: List[Situation] = [
         ]
     },
     {
+        "simulation_name": "Single Reflection - Clustered Receivers",
+        "calculate": False,
+        "force_recompute": False,
+        "width": 20,
+        "height": 20,
+        "resolution": 0.5,
+        "buildings": [
+            {'x': 0, 'y': 10, 'width': 7, 'height': 10},
+            {'x': 8, 'y': 0, 'width': 12, 'height': 8},
+        ],
+        "transmitter": {'x': 3,'y': 3},
+        "ris_points": [
+            {'x': 7,'y': 9}
+        ],
+        "receivers": [
+            {'x': 16,'y': 11},
+            {'x': 14,'y': 11},
+            {'x': 12,'y': 11}
+        ]
+    },
+    {
         "simulation_name": "RISs in series, only final",
         "calculate": True,
         "force_recompute": False,
@@ -208,25 +229,6 @@ situations: List[Situation] = [
             {'x': 10, 'y': 12},
             {'x': 5, 'y': 13},
             {'x': 15, 'y': 7},
-        ]
-    },
-    {
-        "simulation_name": "Long Corridor",
-        "calculate": False,
-        "force_recompute": False,
-        "width": 100 * 1000,
-        "height": 20 * 1000,
-        "resolution": 1000,
-        "buildings": [],
-        "transmitter": {'x': 95 * 1000, 'y': 10 * 1000},
-        "ris_points": [],
-        "receivers": [
-            {'x': 5 * 1000, 'y': 15 * 1000},
-            {'x': 25 * 1000, 'y': 5 * 1000},
-            {'x': 45 * 1000, 'y': 15 * 1000},
-            {'x': 65 * 1000, 'y': 5 * 1000},
-            {'x': 85 * 1000, 'y': 15 * 1000},
-            {'x': 90 * 1000, 'y': 5 * 1000},
         ]
     },
 ]
