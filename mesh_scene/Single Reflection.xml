@@ -40,20 +40,10 @@
 	</shape>
 
 	<!-- Building 1: x=0, y=10, width=7, height=10 -->
-	<!-- Using elements to create a 7x10 meter building -->
-	<shape type="ply" id="mesh-building1-1" name="mesh-building1-1">
-		<string name="filename" value="meshes/element-itu_marble.ply"/>
+	<shape type="ply" id="mesh-building1" name="mesh-building1">
+		<string name="filename" value="meshes/custom/block.ply"/>
 		<boolean name="face_normals" value="true"/>
-		<ref id="mat-itu_marble" name="bsdf"/>
-		<transform name="to_world">
-			<translate x="0" y="10" z="0"/>
-			<scale x="7" y="10" z="3"/>
-		</transform>
-	</shape>
-	<shape type="ply" id="mesh-building1-2" name="mesh-building1-2">
-		<string name="filename" value="meshes/element-itu_metal.ply"/>
-		<boolean name="face_normals" value="true"/>
-		<ref id="mat-itu_metal" name="bsdf"/>
+		<ref id="mat-itu_concrete" name="bsdf"/>
 		<transform name="to_world">
 			<translate x="0" y="10" z="0"/>
 			<scale x="7" y="10" z="3"/>
@@ -61,19 +51,10 @@
 	</shape>
 
 	<!-- Building 2: x=8, y=0, width=12, height=8 -->
-	<shape type="ply" id="mesh-building2-1" name="mesh-building2-1">
-		<string name="filename" value="meshes/element_001-itu_marble.ply"/>
+	<shape type="ply" id="mesh-building2" name="mesh-building2">
+		<string name="filename" value="meshes/custom/block.ply"/>
 		<boolean name="face_normals" value="true"/>
-		<ref id="mat-itu_marble" name="bsdf"/>
-		<transform name="to_world">
-			<translate x="8" y="0" z="0"/>
-			<scale x="12" y="8" z="3"/>
-		</transform>
-	</shape>
-	<shape type="ply" id="mesh-building2-2" name="mesh-building2-2">
-		<string name="filename" value="meshes/element_001-itu_metal.ply"/>
-		<boolean name="face_normals" value="true"/>
-		<ref id="mat-itu_metal" name="bsdf"/>
+		<ref id="mat-itu_concrete" name="bsdf"/>
 		<transform name="to_world">
 			<translate x="8" y="0" z="0"/>
 			<scale x="12" y="8" z="3"/>
