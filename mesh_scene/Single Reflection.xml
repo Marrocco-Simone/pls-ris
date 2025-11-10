@@ -35,7 +35,8 @@
 		<boolean name="face_normals" value="true" />
 		<ref id="mat-itu_concrete" name="bsdf" />
 		<transform name="to_world">
-			<scale x="10" y="10" z="1" />
+			<!-- <scale x="10" y="10" z="1" /> -->
+			<scale x="1" y="1" z="1" />
 		</transform>
 	</shape>
 
@@ -49,7 +50,7 @@
 	<shape type="ply" id="mesh-building1" name="mesh-building1">
 		<string name="filename" value="custom/meshes/Cube.ply" />
 		<boolean name="face_normals" value="true" />
-		<ref id="mat-itu_concrete" name="bsdf" />
+		<ref id="mat-itu_marble" name="bsdf" />
 		<transform name="to_world">
 			<scale x="3.5" y="5" z="1.5" />
 			<translate x="0" y="10" z="1.5" />
@@ -66,7 +67,7 @@
 	<shape type="ply" id="mesh-building2" name="mesh-building2">
 		<string name="filename" value="custom/meshes/Cube.ply" />
 		<boolean name="face_normals" value="true" />
-		<ref id="mat-itu_concrete" name="bsdf" />
+		<ref id="mat-itu_marble" name="bsdf" />
 		<transform name="to_world">
 			<scale x="6" y="4" z="1.5" />
 			<translate x="8" y="0" z="1.5" />
