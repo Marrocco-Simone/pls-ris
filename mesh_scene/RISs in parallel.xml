@@ -1,128 +1,112 @@
 <scene version="2.1.0">
 
-<!-- Defaults, these can be set via the command line: -Darg=value -->
+	<!-- Defaults, these can be set via the command line: -Darg=value -->
 
 
-<!-- Camera and Rendering Parameters -->
+	<!-- Camera and Rendering Parameters -->
 
 	<integrator type="path" id="elm__0" name="elm__0">
-		<integer name="max_depth" value="12"/>
+		<integer name="max_depth" value="12" />
 	</integrator>
 
-<!-- Materials -->
+	<!-- Materials -->
 
 	<bsdf type="diffuse" id="mat-itu_concrete" name="mat-itu_concrete">
-		<rgb value="1.000000 0.000000 0.300000" name="reflectance"/>
+		<rgb value="1.000000 0.000000 0.300000" name="reflectance" />
 	</bsdf>
 	<bsdf type="diffuse" id="mat-itu_marble" name="mat-itu_marble">
-		<rgb value="0.284233 0.146437 0.061892" name="reflectance"/>
+		<rgb value="0.284233 0.146437 0.061892" name="reflectance" />
 	</bsdf>
 	<bsdf type="diffuse" id="mat-itu_metal" name="mat-itu_metal">
-		<rgb value="0.290000 0.250000 0.210000" name="reflectance"/>
+		<rgb value="0.290000 0.250000 0.210000" name="reflectance" />
 	</bsdf>
 
-<!-- Emitters -->
+	<!-- Emitters -->
 
 	<emitter type="constant" id="World" name="World">
-		<rgb value="1.000000 1.000000 1.000000" name="radiance"/>
+		<rgb value="1.000000 1.000000 1.000000" name="radiance" />
 	</emitter>
 
-<!-- Shapes -->
+	<!-- Shapes -->
 
 	<!-- Floor: 20x20 meters -->
 	<shape type="ply" id="mesh-Piano" name="mesh-Piano">
-		<string name="filename" value="meshes/Piano.ply"/>
-		<boolean name="face_normals" value="true"/>
-		<ref id="mat-itu_concrete" name="bsdf"/>
+		<string name="filename" value="meshes/Piano.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_concrete" name="bsdf" />
 		<transform name="to_world">
-			<scale x="10.0" y="10.0" z="1"/>
+			<scale x="1.0" y="1.0" z="1.0" />
 		</transform>
 	</shape>
 
-	<!-- Building 1: x=8, y=0, width=1, height=7 -->
-	<!-- Using elements to create a 1x7 meter building -->
-	<shape type="ply" id="mesh-building1-1" name="mesh-building1-1">
-		<string name="filename" value="meshes/element-itu_marble.ply"/>
-		<boolean name="face_normals" value="true"/>
-		<ref id="mat-itu_marble" name="bsdf"/>
+	<!-- Building 1: Target dimensions 1m (width) × 7m (length) × 3m (height) at position (8, 0, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (0.5, 3.5, 1.5)
+	     - Width: 2 × 0.5 = 1m
+	     - Length: 2 × 3.5 = 7m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building1" name="mesh-building1">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
 		<transform name="to_world">
-			<translate x="8" y="0" z="0"/>
-			<scale x="1" y="7" z="3"/>
-		</transform>
-	</shape>
-	<shape type="ply" id="mesh-building1-2" name="mesh-building1-2">
-		<string name="filename" value="meshes/element-itu_metal.ply"/>
-		<boolean name="face_normals" value="true"/>
-		<ref id="mat-itu_metal" name="bsdf"/>
-		<transform name="to_world">
-			<translate x="8" y="0" z="0"/>
-			<scale x="1" y="7" z="3"/>
+			<scale x="0.5" y="3.5" z="1.5" />
+			<translate x="8" y="0" z="1.5" />
 		</transform>
 	</shape>
 
-	<!-- Building 2: x=12, y=0, width=1, height=7 -->
-	<!-- Using elements to create a 1x7 meter building -->
-	<shape type="ply" id="mesh-building2-1" name="mesh-building2-1">
-		<string name="filename" value="meshes/element-itu_marble.ply"/>
-		<boolean name="face_normals" value="true"/>
-		<ref id="mat-itu_marble" name="bsdf"/>
+	<!-- Building 2: Target dimensions 1m (width) × 7m (length) × 3m (height) at position (12, 0, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (0.5, 3.5, 1.5)
+	     - Width: 2 × 0.5 = 1m
+	     - Length: 2 × 3.5 = 7m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building2" name="mesh-building2">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
 		<transform name="to_world">
-			<translate x="12" y="0" z="0"/>
-			<scale x="1" y="7" z="3"/>
-		</transform>
-	</shape>
-	<shape type="ply" id="mesh-building2-2" name="mesh-building2-2">
-		<string name="filename" value="meshes/element-itu_metal.ply"/>
-		<boolean name="face_normals" value="true"/>
-		<ref id="mat-itu_metal" name="bsdf"/>
-		<transform name="to_world">
-			<translate x="12" y="0" z="0"/>
-			<scale x="1" y="7" z="3"/>
+			<scale x="0.5" y="3.5" z="1.5" />
+			<translate x="12" y="0" z="1.5" />
 		</transform>
 	</shape>
 
-	<!-- Building 3: x=8, y=11, width=5, height=1 -->
-	<!-- Using elements to create a 5x1 meter building -->
-	<shape type="ply" id="mesh-building3-1" name="mesh-building3-1">
-		<string name="filename" value="meshes/element-itu_marble.ply"/>
-		<boolean name="face_normals" value="true"/>
-		<ref id="mat-itu_marble" name="bsdf"/>
+	<!-- Building 3: Target dimensions 5m (width) × 1m (length) × 3m (height) at position (8, 11, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (2.5, 0.5, 1.5)
+	     - Width: 2 × 2.5 = 5m
+	     - Length: 2 × 0.5 = 1m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building3" name="mesh-building3">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
 		<transform name="to_world">
-			<translate x="8" y="11" z="0"/>
-			<scale x="5" y="1" z="3"/>
-		</transform>
-	</shape>
-	<shape type="ply" id="mesh-building3-2" name="mesh-building3-2">
-		<string name="filename" value="meshes/element-itu_metal.ply"/>
-		<boolean name="face_normals" value="true"/>
-		<ref id="mat-itu_metal" name="bsdf"/>
-		<transform name="to_world">
-			<translate x="8" y="11" z="0"/>
-			<scale x="5" y="1" z="3"/>
+			<scale x="2.5" y="0.5" z="1.5" />
+			<translate x="8" y="11" z="1.5" />
 		</transform>
 	</shape>
 
-	<!-- Building 4: x=8, y=15, width=5, height=5 -->
-	<!-- Using elements to create a 5x5 meter building -->
-	<shape type="ply" id="mesh-building4-1" name="mesh-building4-1">
-		<string name="filename" value="meshes/element-itu_marble.ply"/>
-		<boolean name="face_normals" value="true"/>
-		<ref id="mat-itu_marble" name="bsdf"/>
+	<!-- Building 4: Target dimensions 5m (width) × 5m (length) × 3m (height) at position (8, 15, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (2.5, 2.5, 1.5)
+	     - Width: 2 × 2.5 = 5m
+	     - Length: 2 × 2.5 = 5m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building4" name="mesh-building4">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
 		<transform name="to_world">
-			<translate x="8" y="15" z="0"/>
-			<scale x="5" y="5" z="3"/>
-		</transform>
-	</shape>
-	<shape type="ply" id="mesh-building4-2" name="mesh-building4-2">
-		<string name="filename" value="meshes/element-itu_metal.ply"/>
-		<boolean name="face_normals" value="true"/>
-		<ref id="mat-itu_metal" name="bsdf"/>
-		<transform name="to_world">
-			<translate x="8" y="15" z="0"/>
-			<scale x="5" y="5" z="3"/>
+			<scale x="2.5" y="2.5" z="1.5" />
+			<translate x="8" y="15" z="1.5" />
 		</transform>
 	</shape>
 
-<!-- Volumes -->
+	<!-- Volumes -->
 
 </scene>

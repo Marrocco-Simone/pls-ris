@@ -35,15 +35,14 @@
 		<boolean name="face_normals" value="true" />
 		<ref id="mat-itu_concrete" name="bsdf" />
 		<transform name="to_world">
-			<!-- <scale x="10" y="10" z="1" /> -->
-			<scale x="1" y="1" z="1" />
+			<scale x="1.0" y="1.0" z="1.0" />
 		</transform>
 	</shape>
 
 	<!-- Building 1: Target dimensions 7m (width) × 10m (length) × 3m (height) at position (0, 10, 0)
-	     Blender default cube is 2×2×2 units, so we scale by (3.5, 5, 1.5)
+	     Blender default cube is 2×2×2 units, so we scale by (3.5, 5.0, 1.5)
 	     - Width: 2 × 3.5 = 7m
-	     - Length: 2 × 5 = 10m
+	     - Length: 2 × 5.0 = 10m
 	     - Height: 2 × 1.5 = 3m
 	     Transform order: scale first, then translate
 	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
@@ -52,15 +51,15 @@
 		<boolean name="face_normals" value="true" />
 		<ref id="mat-itu_marble" name="bsdf" />
 		<transform name="to_world">
-			<scale x="3.5" y="5" z="1.5" />
+			<scale x="3.5" y="5.0" z="1.5" />
 			<translate x="0" y="10" z="1.5" />
 		</transform>
 	</shape>
 
 	<!-- Building 2: Target dimensions 12m (width) × 8m (length) × 3m (height) at position (8, 0, 0)
-	     Blender default cube is 2×2×2 units, so we scale by (6, 4, 1.5)
-	     - Width: 2 × 6 = 12m
-	     - Length: 2 × 4 = 8m
+	     Blender default cube is 2×2×2 units, so we scale by (6.0, 4.0, 1.5)
+	     - Width: 2 × 6.0 = 12m
+	     - Length: 2 × 4.0 = 8m
 	     - Height: 2 × 1.5 = 3m
 	     Transform order: scale first, then translate
 	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
@@ -69,7 +68,7 @@
 		<boolean name="face_normals" value="true" />
 		<ref id="mat-itu_marble" name="bsdf" />
 		<transform name="to_world">
-			<scale x="6" y="4" z="1.5" />
+			<scale x="6.0" y="4.0" z="1.5" />
 			<translate x="8" y="0" z="1.5" />
 		</transform>
 	</shape>
