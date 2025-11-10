@@ -41,7 +41,7 @@
 
 	<!-- Building 1: x=0, y=10, width=7, height=10 -->
 	<shape type="ply" id="mesh-building1" name="mesh-building1">
-		<string name="filename" value="meshes/custom/block.ply"/>
+		<string name="filename" value="custom/block.ply"/>
 		<boolean name="face_normals" value="true"/>
 		<ref id="mat-itu_concrete" name="bsdf"/>
 		<transform name="to_world">
@@ -52,7 +52,7 @@
 
 	<!-- Building 2: x=8, y=0, width=12, height=8 -->
 	<shape type="ply" id="mesh-building2" name="mesh-building2">
-		<string name="filename" value="meshes/custom/block.ply"/>
+		<string name="filename" value="custom/block.ply"/>
 		<boolean name="face_normals" value="true"/>
 		<ref id="mat-itu_concrete" name="bsdf"/>
 		<transform name="to_world">
