@@ -10,6 +10,7 @@ from tqdm import tqdm
 from heatmap_situations import situations, Situation, Point, Building, ChannelMatrix
 from heatmap_utils import line_intersects_building, is_point_inside_building
 from multiprocess import Pool, cpu_count # pyright: ignore[reportAttributeAccessIssue]
+from sionna_utils import Actor, calculate_orientation, calculate_ris_orientation
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -22,41 +23,6 @@ try:
     print("Dr.Jit backend set to CPU")
 except:
     print("Could not set Dr.Jit backend to CPU, continuing...")
-
-class Actor:
-    def __init__(self, name: str, position: Tuple[float, float, float],
-                 orientation: Tuple[float, float, float], rows: int, cols: int):
-        self.name = name
-        self.position = position
-        self.orientation = orientation
-        self.rows = rows
-        self.cols = cols
-
-def calculate_orientation(from_point: Point, to_point: Point) -> Tuple[float, float, float]:
-    """Calculate orientation (roll, yaw, pitch) from one point toward another."""
-    vec = (to_point['x'] - from_point['x'], to_point['y'] - from_point['y'])
-    angle = float(np.degrees(np.arctan2(vec[1], vec[0])))
-    return (0.0, angle, 0.0)
-
-def calculate_ris_orientation(ris_point: Point, incident_point: Point,
-                              reflected_points: List[Point]) -> Tuple[float, float, float]:
-    """Calculate RIS orientation to reflect from incident to reflected points."""
-    vec_incident = (incident_point['x'] - ris_point['x'], incident_point['y'] - ris_point['y'])
-    incident_angle = float(np.degrees(np.arctan2(vec_incident[1], vec_incident[0])))
-
-    if len(reflected_points) == 0:
-        return (0.0, incident_angle + 90, 0.0)
-
-    reflected_angles = []
-    for rp in reflected_points:
-        vec = (rp['x'] - ris_point['x'], rp['y'] - ris_point['y'])
-        reflected_angles.append(float(np.degrees(np.arctan2(vec[1], vec[0]))))
-
-    avg_reflected = sum(reflected_angles) / len(reflected_angles)
-    incident_from_opposite = incident_angle + 180
-    bisector = (incident_from_opposite + avg_reflected) / 2
-
-    return (0.0, bisector - 90, 0.0)
 
 def compute_channel_matrix(scene, my_cam, tx: Actor, rx: Actor) -> np.ndarray:
     """Compute channel matrix between transmitter and receiver."""
