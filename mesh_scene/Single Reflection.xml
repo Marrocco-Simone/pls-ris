@@ -31,7 +31,7 @@
 
 	<!-- Floor: 20x20 meters -->
 	<shape type="ply" id="mesh-Piano" name="mesh-Piano">
-		<string name="filename" value="meshes/Piano.ply" />
+		<string name="filename" value="custom/meshes/Piano.ply" />
 		<boolean name="face_normals" value="true" />
 		<ref id="mat-itu_concrete" name="bsdf" />
 		<transform name="to_world">
@@ -47,7 +47,7 @@
 	     Transform order: scale first, then translate
 	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
 	<shape type="ply" id="mesh-building1" name="mesh-building1">
-		<string name="filename" value="meshes/Cube.ply" />
+		<string name="filename" value="custom/meshes/Cube.ply" />
 		<boolean name="face_normals" value="true" />
 		<ref id="mat-itu_concrete" name="bsdf" />
 		<transform name="to_world">
@@ -64,7 +64,7 @@
 	     Transform order: scale first, then translate
 	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
 	<shape type="ply" id="mesh-building2" name="mesh-building2">
-		<string name="filename" value="meshes/Cube.ply" />
+		<string name="filename" value="custom/meshes/Cube.ply" />
 		<boolean name="face_normals" value="true" />
 		<ref id="mat-itu_concrete" name="bsdf" />
 		<transform name="to_world">
