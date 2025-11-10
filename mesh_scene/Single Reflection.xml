@@ -31,7 +31,7 @@
 
 	<!-- Floor: 20x20 meters -->
 	<shape type="ply" id="mesh-Piano" name="mesh-Piano">
-		<string name="filename" value="custom/meshes/Piano.ply" />
+		<string name="filename" value="meshes/Piano.ply" />
 		<boolean name="face_normals" value="true" />
 		<ref id="mat-itu_concrete" name="bsdf" />
 		<transform name="to_world">
