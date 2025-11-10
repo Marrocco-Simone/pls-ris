@@ -10,7 +10,7 @@ from tqdm import tqdm
 from heatmap_situations import situations, Situation, Point, Building, ChannelMatrix
 from heatmap_utils import line_intersects_building, is_point_inside_building
 from multiprocess import Pool, cpu_count # pyright: ignore[reportAttributeAccessIssue]
-from sionna_utils import Actor, calculate_orientation, calculate_ris_orientation
+from sionna_utils import Actor, create_tx_actor, create_ris_actor, create_rx_actor
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -135,36 +135,16 @@ def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Chann
     print("Computing point-to-point channels...")
     print(f"{'='*60}")
 
-    actor_T = Actor(
-        'T',
-        (transmitter['x'], transmitter['y'], 1.5),
-        calculate_orientation(transmitter, ris_points[0] if M > 0 else receivers[0]),
-        rows=int(np.sqrt(K)),
-        cols=int(np.sqrt(K))
-    )
+    actor_T = create_tx_actor(transmitter, ris_points, receivers, K)
 
     actors_P = []
     for i, ris_point in enumerate(ris_points):
         visible_receivers = [r for r in receivers if not line_intersects_building(buildings, ris_point, r)]
-        orientation = calculate_ris_orientation(ris_point, transmitter, visible_receivers)
-        actors_P.append(Actor(
-            f'P{i+1}',
-            (ris_point['x'], ris_point['y'], 1.5),
-            orientation,
-            rows=int(np.sqrt(N)),
-            cols=int(np.sqrt(N))
-        ))
+        actors_P.append(create_ris_actor(f'P{i+1}', ris_point, transmitter, visible_receivers, N))
 
     actors_R = []
     for i, receiver in enumerate(receivers):
-        orientation = calculate_orientation(receiver, ris_points[0] if M > 0 else transmitter)
-        actors_R.append(Actor(
-            f'R{i+1}',
-            (receiver['x'], receiver['y'], 1.5),
-            orientation,
-            rows=int(np.sqrt(K)),
-            cols=int(np.sqrt(K))
-        ))
+        actors_R.append(create_rx_actor(f'R{i+1}', receiver, ris_points, transmitter, K))
 
     print(f"\n{'='*60}")
     print("Computing channels from sources to all grid points...")
