@@ -200,7 +200,7 @@ globals: Globals = {
     'eta': 0.9,
     'num_symbols': 1000,
     'use_noise_floor': True,
-    'Pt_dbm': 30.0,
+    'Pt_dbm': 40.0,
     'snr_db': 10,
 }
 
@@ -754,7 +754,8 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
                 globals['K'], from_this_ris_effective_channel, globals['Pt_dbm'])
 
             # ACTIVE MODE: Normalize PH element-wise, then use F (which has embedded path loss)
-            PH_normalized = PH / np.linalg.norm(PH)
+            PH_normalized = PH / np.max(np.abs(PH))
+            # PH_normalized = PH / np.linalg.norm(PH)
             from_this_ris_effective_channel_active = F @ PH_normalized
             effective_channel['active'] += from_this_ris_effective_channel_active
             signal_power['active'][p_label] = calculate_signal_power_from_channel_using_ssk(
