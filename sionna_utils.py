@@ -39,15 +39,15 @@ def calculate_ris_orientation(ris_point: Point, incident_point: Point,
     return (0.0, bisector - 90, 0.0)
 
 def create_tx_actor(transmitter: Point, ris_points: List[Point], receivers: List[Point], K: int) -> Actor:
-    """Create transmitter actor with proper orientation and array size."""
+    """Create transmitter actor with horizontal linear array (1×K)."""
     target = ris_points[0] if len(ris_points) > 0 else receivers[0]
     orientation = calculate_orientation(transmitter, target)
     return Actor(
         'T',
         (transmitter['x'], transmitter['y'], 1.5),
         orientation,
-        rows=int(np.sqrt(K)),
-        cols=int(np.sqrt(K))
+        rows=1,
+        cols=K
     )
 
 def create_ris_actor(name: str, ris_point: Point, transmitter: Point,
@@ -63,13 +63,13 @@ def create_ris_actor(name: str, ris_point: Point, transmitter: Point,
     )
 
 def create_rx_actor(name: str, receiver: Point, ris_points: List[Point], transmitter: Point, K: int) -> Actor:
-    """Create receiver actor with proper orientation and array size."""
+    """Create receiver actor with horizontal linear array (1×K)."""
     target = ris_points[0] if len(ris_points) > 0 else transmitter
     orientation = calculate_orientation(receiver, target)
     return Actor(
         name,
         (receiver['x'], receiver['y'], 1.5),
         orientation,
-        rows=int(np.sqrt(K)),
-        cols=int(np.sqrt(K))
+        rows=1,
+        cols=K
     )
