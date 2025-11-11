@@ -198,7 +198,7 @@ globals: Globals = {
     'K': 4,
     'N': 36,
     'eta': 0.9,
-    'num_symbols': 1000,
+    'num_symbols': 10000,
     'use_noise_floor': True,
     'Pt_dbm': 40.0,
     'snr_db': 10,

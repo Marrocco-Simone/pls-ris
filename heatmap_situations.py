@@ -116,7 +116,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "Single Reflection BIG",
-        "calculate": False,
+        "calculate": True,
         "force_recompute": False,
         "width": 2000,
         "height": 2000,
@@ -178,7 +178,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in series",
-        "calculate": False,
+        "calculate": True,
         "force_recompute": False,
         "width": 20,
         "height": 20,
@@ -206,7 +206,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in parallel",
-        "calculate": False,
+        "calculate": True,
         "force_recompute": False,
         "width": 20,
         "height": 20,
