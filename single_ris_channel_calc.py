@@ -119,6 +119,8 @@ def compute_channel_matrix(
 
     # Get channel impulse response
     a, tau = paths.cir(normalize_delays=True, out_type="numpy")
+    print(a)
+    print(tau)
 
     # Sum over paths to get channel matrix H
     h = tf.reduce_sum(a, axis=-2)
