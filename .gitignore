@@ -10,3 +10,4 @@ simulations/results/*.png
 Cargo.lock
 *.md
 !README.md
+visualize_scenarios
