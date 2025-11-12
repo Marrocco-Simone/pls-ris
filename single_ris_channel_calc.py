@@ -249,8 +249,8 @@ def main():
     orient_U2 = orient_R2
 
     # Antenna configurations
-    K = 2  # Transmitter/Receiver antennas (2x1)
-    N = 16  # RIS elements (4x4)
+    K = 4  # Transmitter/Receiver antennas (2x1)
+    N = 36  # RIS elements (4x4)
     eta = 0.9  # Reflection efficiency
 
     print("\n" + "="*60)
