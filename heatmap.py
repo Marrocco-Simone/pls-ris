@@ -415,6 +415,10 @@ class HeatmapGenerator(Heatmap):
     def get_new_RIS_configurations(self):
         Ps: Dict[str, ndarray] = {}
         chain_to_last_P: Dict[str, ndarray] = {}
+        normalitation_factor_for_chain_to_last_P: Dict[str, float] = {}
+
+        def get_normalize_factor(H: ndarray):
+            return 1 / np.max(np.abs(H))
 
         def calculate_P(p_label):
             if p_label[0] != 'P': return
@@ -434,6 +438,7 @@ class HeatmapGenerator(Heatmap):
                 P, _ = calculate_ris_reflection_matrice(globals['K'], globals['N'], len(connected_receivers), connected_receivers_channel_gain, H, globals['eta'])
                 Ps[p_label] = P
                 chain_to_last_P[p_label] = P @ H
+                normalitation_factor_for_chain_to_last_P[p_label] = get_normalize_factor(H)
             else:
                 P_chain: List[ndarray] = []
                 C_chain: List[ndarray] = []
@@ -456,11 +461,14 @@ class HeatmapGenerator(Heatmap):
                 P, _ = calculate_ris_reflection_matrice(globals['K'], globals['N'], len(connected_receivers), modified_Gs, H, globals['eta'])
                 Ps[p_label] = P
                 chain_to_last_P[p_label] = P_prev @ C_chain[-1] @ P @ H
+                normalitation_factor_for_chain_to_last_P[p_label] = get_normalize_factor(H)
+                for C in C_chain:
+                    normalitation_factor_for_chain_to_last_P[p_label] *= get_normalize_factor(C)
 
         for p_label, p_point in self.points.items():
             calculate_P(p_label)
 
-        return Ps, chain_to_last_P
+        return Ps, chain_to_last_P, normalitation_factor_for_chain_to_last_P
 
     def _save_colorbar_legend(self, title: str, cmap='viridis', vmin=None, vmax=None, label='BER', orientation='horizontal'):
         """
@@ -720,7 +728,7 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
 
     for _ in range(globals['num_symbols']):
         should_be_diagonal = point_label != None and point_label[0] == 'R'
-        Ps, chain_to_last_P = ber_heatmap.get_new_RIS_configurations()
+        Ps, chain_to_last_P, normalitation_factor_for_chain_to_last_P = ber_heatmap.get_new_RIS_configurations()
         effective_channel: Dict[PathLoss, ndarray] = {
             'product': np.zeros((globals['K'], globals['K']), dtype=complex),
             'active': np.zeros((globals['K'], globals['K']), dtype=complex)
@@ -737,6 +745,7 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
 
             F = channel_gain_from[p_label]
             PH = chain_to_last_P[p_label]
+            PH_normalized = PH * normalitation_factor_for_chain_to_last_P[p_label]
 
             if F.shape != (4, 36):
                 print(f"ERROR IN F SHAPE FOR POINT {point['x']},{point['y']}: {channel_gain_from[p_label].shape}")
@@ -753,9 +762,6 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
             signal_power['product'][p_label] = calculate_signal_power_from_channel_using_ssk(
                 globals['K'], from_this_ris_effective_channel, globals['Pt_dbm'])
 
-            # ACTIVE MODE: Normalize PH element-wise, then use F (which has embedded path loss)
-            PH_normalized = PH / np.max(np.abs(PH))
-            # PH_normalized = PH / np.linalg.norm(PH)
             from_this_ris_effective_channel_active = F @ PH_normalized
             effective_channel['active'] += from_this_ris_effective_channel_active
             signal_power['active'][p_label] = calculate_signal_power_from_channel_using_ssk(
