@@ -280,7 +280,7 @@ def main():
         'name': 'T',
         'position': pos_T,
         'orientation': orient_T,
-        'rows': 2,
+        'rows': K,
         'cols': 1
     }
 
@@ -288,15 +288,15 @@ def main():
         'name': 'P',
         'position': pos_P,
         'orientation': orient_P,
-        'rows': 4,
-        'cols': 4
+        'rows': np.sqrt(N),
+        'cols': np.sqrt(N)
     }
 
     actor_R1: Actor = {
         'name': 'R1',
         'position': pos_R1,
         'orientation': orient_R1,
-        'rows': 2,
+        'rows': K,
         'cols': 1
     }
 
@@ -304,7 +304,7 @@ def main():
         'name': 'R2',
         'position': pos_R2,
         'orientation': orient_R2,
-        'rows': 2,
+        'rows': K,
         'cols': 1
     }
 
@@ -312,7 +312,7 @@ def main():
         'name': 'U1',
         'position': pos_U1,
         'orientation': orient_U1,
-        'rows': 2,
+        'rows': K,
         'cols': 1
     }
 
@@ -320,7 +320,7 @@ def main():
         'name': 'U2',
         'position': pos_U2,
         'orientation': orient_U2,
-        'rows': 2,
+        'rows': K,
         'cols': 1
     }
 
