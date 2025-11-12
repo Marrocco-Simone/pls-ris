@@ -102,7 +102,7 @@ def compute_channel_matrix(
     # Compute paths
     paths = p_solver(
         scene=scene,
-        max_depth=3,
+        max_depth=0,
         los=True,
         specular_reflection=True,
         diffuse_reflection=False,
@@ -128,7 +128,7 @@ def compute_channel_matrix(
     elapsed_time = time.time() - start_time
 
     if normalize:
-        h_numpy = h_numpy / np.abs(h_numpy)
+        h_numpy = h_numpy / np.max(np.abs(h_numpy))
     print(f"Channel matrix shape: {h_numpy.shape}")
     print(f"Channel power: {np.sum(np.abs(h_numpy)**2):.6e}")
     print("Channel Matrix:")
