@@ -288,8 +288,8 @@ def main():
         'name': 'P',
         'position': pos_P,
         'orientation': orient_P,
-        'rows': np.sqrt(N),
-        'cols': np.sqrt(N)
+        'rows': int(np.sqrt(N)),
+        'cols': int(np.sqrt(N))
     }
 
     actor_R1: Actor = {
