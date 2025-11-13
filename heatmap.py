@@ -483,8 +483,6 @@ class HeatmapGenerator(Heatmap):
             orientation: 'horizontal' or 'vertical'
         """
         legend_filename = f"{results_folder_pdf}/{label} legend_{orientation}.pdf"
-        if os.path.exists(legend_filename):
-            return
 
         configure_latex()
 
