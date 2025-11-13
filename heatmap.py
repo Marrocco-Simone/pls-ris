@@ -486,11 +486,7 @@ class HeatmapGenerator(Heatmap):
         if os.path.exists(legend_filename):
             return
 
-        if plt.rcParams.get('text.usetex', None) is not False:
-            try:
-                configure_latex()
-            except Exception:
-                plt.rcParams['text.usetex'] = False
+        configure_latex()
 
         fig = plt.figure(figsize=(6, 1) if orientation == 'horizontal' else (1.5, 6))
         rect = (0.1, 0.4, 0.8, 0.3) if orientation == 'horizontal' else (0.3, 0.1, 0.3, 0.8)
@@ -537,11 +533,7 @@ class HeatmapGenerator(Heatmap):
         os.makedirs(results_folder_pdf, exist_ok=True)
         os.makedirs(results_folder_data, exist_ok=True)
 
-        if plt.rcParams.get('text.usetex', None) is not False:
-            try:
-                configure_latex()
-            except Exception:
-                plt.rcParams['text.usetex'] = False
+        configure_latex()
 
         figure = plt.figure(figsize=(10, 8))
 
