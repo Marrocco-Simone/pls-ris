@@ -115,6 +115,38 @@ situations: List[Situation] = [
         ]
     },
     {
+        "simulation_name": "Single Reflection - Rich Multipath",
+        "calculate": True,
+        "force_recompute": False,
+        "width": 20,
+        "height": 20,
+        "resolution": 0.5,
+        "buildings": [
+            # Border walls (width/height 1, forming complete border)
+            {'x': 0, 'y': 0, 'width': 20, 'height': 1},     # Bottom border
+            {'x': 0, 'y': 19, 'width': 20, 'height': 1},    # Top border
+            {'x': 0, 'y': 0, 'width': 1, 'height': 20},     # Left border
+            {'x': 19, 'y': 0, 'width': 1, 'height': 20},    # Right border
+            # Original buildings from Single Reflection
+            {'x': 1, 'y': 10, 'width': 6, 'height': 9},
+            {'x': 8, 'y': 1, 'width': 11, 'height': 7},
+            # Additional interior buildings for rich multipath
+            {'x': 10, 'y': 13, 'width': 2, 'height': 3},
+            {'x': 14, 'y': 15, 'width': 3, 'height': 2},
+            {'x': 5, 'y': 3, 'width': 1, 'height': 2},
+            {'x': 16, 'y': 8, 'width': 2, 'height': 2},
+            {'x': 2, 'y': 6, 'width': 1, 'height': 2},
+        ],
+        "transmitter": {'x': 3,'y': 3},
+        "ris_points": [
+            {'x': 7,'y': 9}
+        ],
+        "receivers": [
+            {'x': 16,'y': 11},
+            {'x': 10,'y': 18}
+        ]
+    },
+    {
         "simulation_name": "Single Reflection BIG",
         "calculate": True,
         "force_recompute": False,
