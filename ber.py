@@ -62,12 +62,22 @@ def calculate_confidence_interval(error_rates, confidence=0.95):
 
     return mean, mean - margin, mean + margin
 
-def simulate_ssk_transmission_reflection(K: int, effective_channel: np.ndarray, noise: np.ndarray, Pt_dbm = 0.0):
+def simulate_ssk_transmission_reflection(K: int, effective_channel: np.ndarray, noise: np.ndarray, Pt_dbm = 0.0, print_y = False):
     if effective_channel.shape != (K, K):
         raise ValueError(f"Reflection: Effective channel shape must be ({K}, {K}), but got {effective_channel.shape}")
 
     def calculate_detected_id(x: np.ndarray, noise: np.ndarray):
         y = effective_channel @ x + noise
+        if (print_y): 
+            from diagonalization import print_effective_channel 
+            print('x:')
+            print_effective_channel(x)
+            print('noise:')
+            print_effective_channel(noise)
+            print('y:')
+            print_effective_channel(y)
+            print('effective channel:')
+            print_effective_channel(effective_channel)
         return np.argmax(np.abs(y)**2)
 
     return simulate_ssk_transmission(K, noise, calculate_detected_id, Pt_dbm)

@@ -16,6 +16,7 @@ from diagonalization import (
   calculate_ris_reflection_matrice,
   unify_ris_reflection_matrices,
   verify_matrix_is_diagonal,
+  print_effective_channel
 )
 from ber import (
     simulate_ssk_transmission_reflection,
@@ -716,8 +717,9 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
 
     not_diagonal_errors: Dict[str, int] = {}
 
-    for _ in range(globals['num_symbols']):
+    for n in range(globals['num_symbols']):
         should_be_diagonal = point_label != None and point_label[0] == 'R'
+        print_y = (n == 0 and point['x'] == 16 and (point['y'] == 11 or point['y'] == 9))
         Ps, chain_to_last_P, normalitation_factor_for_chain_to_last_P = ber_heatmap.get_new_RIS_configurations()
         effective_channel: Dict[PathLoss, ndarray] = {
             'product': np.zeros((globals['K'], globals['K']), dtype=complex),
@@ -770,7 +772,19 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
 
         for path_loss in path_loss_types:
             if distance_from['T'] == np.inf:
-                errors[path_loss] += simulate_ssk_transmission_reflection(globals['K'], effective_channel[path_loss], noise[path_loss], globals['Pt_dbm'])
+                if print_y and path_loss=='active': print(f"Point: {point['x']}, {point['y']}, Path Loss: {path_loss}")
+                errors[path_loss] += simulate_ssk_transmission_reflection(globals['K'], effective_channel[path_loss], noise[path_loss], globals['Pt_dbm'], (print_y and path_loss=='active'))
+                if print_y and path_loss=='active': 
+                    print("F:")
+                    print_effective_channel(F)
+                    print("PH:")
+                    print_effective_channel(PH)
+                    print("PH normalized:")
+                    print_effective_channel(PH_normalized)
+                    print("Sigma:")
+                    R, sigma, Vh = np.linalg.svd(effective_channel[path_loss])
+                    print_effective_channel(sigma)
+                    print('\n')
             else:
                 errors[path_loss] += simulate_ssk_transmission_direct(globals['K'], B, effective_channel[path_loss], noise[path_loss], globals['Pt_dbm'])
 
