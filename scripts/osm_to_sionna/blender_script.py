@@ -358,6 +358,43 @@ def replace_non_itu_materials(itu_materials: dict[str, bpy.types.Material]) -> i
     return replaced_count
 
 
+def create_readme(output_dir: str, scene_name: str, lat_min: float, lat_max: float, lon_min: float, lon_max: float) -> None:
+    """Create a README file with the coordinates used for the scene."""
+    readme_path = os.path.join(output_dir, "README.md")
+
+    content = f"""# {scene_name}
+
+## Coordinates
+
+| Parameter | Value |
+|-----------|-------|
+| Latitude Min | {lat_min} |
+| Latitude Max | {lat_max} |
+| Longitude Min | {lon_min} |
+| Longitude Max | {lon_max} |
+
+## Blosm Format
+
+```
+{lon_min},{lat_min},{lon_max},{lat_max}
+```
+
+## OpenStreetMap Link
+
+[View on OpenStreetMap](https://www.openstreetmap.org/?mlat={((lat_min + lat_max) / 2):.6f}&mlon={((lon_min + lon_max) / 2):.6f}#map=17/{((lat_min + lat_max) / 2):.6f}/{((lon_min + lon_max) / 2):.6f})
+
+## Files
+
+- `{scene_name}.xml` - Mitsuba scene file for Sionna
+- `meshes/` - PLY mesh files
+"""
+
+    with open(readme_path, 'w') as f:
+        f.write(content)
+
+    print(f"Created README: {readme_path}")
+
+
 def export_to_mitsuba(output_dir: str, scene_name: str) -> str:
     """
     Export the scene to Mitsuba XML format.
@@ -418,7 +455,10 @@ def main() -> None:
     replaced_count = replace_non_itu_materials(materials)
     print(f"Replaced {replaced_count} non-ITU material assignments")
 
-    print("\nStep 9: Exporting to Mitsuba format...")
+    print("\nStep 9: Creating README with coordinates...")
+    create_readme(output_dir, scene_name, lat_min, lat_max, lon_min, lon_max)
+
+    print("\nStep 10: Exporting to Mitsuba format...")
     output_path = export_to_mitsuba(output_dir, scene_name)
 
     print("\n" + "=" * 60)
