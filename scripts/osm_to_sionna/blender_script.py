@@ -93,6 +93,10 @@ def import_osm_data(lat_min: float, lat_max: float, lon_min: float, lon_max: flo
         scene.blosm.mode = list(available_modes)[0]
     print(f"Using blosm mode: {scene.blosm.mode}")
 
+    # Enable road/path import
+    scene.blosm.highways = True
+    print("Highway/road import enabled")
+
     print(f"Importing OSM data for coordinates:")
     print(f"  Latitude: {lat_min} to {lat_max}")
     print(f"  Longitude: {lon_min} to {lon_max}")
@@ -231,6 +235,83 @@ def assign_materials(materials: dict[str, bpy.types.Material]) -> None:
             building_count += 1
 
     print(f"Assigned materials to {building_count} building objects")
+
+
+def is_road_object(obj: bpy.types.Object) -> bool:
+    """Check if an object is a road/path based on name patterns."""
+    if obj.type not in ('MESH', 'CURVE'):
+        return False
+
+    name_lower = obj.name.lower()
+
+    # Exclude profile objects (bevel profiles used by blosm for road curves)
+    if name_lower.startswith('profile_'):
+        return False
+
+    road_keywords = ['highway', 'roads_', 'paths_', 'way_', 'street', 'lane', 'track', 'footway', 'cycleway']
+
+    for keyword in road_keywords:
+        if keyword in name_lower:
+            return True
+    return False
+
+
+def convert_road_curves_to_meshes() -> int:
+    """
+    Convert road/path curve objects to meshes for Sionna compatibility.
+
+    Returns the number of curves converted.
+    """
+    converted_count = 0
+
+    # Store curves to convert (can't modify collection while iterating)
+    curves_to_convert = []
+    for obj in bpy.data.objects:
+        if obj.type == 'CURVE' and is_road_object(obj):
+            curves_to_convert.append(obj)
+
+    for obj in curves_to_convert:
+        # Select only this object
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+
+        # Convert curve to mesh using context override (needed for background mode)
+        try:
+            with bpy.context.temp_override(object=obj, active_object=obj):
+                bpy.ops.object.convert(target='MESH')
+            converted_count += 1
+        except RuntimeError as e:
+            print(f"  Warning: Could not convert {obj.name}: {e}")
+
+    return converted_count
+
+
+def process_road_meshes(materials: dict[str, bpy.types.Material]) -> int:
+    """
+    Process road mesh objects: assign material and elevate slightly.
+
+    Returns the number of road objects processed.
+    """
+    processed_count = 0
+    concrete = materials.get("itu_concrete")
+
+    if not concrete:
+        print("Warning: itu_concrete material not found for roads")
+        return 0
+
+    for obj in bpy.data.objects:
+        if obj.type == 'MESH' and is_road_object(obj):
+            # Assign itu_concrete material
+            obj.data.materials.clear()
+            obj.data.materials.append(concrete)
+
+            # Elevate slightly above ground to prevent z-fighting
+            obj.location.z += 0.01
+
+            processed_count += 1
+
+    return processed_count
 
 
 def calculate_scene_bounds() -> tuple[float, float, float, float]:
@@ -386,7 +467,7 @@ def create_readme(output_dir: str, scene_name: str, lat_min: float, lat_max: flo
 ## Files
 
 - `{scene_name}.xml` - Mitsuba scene file for Sionna
-- `meshes/` - PLY mesh files
+- `meshes/` - PLY mesh files (buildings and roads)
 """
 
     with open(readme_path, 'w') as f:
@@ -444,21 +525,29 @@ def main() -> None:
     print("\nStep 5: Assigning materials to buildings...")
     assign_materials(materials)
 
-    print("\nStep 6: Creating ground plane...")
+    print("\nStep 6: Converting road curves to meshes...")
+    curves_converted = convert_road_curves_to_meshes()
+    print(f"Converted {curves_converted} road curves to meshes")
+
+    print("\nStep 7: Processing road meshes...")
+    roads_processed = process_road_meshes(materials)
+    print(f"Processed {roads_processed} road meshes")
+
+    print("\nStep 8: Creating ground plane...")
     create_ground_plane(materials)
 
-    print("\nStep 7: Removing non-mesh objects (Sionna only supports triangle meshes)...")
+    print("\nStep 9: Removing non-mesh objects (Sionna only supports triangle meshes)...")
     removed_count = remove_non_mesh_objects()
     print(f"Removed {removed_count} non-mesh objects (curves, empties, etc.)")
 
-    print("\nStep 8: Replacing non-ITU materials (Sionna only recognizes ITU materials)...")
+    print("\nStep 10: Replacing non-ITU materials (Sionna only recognizes ITU materials)...")
     replaced_count = replace_non_itu_materials(materials)
     print(f"Replaced {replaced_count} non-ITU material assignments")
 
-    print("\nStep 9: Creating README with coordinates...")
+    print("\nStep 11: Creating README with coordinates...")
     create_readme(output_dir, scene_name, lat_min, lat_max, lon_min, lon_max)
 
-    print("\nStep 10: Exporting to Mitsuba format...")
+    print("\nStep 12: Exporting to Mitsuba format...")
     output_path = export_to_mitsuba(output_dir, scene_name)
 
     print("\n" + "=" * 60)
