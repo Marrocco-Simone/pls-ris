@@ -5,6 +5,7 @@ Convert OpenStreetMap coordinates directly to Sionna-compatible Mitsuba XML scen
 ## Overview
 
 This tool automates the workflow of:
+
 1. Importing buildings from OpenStreetMap via the blosm addon
 2. Assigning Sionna-compatible ITU materials (walls, roofs, ground)
 3. Creating a ground plane covering the scene
@@ -15,11 +16,13 @@ This tool automates the workflow of:
 ### 1. Blender (3.6 LTS or 4.2 LTS recommended)
 
 **macOS:**
+
 ```bash
 brew install --cask blender
 ```
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt install blender
 ```
@@ -40,6 +43,41 @@ Download from [blender.org](https://www.blender.org/download/)
 2. In Blender: Edit → Preferences → Add-ons → Install
 3. Select the downloaded `.zip` file
 4. Enable "Mitsuba" in the add-ons list
+
+### 4. pyproj (for UTM coordinate conversion)
+
+pyproj must be installed in **Blender's Python**, not your system Python:
+
+**macOS (Blender 3.6):**
+
+```bash
+/Applications/Blender.app/Contents/Resources/3.6/python/bin/python3.10 -m pip install pyproj
+```
+
+**macOS (Blender 4.2):**
+
+```bash
+/Applications/Blender.app/Contents/Resources/4.2/python/bin/python3.11 -m pip install pyproj
+```
+
+**Linux:**
+
+```bash
+/usr/share/blender/3.6/python/bin/python3.10 -m pip install pyproj
+```
+
+**Windows:**
+
+```bash
+"C:\Program Files\Blender Foundation\Blender 3.6\3.6\python\bin\python.exe" -m pip install pyproj
+```
+
+If pip is not available, run `ensurepip` first:
+
+```bash
+<blender-python-path> -m ensurepip
+<blender-python-path> -m pip install pyproj
+```
 
 ## Usage
 
@@ -93,19 +131,20 @@ print(f"Generated: {xml_path}")
 
 ### Command Line Arguments
 
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `--coords` | No* | Coordinates from blosm website (format: `lon_min,lat_min,lon_max,lat_max`) |
-| `--lat-min` | No* | Minimum latitude of bounding box |
-| `--lat-max` | No* | Maximum latitude of bounding box |
-| `--lon-min` | No* | Minimum longitude of bounding box |
-| `--lon-max` | No* | Maximum longitude of bounding box |
-| `--name` | Yes | Scene name (used for XML filename) |
-| `--output-dir` | No | Output directory (default: `mesh_scene/custom`) |
-| `--blender` | No | Path to Blender executable (auto-detected) |
-| `--quiet` | No | Suppress progress output |
+| Argument       | Required | Description                                                                |
+| -------------- | -------- | -------------------------------------------------------------------------- |
+| `--coords`     | No\*     | Coordinates from blosm website (format: `lon_min,lat_min,lon_max,lat_max`) |
+| `--lat-min`    | No\*     | Minimum latitude of bounding box                                           |
+| `--lat-max`    | No\*     | Maximum latitude of bounding box                                           |
+| `--lon-min`    | No\*     | Minimum longitude of bounding box                                          |
+| `--lon-max`    | No\*     | Maximum longitude of bounding box                                          |
+| `--name`       | Yes      | Scene name (used for XML filename)                                         |
+| `--output-dir` | No       | Output directory (default: `mesh_scene/custom`)                            |
+| `--blender`    | No       | Path to Blender executable (auto-detected)                                 |
+| `--quiet`      | No       | Suppress progress output                                                   |
 
-*Coordinates can be provided in three ways:
+\*Coordinates can be provided in three ways:
+
 1. **Interactive mode** (default): If no coordinates given, opens the blosm extent selector in your browser
 2. **`--coords`**: Paste coordinates directly from blosm website (format: `lon_min,lat_min,lon_max,lat_max`)
 3. **Explicit arguments**: Use `--lat-min`, `--lat-max`, `--lon-min`, `--lon-max`
@@ -115,11 +154,13 @@ print(f"Generated: {xml_path}")
 ### Option 1: Interactive Mode (Recommended)
 
 Simply run the script with just `--name`:
+
 ```bash
 python scripts/osm_to_sionna/osm_to_sionna.py --name "my_scene"
 ```
 
 This will:
+
 1. Open the blosm extent selector in your browser
 2. Let you draw a rectangle on the map
 3. Prompt you to paste the coordinates in the terminal
@@ -162,12 +203,12 @@ output_dir/
 
 The script automatically assigns ITU materials based on surface orientation:
 
-| Surface Type | Material | Description |
-|--------------|----------|-------------|
-| Vertical faces | `itu_marble` | Building walls |
-| Upward-facing faces | `itu_metal` | Roofs |
-| Downward-facing faces | `itu_concrete` | Floors (rarely used) |
-| Ground plane | `itu_concrete` | Street/ground surface |
+| Surface Type          | Material       | Description           |
+| --------------------- | -------------- | --------------------- |
+| Vertical faces        | `itu_marble`   | Building walls        |
+| Upward-facing faces   | `itu_metal`    | Roofs                 |
+| Downward-facing faces | `itu_concrete` | Floors (rarely used)  |
+| Ground plane          | `itu_concrete` | Street/ground surface |
 
 These material names are recognized by Sionna RT and will use the appropriate electromagnetic properties for ray tracing.
 
@@ -193,11 +234,13 @@ scene.preview()
 ### "Blender executable not found"
 
 Specify the Blender path explicitly:
+
 ```bash
 python osm_to_sionna.py ... --blender /path/to/blender
 ```
 
 Common paths:
+
 - macOS: `/Applications/Blender.app/Contents/MacOS/Blender`
 - Linux: `/usr/bin/blender`
 - Windows: `C:\Program Files\Blender Foundation\Blender 4.2\blender.exe`

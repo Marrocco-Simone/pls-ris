@@ -62,6 +62,7 @@ def enable_addons() -> None:
     try:
         bpy.ops.preferences.addon_enable(module='blosm')
         print("Blosm addon enabled successfully")
+        configure_blosm_preferences()
     except Exception as e:
         print(f"Warning: Could not enable blosm addon: {e}")
         print("Make sure blosm is installed in Blender's addons directory")
@@ -74,15 +75,94 @@ def enable_addons() -> None:
         print("Make sure mitsuba-blender is installed in Blender's addons directory")
 
 
-def import_osm_data(lat_min: float, lat_max: float, lon_min: float, lon_max: float) -> None:
+def configure_blosm_preferences() -> None:
+    """Configure blosm addon preferences, ensuring data directory exists."""
+    prefs = bpy.context.preferences.addons.get('blosm')
+    if not prefs:
+        print("Warning: blosm addon preferences not found")
+        return
+
+    addon_prefs = prefs.preferences
+
+    # Get the current data directory from preferences
+    current_data_dir = getattr(addon_prefs, 'dataDir', '')
+
+    # If no data directory is set or it doesn't exist, create a default one
+    if not current_data_dir or not os.path.isdir(current_data_dir):
+        # Use a directory relative to the script location
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        default_data_dir = os.path.join(script_dir, 'blosm_data')
+
+        # Create the directory if it doesn't exist
+        os.makedirs(default_data_dir, exist_ok=True)
+
+        # Set the data directory in addon preferences
+        addon_prefs.dataDir = default_data_dir
+        print(f"Set blosm data directory to: {default_data_dir}")
+    else:
+        print(f"Using existing blosm data directory: {current_data_dir}")
+
+
+def get_blosm_osm_paths(scene_name: str) -> tuple[str, str]:
+    """Get paths for blosm OSM files.
+
+    Returns (map_osm_path, cached_osm_path) where:
+    - map_osm_path: the default path blosm uses (map.osm)
+    - cached_osm_path: our cached version ({scene_name}.osm)
+    """
+    prefs = bpy.context.preferences.addons.get('blosm')
+    if not prefs:
+        return '', ''
+
+    data_dir = prefs.preferences.dataDir
+    osm_dir = os.path.join(data_dir, 'osm')
+
+    map_osm_path = os.path.join(osm_dir, 'map.osm')
+    cached_osm_path = os.path.join(osm_dir, f'{scene_name}.osm')
+
+    return map_osm_path, cached_osm_path
+
+
+def import_osm_data(lat_min: float, lat_max: float, lon_min: float, lon_max: float, scene_name: str) -> None:
     """Import OpenStreetMap data using the blosm addon."""
+    import shutil
+
     scene = bpy.context.scene
+
+    # Check for cached OSM file
+    map_osm_path, cached_osm_path = get_blosm_osm_paths(scene_name)
+    use_cached = False
+
+    if cached_osm_path and os.path.isfile(cached_osm_path):
+        print(f"Found cached OSM file: {cached_osm_path}")
+        print("Using cached data (coordinates from cache, not from arguments)")
+        # Move cached file to map.osm (blosm expects this name)
+        shutil.move(cached_osm_path, map_osm_path)
+        use_cached = True
 
     scene.blosm.minLat = lat_min
     scene.blosm.maxLat = lat_max
     scene.blosm.minLon = lon_min
     scene.blosm.maxLon = lon_max
     scene.blosm.dataType = "osm"
+
+    # Set OSM source: "server" to download, "file" to use local map.osm
+    if use_cached:
+        scene.blosm.osmSource = "file"
+        scene.blosm.osmFilepath = map_osm_path
+        print(f"Using local file mode (no download): {map_osm_path}")
+    else:
+        scene.blosm.osmSource = "server"
+
+    # Set UTM projection to match SUMO's coordinate system
+    center_lon = (lon_min + lon_max) / 2
+    utm_zone = get_utm_zone(center_lon)
+
+    proj4_string = f"+proj=utm +zone={utm_zone} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+    print(f"Setting blosm projection: {proj4_string}")
+
+    scene.blosm.projection = "proj4"
+    scene.blosm.projString = proj4_string
 
     available_modes = scene.blosm.bl_rna.properties["mode"].enum_items.keys()
     if "3Drealistic" in available_modes:
@@ -106,6 +186,12 @@ def import_osm_data(lat_min: float, lat_max: float, lon_min: float, lon_max: flo
         try:
             bpy.ops.blosm.import_data()
             print(f"Imported {len(bpy.data.objects)} objects")
+
+            # Always rename map.osm to {scene_name}.osm after import
+            if map_osm_path and cached_osm_path and os.path.isfile(map_osm_path):
+                shutil.move(map_osm_path, cached_osm_path)
+                print(f"Saved OSM data as: {cached_osm_path}")
+
             return
         except RuntimeError as e:
             last_error = e
@@ -314,6 +400,11 @@ def process_road_meshes(materials: dict[str, bpy.types.Material]) -> int:
     return processed_count
 
 
+def get_utm_zone(lon: float) -> int:
+    """Calculate UTM zone number from longitude."""
+    return int((lon + 180) / 6) + 1
+
+
 def calculate_scene_bounds() -> tuple[float, float, float, float]:
     """Calculate the bounding box of all mesh objects in the scene."""
     min_x = min_y = float('inf')
@@ -340,12 +431,6 @@ def create_ground_plane(materials: dict[str, bpy.types.Material]) -> None:
     if min_x == float('inf'):
         print("Warning: No mesh objects found, creating default ground plane")
         min_x, max_x, min_y, max_y = -100, 100, -100, 100
-
-    padding = 50
-    min_x -= padding
-    max_x += padding
-    min_y -= padding
-    max_y += padding
 
     width = max_x - min_x
     height = max_y - min_y
@@ -520,7 +605,7 @@ def main() -> None:
     materials = create_itu_materials()
 
     print("\nStep 4: Importing OSM data...")
-    import_osm_data(lat_min, lat_max, lon_min, lon_max)
+    import_osm_data(lat_min, lat_max, lon_min, lon_max, scene_name)
 
     print("\nStep 5: Assigning materials to buildings...")
     assign_materials(materials)
