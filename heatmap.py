@@ -594,13 +594,20 @@ class HeatmapGenerator(Heatmap):
                     if line_intersects_building(self.buildings, point_1, point_2): continue
                     plt.plot([x1 + c, x2 + c], [y1 + c, y2 + c], '--', alpha=0.5, color=point_color)
 
-        plt.rc('font', **{'size': 18})
+        plt.rc('font', **{'size': 22})
+        fontsize = 35
         plt.grid(True)
         # plt.title(title)
-        plt.xlabel('$x$ [m]', fontsize=26)
-        plt.ylabel('$y$ [m]', fontsize=26)
-        plt.xticks(fontsize = 26)
-        plt.yticks(fontsize = 26)
+        plt.xlabel('$x$ [m]', fontsize=fontsize)
+        plt.ylabel('$y$ [m]', fontsize=fontsize)
+        plt.xticks(fontsize = fontsize)
+        plt.yticks(fontsize = fontsize)
+        ax = plt.gca()
+        ax.yaxis.set_major_locator(plt.MultipleLocator(5))
+        ax.xaxis.set_major_locator(plt.MultipleLocator(5))
+        # Remove duplicate zero label from Y axis
+        yticks = ax.get_yticks()
+        ax.set_yticklabels(['' if t == 0 else f'{int(t)}' for t in yticks])
 
         try:
             plt.savefig(f"{results_folder_pdf}/{title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
