@@ -6,3 +6,8 @@ simulations/results/*.png
 *.pdf
 *.log
 *.zip
+*/target/
+Cargo.lock
+*.md
+!README.md
+visualize_scenarios

@@ -1,0 +1,231 @@
+<scene version="2.1.0">
+
+	<!-- Defaults, these can be set via the command line: -Darg=value -->
+
+
+	<!-- Camera and Rendering Parameters -->
+
+	<integrator type="path" id="elm__0" name="elm__0">
+		<integer name="max_depth" value="12" />
+	</integrator>
+
+	<!-- Materials -->
+
+	<bsdf type="diffuse" id="mat-itu_concrete" name="mat-itu_concrete">
+		<rgb value="1.000000 0.000000 0.300000" name="reflectance" />
+	</bsdf>
+	<bsdf type="diffuse" id="mat-itu_marble" name="mat-itu_marble">
+		<rgb value="0.284233 0.146437 0.061892" name="reflectance" />
+	</bsdf>
+	<bsdf type="diffuse" id="mat-itu_metal" name="mat-itu_metal">
+		<rgb value="0.290000 0.250000 0.210000" name="reflectance" />
+	</bsdf>
+
+	<!-- Emitters -->
+
+	<emitter type="constant" id="World" name="World">
+		<rgb value="1.000000 1.000000 1.000000" name="radiance" />
+	</emitter>
+
+	<!-- Shapes -->
+
+	<!-- Floor: 20x20 meters -->
+	<shape type="ply" id="mesh-Piano" name="mesh-Piano">
+		<string name="filename" value="meshes/Piano.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_concrete" name="bsdf" />
+		<transform name="to_world">
+			<scale x="1.0" y="1.0" z="1.0" />
+		</transform>
+	</shape>
+
+	<!-- Building 1: Target dimensions 20m (width) × 1m (length) × 3m (height) at position (0, 0, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (10.0, 0.5, 1.5)
+	     - Width: 2 × 10.0 = 20m
+	     - Length: 2 × 0.5 = 1m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building1" name="mesh-building1">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
+		<transform name="to_world">
+			<scale x="10.0" y="0.5" z="1.5" />
+			<translate x="0" y="0" z="1.5" />
+		</transform>
+	</shape>
+
+	<!-- Building 2: Target dimensions 20m (width) × 1m (length) × 3m (height) at position (0, 19, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (10.0, 0.5, 1.5)
+	     - Width: 2 × 10.0 = 20m
+	     - Length: 2 × 0.5 = 1m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building2" name="mesh-building2">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
+		<transform name="to_world">
+			<scale x="10.0" y="0.5" z="1.5" />
+			<translate x="0" y="19" z="1.5" />
+		</transform>
+	</shape>
+
+	<!-- Building 3: Target dimensions 1m (width) × 20m (length) × 3m (height) at position (0, 0, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (0.5, 10.0, 1.5)
+	     - Width: 2 × 0.5 = 1m
+	     - Length: 2 × 10.0 = 20m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building3" name="mesh-building3">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
+		<transform name="to_world">
+			<scale x="0.5" y="10.0" z="1.5" />
+			<translate x="0" y="0" z="1.5" />
+		</transform>
+	</shape>
+
+	<!-- Building 4: Target dimensions 1m (width) × 20m (length) × 3m (height) at position (19, 0, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (0.5, 10.0, 1.5)
+	     - Width: 2 × 0.5 = 1m
+	     - Length: 2 × 10.0 = 20m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building4" name="mesh-building4">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
+		<transform name="to_world">
+			<scale x="0.5" y="10.0" z="1.5" />
+			<translate x="19" y="0" z="1.5" />
+		</transform>
+	</shape>
+
+	<!-- Building 5: Target dimensions 6m (width) × 9m (length) × 3m (height) at position (1, 10, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (3.0, 4.5, 1.5)
+	     - Width: 2 × 3.0 = 6m
+	     - Length: 2 × 4.5 = 9m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building5" name="mesh-building5">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
+		<transform name="to_world">
+			<scale x="3.0" y="4.5" z="1.5" />
+			<translate x="1" y="10" z="1.5" />
+		</transform>
+	</shape>
+
+	<!-- Building 6: Target dimensions 11m (width) × 7m (length) × 3m (height) at position (8, 1, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (5.5, 3.5, 1.5)
+	     - Width: 2 × 5.5 = 11m
+	     - Length: 2 × 3.5 = 7m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building6" name="mesh-building6">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
+		<transform name="to_world">
+			<scale x="5.5" y="3.5" z="1.5" />
+			<translate x="8" y="1" z="1.5" />
+		</transform>
+	</shape>
+
+	<!-- Building 7: Target dimensions 2m (width) × 3m (length) × 3m (height) at position (10, 13, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (1.0, 1.5, 1.5)
+	     - Width: 2 × 1.0 = 2m
+	     - Length: 2 × 1.5 = 3m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building7" name="mesh-building7">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
+		<transform name="to_world">
+			<scale x="1.0" y="1.5" z="1.5" />
+			<translate x="10" y="13" z="1.5" />
+		</transform>
+	</shape>
+
+	<!-- Building 8: Target dimensions 3m (width) × 2m (length) × 3m (height) at position (14, 15, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (1.5, 1.0, 1.5)
+	     - Width: 2 × 1.5 = 3m
+	     - Length: 2 × 1.0 = 2m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building8" name="mesh-building8">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
+		<transform name="to_world">
+			<scale x="1.5" y="1.0" z="1.5" />
+			<translate x="14" y="15" z="1.5" />
+		</transform>
+	</shape>
+
+	<!-- Building 9: Target dimensions 1m (width) × 2m (length) × 3m (height) at position (5, 3, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (0.5, 1.0, 1.5)
+	     - Width: 2 × 0.5 = 1m
+	     - Length: 2 × 1.0 = 2m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building9" name="mesh-building9">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
+		<transform name="to_world">
+			<scale x="0.5" y="1.0" z="1.5" />
+			<translate x="5" y="3" z="1.5" />
+		</transform>
+	</shape>
+
+	<!-- Building 10: Target dimensions 2m (width) × 2m (length) × 3m (height) at position (16, 8, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (1.0, 1.0, 1.5)
+	     - Width: 2 × 1.0 = 2m
+	     - Length: 2 × 1.0 = 2m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building10" name="mesh-building10">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
+		<transform name="to_world">
+			<scale x="1.0" y="1.0" z="1.5" />
+			<translate x="16" y="8" z="1.5" />
+		</transform>
+	</shape>
+
+	<!-- Building 11: Target dimensions 1m (width) × 2m (length) × 3m (height) at position (2, 6, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (0.5, 1.0, 1.5)
+	     - Width: 2 × 0.5 = 1m
+	     - Length: 2 × 1.0 = 2m
+	     - Height: 2 × 1.5 = 3m
+	     Transform order: scale first, then translate
+	     Z-translation = 1.5m to place bottom on floor (half of 3m height) -->
+	<shape type="ply" id="mesh-building11" name="mesh-building11">
+		<string name="filename" value="custom/meshes/Cube.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-itu_marble" name="bsdf" />
+		<transform name="to_world">
+			<scale x="0.5" y="1.0" z="1.5" />
+			<translate x="2" y="6" z="1.5" />
+		</transform>
+	</shape>
+
+	<!-- Volumes -->
+
+</scene>

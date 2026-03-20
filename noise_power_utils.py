@@ -35,9 +35,9 @@ def calculate_signal_power(signal: np.ndarray) -> float:
     --------
     Signal power
     '''
-    return np.linalg.norm(signal) ** 2
+    return (np.linalg.norm(signal) ** 2).item()
 
-def snr_db_to_sigma_sq(snr_db, path_gain = 1):
+def snr_db_to_sigma_sq(snr_db, path_gain = 1.0):
     '''
     Convert SNR in dB to noise variance (sigma squared).
 
@@ -52,7 +52,7 @@ def snr_db_to_sigma_sq(snr_db, path_gain = 1):
     sigma_sq = path_gain / snr_linear
     return sigma_sq
 
-def create_random_noise_vector_from_snr(K: int, snr_db: int, path_gain = 1) -> np.ndarray:
+def create_random_noise_vector_from_snr(K: int, snr_db: int, path_gain = 1.0) -> np.ndarray:
     """
     Generate a random noise vector with complex Gaussian entries, from SNR in dB.
 

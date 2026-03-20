@@ -1,7 +1,7 @@
 import numpy as np
 from typing import List, Tuple
 
-tolerance = 1e-10
+tolerance = 1e-4
 
 def calculate_W_single(K: int, N: int, G: np.ndarray, H: np.ndarray) -> np.ndarray:
     """
@@ -86,6 +86,11 @@ def calculate_ris_reflection_matrice(
         P: diagonal reflection matrice
         dor: Degree of randomness achieved
     """
+    # No receivers, we setup the RIS randomly
+    if J == 0:
+        # todo correct dor
+        return np.diag(random_reflection_vector(N, eta)), 0
+
     W = calculate_W_multiple(K, N, J, Gs, H)
     R, sigma, Vh = np.linalg.svd(W)
 
@@ -237,7 +242,7 @@ def verify_multi_ris_diagonalization(
         results.append(verify_matrix_is_diagonal(effective_channel))
     return results
 
-def print_effective_channel(G: np.ndarray, H: np.ndarray, P: np.ndarray):
+def print_effective_channel(effective_channel: np.ndarray):
     """
     Print the effective channel matrix GPH.
 
@@ -246,9 +251,9 @@ def print_effective_channel(G: np.ndarray, H: np.ndarray, P: np.ndarray):
         H: Channel matrix from transmitter to RIS
         P: Reflection matrix
     """
-    effective_channel = G @ P @ H
-    rounded_matrix = np.round(np.abs(effective_channel), 2)
-    print(rounded_matrix)
+    abs_matrix = np.abs(effective_channel)
+    with np.printoptions(precision=2, suppress=False, formatter={'float_kind': lambda x: f'{x:.2e}'}):
+        print(abs_matrix)
 
 def verify_results(
     Ps: List[np.ndarray],
@@ -278,7 +283,7 @@ def verify_results(
 
     print("\nEffective channel matrix for first receiver:")
     P = unify_ris_reflection_matrices(Ps, Cs)
-    print_effective_channel(Gs[0], H, P)
+    print_effective_channel(Gs[0] @ P @ H)
 
 def main():
     N = 16    # * Number of reflecting elements

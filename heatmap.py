@@ -3,20 +3,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 # * pip install PyQt6
 import PyQt6
-from typing import List, Tuple, Callable, Literal, Dict, Any
+from typing import List, Tuple, Literal, Dict, TypedDict, TypeVar
+from numpy import ndarray
 import os
-import json
 from tqdm import tqdm
 import time
-from multiprocess import Pool, cpu_count
-from functools import partial
+from multiprocess import Pool, cpu_count # pyright: ignore[reportAttributeAccessIssue]
 import warnings
 warnings.filterwarnings('ignore', category=RuntimeWarning)
 
 from diagonalization import (
   calculate_ris_reflection_matrice,
   unify_ris_reflection_matrices,
-  random_reflection_vector,
+  verify_matrix_is_diagonal,
+  print_effective_channel
 )
 from ber import (
     simulate_ssk_transmission_reflection,
@@ -25,112 +25,451 @@ from ber import (
 from noise_power_utils import (
     calculate_channel_power,
     calculate_signal_power,
-    create_random_noise_vector_from_snr,
     create_random_noise_vector_from_noise_floor
 )
 from heatmap_utils import (
     calculate_signal_power_from_channel_using_ssk,
     calculate_free_space_path_loss,
-    calculate_mimo_channel_gain
+    calculate_mimo_channel_gain,
+    line_intersects_building,
+    is_point_inside_building
+)
+from heatmap_situations import (
+    Building,
+    Point,
+    Situation,
+    situations,
+    ChannelMatrix
 )
 
-num_symbols=1000
-use_noise_floor = True
-Pt_dbm = 0.0
-max_cpu_count = 64
+max_cpu_count = 100
+results_folder = './heatmap'
+results_folder_pdf = results_folder + '/pdf'
+results_folder_data = results_folder + '/data'
 
-class HeatmapGenerator:
-    def __init__(self, width: int, height: int, resolution: float = 0.5):
-        """
-        Initialize the heatmap generator with given dimensions.
-        Args:
-            width: Width of the area in meters
-            height: Height of the area in meters
-            resolution: Resolution in meters per grid cell (e.g., 0.5 for half-meter resolution)
-        """
-        self.width = width
-        self.height = height
-        self.resolution = resolution
+def load_or_create_channel_matrix(situation: Situation) -> ChannelMatrix:
+    """
+    Load pre-computed Sionna channel matrix from file, or create a new random one.
 
+    Args:
+        situation: The simulation situation
+
+    Returns:
+        ChannelMatrix instance (either loaded from Sionna or with random generation)
+    """
+    simulation_name = situation['simulation_name']
+    filepath = f'heatmap/channel_matrices/sionna_channels_{simulation_name}.npz'
+
+    if os.path.exists(filepath):
+        try:
+            print(f"Loading Sionna channel matrix from {filepath}...")
+            data = np.load(filepath, allow_pickle=True)
+            channel_matrix: ChannelMatrix = data['channel_matrix'].item()
+
+            if (channel_matrix.metadata['K'] == globals['K'] and
+                channel_matrix.metadata['N'] == globals['N'] and
+                channel_matrix.metadata['resolution'] == situation['resolution']):
+                print(f"✓ Loaded Sionna channels for '{simulation_name}'")
+                return channel_matrix
+            else:
+                print(f"⚠ Metadata mismatch for '{simulation_name}', generating random channels")
+                print(f"   Expected: K={globals['K']}, N={globals['N']}, resolution={situation['resolution']}")
+                print(f"   Found: K={channel_matrix.metadata['K']}, N={channel_matrix.metadata['N']}, resolution={channel_matrix.metadata['resolution']}")
+
+        except Exception as e:
+            print(f"⚠ Failed to load Sionna channels: {e}")
+            print("Generating random channels")
+
+    else:
+        print(f"⚠ Sionna file not found: {filepath}")
+        print("Generating random channels")
+
+    print(f"Creating random channel matrix for '{simulation_name}'...")
+    channel_matrix = _create_random_channel_matrix(situation)
+    print(f"✓ Created random channel matrix")
+    return channel_matrix
+
+def _create_random_channel_matrix(situation: Situation) -> ChannelMatrix:
+    """Create a ChannelMatrix with randomly generated channels for all connections."""
+    channel_matrix = ChannelMatrix()
+    channel_matrix.situation_name = situation['simulation_name']
+    channel_matrix.metadata = {
+        'K': globals['K'],
+        'N': globals['N'],
+        'width': situation['width'],
+        'height': situation['height'],
+        'resolution': situation['resolution']
+    }
+
+    transmitter = situation['transmitter']
+    ris_points = situation['ris_points']
+    buildings = situation['buildings']
+    resolution = situation['resolution']
+
+    # source_points = [transmitter] + ris_points
+
+    grid_width = int(situation['width'] / resolution)
+    grid_height = int(situation['height'] / resolution)
+
+    points = []
+    # First, add RIS and receiver points as destinations
+    for ris_point in ris_points:
+        points.append(ris_point)
+    for receiver in situation['receivers']:
+        points.append(receiver)
+    
+    # Then add all grid points
+    for y in range(grid_height):
+        for x in range(grid_width):
+            grid_point: Point = {
+                'x': x,
+                'y': y
+            }
+            point: Point = {
+                'x': grid_point['x'] * resolution,
+                'y': grid_point['y'] * resolution
+            }
+            if not is_point_inside_building(point, buildings):
+                # Skip if this point is already a RIS or receiver
+                is_special_point = any(
+                    point['x'] == p['x'] and point['y'] == p['y'] 
+                    for p in ris_points + situation['receivers']
+                )
+                if not is_special_point:
+                    points.append(point)
+
+    def compute_grid_channels(point: Point):
+        """Compute all channels from source points to a single grid point."""
+        channels: List[Tuple[Point, Point, ndarray]] = []
+        is_ris_dest = any(point['x'] == ris['x'] and point['y'] == ris['y'] for ris in ris_points)
+        dim_dest = globals['N'] if is_ris_dest else globals['K']
+
+        distance = calculate_distance(transmitter, point)
+        dim_source = globals['K']
+        if line_intersects_building(buildings, transmitter, point) or distance == np.inf:
+            channel = np.zeros((dim_dest, dim_source))
+        else:
+            channel = calculate_mimo_channel_gain(distance, dim_source, dim_dest)
+        channels.append((transmitter, point, channel))
+    
+        for source_point in ris_points:
+            distance = calculate_distance(source_point, point)
+            dim_source = globals['N']
+
+            if line_intersects_building(buildings, source_point, point) or distance == np.inf:
+                channel = np.zeros((dim_dest, dim_source))
+            else:
+                channel = calculate_mimo_channel_gain(distance, dim_source, dim_dest)
+            channels.append((source_point, point, channel))
+        return channels
+
+    n_processes = min(cpu_count(), max_cpu_count)
+    print(f"Generating random channels from {len(ris_points)+1} sources to {len(points)} grid points using {n_processes} CPUs...")
+    with Pool(processes=n_processes) as pool:
+        results: List[List[Tuple[Point, Point, ndarray]]] = list(tqdm(
+            pool.imap(compute_grid_channels, points),
+            total=len(points),
+            desc="Generating channels"
+        ))
+
+    for channel_list in results:
+        for source_point, point, channel in channel_list:
+            channel_matrix.set(source_point, point, channel)
+    return channel_matrix
+
+def configure_latex():
+    """Configure matplotlib to use LaTeX for better text rendering."""
+    try:
+        plt.rcParams['text.usetex'] = True
+        plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
+        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+    except Exception:
+        plt.rcParams['text.usetex'] = False
+
+class Globals(TypedDict):
+    K: int
+    N: int
+    num_symbols: int
+    use_noise_floor: bool
+    Pt_dbm: float
+    eta: float
+    snr_db: int
+
+globals: Globals = {
+    'K': 4,
+    'N': 36,
+    'eta': 0.9,
+    'num_symbols': 10000,
+    'use_noise_floor': True,
+    'Pt_dbm': 40.0,
+    'snr_db': 10,
+}
+
+PathLoss = Literal['product', 'active']
+path_loss_types: List[PathLoss] = ['product', 'active']
+
+
+def calculate_distance(point_1: Point, point_2: Point) -> float:
+    return np.sqrt((point_1['x'] - point_2['x'])**2 + (point_1['y'] - point_2['y'])**2)
+
+class Grid:
+    def __init__(self, grid_width: int, grid_height: int):
+        self.grid = np.zeros((grid_height, grid_width))
+    
+    def __setitem__(self, point: Point, value: float):
+        self.grid[int(point['y']), int(point['x'])] = value
+
+    def __getitem__(self, point: Point) -> float:
+        return self.grid[int(point['y']), int(point['x'])]
+    
+    def set_building(self, building: Building, value: float):
+        """Set a rectangular region defined by a building to a specific value."""
+        y_start = building['y']
+        y_end = y_start + building['height']
+        x_start = building['x']
+        x_end = x_start + building['width']
+        
+        self.grid[y_start:y_end, x_start:x_end] = value
+
+    def __array__(self):
+        """Return the grid as a NumPy array for compatibility with np.savez"""
+        return self.grid
+
+T = TypeVar('T')
+Graph = Dict[str, Dict[str, T]]
+class Heatmap:
+    width: int
+    height: int
+    resolution: float
+    buildings: List[Building]
+    # todo add the type of the points instead of relying on the name
+    points: Dict[str, Point]
+    grid_width: int
+    grid_height: int
+    M: int
+    J: int
+    grid: Grid
+    stat_grids: Dict[str, Grid]
+    distance_graph: Graph[float]
+    channel_graph: Graph[np.ndarray]
+    parent_tree: Dict[str, str]
+
+class HeatmapGenerator(Heatmap):
+    def __init__(self, situation: Situation, channel_matrix: ChannelMatrix):
+        # TODO precheck that the situation data is ok (points outside the grid, ecc)
+
+        self.situation_name = situation['simulation_name']
+        self.channel_matrix = channel_matrix
+        self.width = situation['width']
+        self.height = situation['height']
+        self.resolution = situation['resolution']
+
+        self.M = len(situation['ris_points'])
+        self.J = len(situation['receivers'])
+        
         # * Calculate grid dimensions based on resolution
-        self.grid_width = int(width / resolution)
-        self.grid_height = int(height / resolution)
-        self.grid = np.zeros((self.grid_height, self.grid_width))
-        self.buildings = []
-        # * Dictionary to store points with their labels and coordinates
-        self.points = {}
+        self.grid_width = int(self.width / self.resolution)
+        self.grid_height = int(self.height / self.resolution)
+        self.grid = Grid(self.grid_width, self.grid_height)
+        self.buildings = situation['buildings']
 
-    @staticmethod
-    def copy_from(other: 'HeatmapGenerator') -> 'HeatmapGenerator':
-        """
-        Copy the grid and points from another HeatmapGenerator object.
+        self.points = { 'T': situation['transmitter'] }
+        for i, ris_point in enumerate(situation['ris_points']):
+            self.points[f'P{i+1}'] = ris_point
+        for i, receiver in enumerate(situation['receivers']):
+            self.points[f'R{i+1}'] = receiver
 
-        Args:
-            other: Another HeatmapGenerator object
-        """
-        new_heatmap = HeatmapGenerator(other.width, other.height, other.resolution)
-        new_heatmap.grid = np.copy(other.grid)
-        new_heatmap.buildings = other.buildings.copy()
-        new_heatmap.points = other.points.copy()
-        return new_heatmap
+        self.distance_graph = {}
+        self.channel_graph = {}
+        for label in self.points.keys():
+            self.distance_graph[label] = {}
+            self.channel_graph[label] = {}
+        for label, point in self.points.items():
+            for other_label, other_point in self.points.items():
+                if other_label in self.distance_graph[label]: continue
+                elif other_label == label:
+                    distance = 0
+                elif line_intersects_building(self.buildings, point, other_point):
+                    distance = np.inf
+                else:
+                    distance = calculate_distance(point, other_point)
+                self.distance_graph[label][other_label] = distance
+                self.distance_graph[other_label][label] = distance
 
-    def _meters_to_grid(self, x: float, y: float) -> Tuple[int, int]:
+        self.visualize(title=f'{situation['simulation_name']}', grid=self.grid, label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False) 
+
+        result = self.check_ris_cycles()
+        if result:
+            raise ValueError("The RIS configuration contains cycles, or has orphan RIS, which is not allowed.")
+        
+        already_checked = set()
+        self.parent_tree = { 'T': 'T' }
+        def calculate_next_node_dfs(label: str):
+            if label in already_checked: return True
+            if label[0] == 'R': return True
+            already_checked.add(label)
+            dim_label = globals['N'] if label[0] == 'P' else globals['K']
+            label_point = self.points[label]
+            for p_label, _ in self.points.items():
+                if p_label == label: continue
+                if p_label[0] == 'R': continue
+                distance = self.distance_graph[label][p_label]
+                if distance != np.inf and p_label not in self.parent_tree:
+                    self.parent_tree[p_label] = label
+            for p_label, p_point in self.points.items():
+                if p_label == label: continue
+                distance = self.distance_graph[label][p_label]
+                if distance == np.inf:
+                    continue
+                channel = self.channel_matrix.get(label_point, p_point)
+                if channel is None:
+                    raise Exception(f"Channel from {label} ({label_point['x']},{label_point['y']}) to {p_label} ({p_point['x']},{p_point['y']}) is None!")
+
+                self.channel_graph[label][p_label] = channel
+                calculate_next_node_dfs(p_label)
+        calculate_next_node_dfs("T")   
+
+        # todo remove
+        # self.log_graphs()   
+       
+        self.stat_grids = {
+            'BER path loss product': Grid(self.grid_width, self.grid_height),
+            'BER path loss active': Grid(self.grid_width, self.grid_height),
+            'SNR path loss product': Grid(self.grid_width, self.grid_height),
+            'SNR path loss active': Grid(self.grid_width, self.grid_height),
+            # todo snr from T and RISs
+            # 'SNR from T': Grid(self.grid_width, self.grid_height),
+        }
+        # todo snr from T and RISs
+        # for i in range(self.M):
+        #     self.stat_grids[f'SNR from P{i+1}'] = Grid(self.grid_width, self.grid_height)
+
+        for building in self.buildings:
+            grid_building: Building = {
+                'x': int(self._meters_to_grid(building['x'])),
+                'y': int(self._meters_to_grid(building['y'])),
+                'width': int(self._meters_to_grid(building['width'])),
+                'height': int(self._meters_to_grid(building['height'])),
+            }
+
+            # * Mark building area as NaN to exclude from heatmap
+            self.grid.set_building(grid_building, np.nan)
+            for grid in self.stat_grids.values():
+                grid.set_building(grid_building, np.nan)
+
+
+    def _meters_to_grid(self, f: float) -> float:
         """Convert meter coordinates to grid coordinates"""
-        return (
-            int(x / self.resolution),
-            int(y / self.resolution)
-        )
+        return f / self.resolution
 
-    def _grid_to_meters(self, grid_x: int, grid_y: int) -> Tuple[float, float]:
+
+    def _grid_to_meters(self, i: float) -> float:
         """Convert grid coordinates to meter coordinates"""
-        return (
-            grid_x * self.resolution,
-            grid_y * self.resolution
-        )
+        return i * self.resolution
 
-    def add_building(self, x: int, y: int, width: int, height: int):
-        """
-        Add a building to the map. Buildings are excluded from the heatmap calculation.
+    def _point_meters_to_grid(self, point: Point) -> Point:
+        return {
+            'x': self._meters_to_grid(point['x']),
+            'y': self._meters_to_grid(point['y'])
+        }
+    
+    def _point_grid_to_meters(self, point: Point) -> Point:
+        return {
+            'x': self._grid_to_meters(point['x']),
+            'y': self._grid_to_meters(point['y'])
+        }
 
-        Args:
-            x: X coordinate of building's lower-left corner
-            y: Y coordinate of building's lower-left corner
-            width: Width of the building in meters
-            height: Height of the building in meters
-        """
-        self.buildings.append((x, y, width, height))
-        grid_x, grid_y = self._meters_to_grid(x, y)
-        grid_width = int(width / self.resolution)
-        grid_height = int(height / self.resolution)
+    def log_graphs(self):
+        for s_label, children in self.distance_graph.items():
+            parent_info = f"\t(parent: {self.parent_tree[s_label]})" if s_label in self.parent_tree else ""
+            print(f"{s_label}{parent_info}:")
+            for e_label, distance in children.items():
+                if s_label in self.channel_graph:
+                    if e_label in self.channel_graph[s_label]:
+                        channel_power = calculate_channel_power(self.channel_graph[s_label][e_label])
+                        channel_shape = self.channel_graph[s_label][e_label].shape
+                        channel_info = f"channel of shape {channel_shape} and power {channel_power}"
+                    else: channel_info = f"self.channel_graph[{s_label}] does not have a link to [{e_label}]"
+                else: channel_info = f"self.channel_graph does not have a link to [{s_label}]"
+                print(f"\t{e_label}:\tdistance: {distance:.2f}\t{channel_info}")
+    
+    def check_ris_cycles(self) -> bool:
+        already_checked = set()
+        def check_next_nodes_dfs(label: str, from_label: str) -> bool:
+            if label in already_checked: return True
+            already_checked.add(label)
+            for p_label, _ in self.points.items():
+                if p_label == label: continue
+                if p_label == from_label: continue
+                if not p_label.startswith('P'): continue
+                if self.distance_graph[label][p_label] == np.inf: continue
+                if check_next_nodes_dfs(p_label, label): 
+                    print(f"Found cycle: {p_label} went back to {label}")
+                    return True
+            return False
+        result = check_next_nodes_dfs("T", "T")
+        if len(already_checked) != self.M + 1: # include T in already_checked
+            print(f"Not all RIS were visited: {len(already_checked)} != {self.M}")
+            return True
+        return result
+    
+    def get_new_RIS_configurations(self):
+        Ps: Dict[str, ndarray] = {}
+        chain_to_last_P: Dict[str, ndarray] = {}
+        normalitation_factor_for_chain_to_last_P: Dict[str, float] = {}
 
-        # * Mark building area as NaN to exclude from heatmap
-        self.grid[grid_y:grid_y+grid_height, grid_x:grid_x+grid_width] = np.nan
+        def get_normalize_factor(H: ndarray):
+            return 1 / np.max(np.abs(H))
 
-    def add_point(self, label: str, x: float, y: float):
-        """
-        Add a point of interest to the map with a specific label.
+        def calculate_P(p_label):
+            if p_label[0] != 'P': return
+            if p_label in Ps: return
 
-        Args:
-            label: Label for the point (e.g., 'A', 'B', 'Source 1')
-            x: X coordinate of the point
-            y: Y coordinate of the point
-        """
-        if not (0 <= x < self.width and 0 <= y < self.height):
-            raise ValueError(f"Point {label} coordinates ({x}, {y}) are outside the map boundaries")
-        self.points[label] = (x, y)
+            connected_receivers: List[str] = []
+            connected_receivers_channel_gain: List[ndarray] = []
+            for r_label, r_point in self.points.items():
+                if r_label[0] != 'R': continue
+                distance = self.distance_graph[p_label][r_label]
+                if distance == np.inf: continue
+                connected_receivers.append(r_label)
+                connected_receivers_channel_gain.append(self.channel_graph[p_label][r_label])
 
-    def get_point_coordinates(self, label: str) -> Tuple[float, float]:
-        """
-        Get the coordinates of a specific point by its label.
+            if self.parent_tree[p_label] == 'T':
+                H = self.channel_graph['T'][p_label]
+                P, _ = calculate_ris_reflection_matrice(globals['K'], globals['N'], len(connected_receivers), connected_receivers_channel_gain, H, globals['eta'])
+                Ps[p_label] = P
+                chain_to_last_P[p_label] = P @ H
+                normalitation_factor_for_chain_to_last_P[p_label] = get_normalize_factor(H)
+            else:
+                P_chain: List[ndarray] = []
+                C_chain: List[ndarray] = []
+                prev_label = p_label
+                curr_label = self.parent_tree[p_label]
+                while curr_label != 'T':
+                    if curr_label[0] != 'P':
+                        curr_label = self.parent_tree[curr_label]
+                        continue
+                    calculate_P(curr_label)
+                    P = Ps[curr_label]
+                    C = self.channel_graph[prev_label][curr_label]
+                    P_chain.insert(0, P)
+                    C_chain.insert(0, C)
+                    prev_label = curr_label
+                    curr_label = self.parent_tree[curr_label]
+                H = self.channel_graph['T'][prev_label]
+                P_prev = unify_ris_reflection_matrices(P_chain, C_chain)
+                modified_Gs = [G @ P_prev @ C_chain[-1] for G in connected_receivers_channel_gain]
+                P, _ = calculate_ris_reflection_matrice(globals['K'], globals['N'], len(connected_receivers), modified_Gs, H, globals['eta'])
+                Ps[p_label] = P
+                chain_to_last_P[p_label] = P_prev @ C_chain[-1] @ P @ H
+                normalitation_factor_for_chain_to_last_P[p_label] = get_normalize_factor(H)
+                for C in C_chain:
+                    normalitation_factor_for_chain_to_last_P[p_label] *= get_normalize_factor(C)
 
-        Args:
-            label: The label of the point
-        Returns:
-            Tuple of (x, y) coordinates
-        """
-        if label not in self.points:
-            raise KeyError(f"Point {label} not found")
-        return self.points[label]
+        for p_label, p_point in self.points.items():
+            calculate_P(p_label)
+
+        return Ps, chain_to_last_P, normalitation_factor_for_chain_to_last_P
 
     def _save_colorbar_legend(self, title: str, cmap='viridis', vmin=None, vmax=None, label='BER', orientation='horizontal'):
         """
@@ -144,29 +483,37 @@ class HeatmapGenerator:
             label: Label for the colorbar
             orientation: 'horizontal' or 'vertical'
         """
-        legend_filename = f"./results_pdf/BER heatmap legend_{orientation}.pdf"
-        if os.path.exists(legend_filename):
-            # print(f"Legend file {legend_filename} already exists. Skipping creation.")
-            return
-        fig = plt.figure(figsize=(6, 1) if orientation == 'horizontal' else (1.5, 6))
-        ax = fig.add_axes([0.1, 0.4, 0.8, 0.3] if orientation == 'horizontal' else [0.3, 0.1, 0.3, 0.8])
+        legend_filename = f"{results_folder_pdf}/{label} legend_{orientation}.pdf"
 
-        norm = plt.Normalize(vmin=vmin, vmax=vmax)
+        configure_latex()
+
+        fig = plt.figure(figsize=(6, 1) if orientation == 'horizontal' else (1.5, 6))
+        rect = (0.1, 0.4, 0.8, 0.3) if orientation == 'horizontal' else (0.3, 0.1, 0.3, 0.8)
+        ax = fig.add_axes(rect=rect)
+
+        norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
         cb = plt.colorbar(
             plt.cm.ScalarMappable(norm=norm, cmap=cmap),
             cax=ax,
             orientation=orientation,
         )
 
-        plt.rcParams['text.usetex'] = True
-        plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
-        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
-
-        plt.savefig(legend_filename, dpi=300, format='pdf', bbox_inches='tight')
-        print(f"Saved {legend_filename}")
+        try:
+            plt.savefig(legend_filename, dpi=300, format='pdf', bbox_inches='tight')
+            print(f"Saved {legend_filename}")
+        except RuntimeError as e:
+            if "latex could not be found" in str(e):
+                print(f"Warning: LaTeX rendering failed, retrying with default font for {legend_filename}")
+                plt.close(fig)
+                plt.rcParams['text.usetex'] = False
+                self._save_colorbar_legend(title, cmap, vmin, vmax, label, orientation)
+                return
+            else:
+                print('Could not print the image - the data was still saved')
+                raise
         plt.close(fig)
-
-    def visualize(self, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='white', vmin=None, vmax=None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True, show_legend=False):
+    
+    def visualize(self, grid: Grid, title: str, cmap='viridis', show_buildings=True, show_points=True, point_color='white', vmin: float | None = None, vmax: float | None = None, log_scale=False, label='BER', show_receivers_values=False, show_heatmap=True, show_legend=False):
         """
         Visualize the ber_heatmap with optional building outlines and points of interest.
 
@@ -182,49 +529,28 @@ class HeatmapGenerator:
             show_receivers_values: Whether to show values at receiver points
             show_heatmap: Whether to show the heatmap values and legend
             """
-        os.makedirs("./results_pdf", exist_ok=True)
-        os.makedirs("./results_data", exist_ok=True)
+        os.makedirs(results_folder_pdf, exist_ok=True)
+        os.makedirs(results_folder_data, exist_ok=True)
 
-        data_filename = f"./results_data/{title}.npz"
-
-        np.savez(
-            data_filename,
-            grid=self.grid,
-            width=self.width,
-            height=self.height,
-            resolution=self.resolution,
-            buildings=np.array(self.buildings),
-            points={k: np.array(v) for k, v in self.points.items()},
-            vmin=vmin,
-            vmax=vmax,
-            log_scale=log_scale
-        )
-        print(f"Saved data to {data_filename}")
+        configure_latex()
 
         figure = plt.figure(figsize=(10, 8))
 
         if log_scale and show_heatmap:
             # * Add small offset to zero values before taking log
-            grid_for_log = np.copy(self.grid)
-            positive_values = grid_for_log[grid_for_log > 0]
-
-            if len(positive_values) > 0:
-                min_nonzero = np.min(positive_values)
-                grid_for_log[grid_for_log == 0] = min_nonzero / num_symbols
-            else:
-                # If no positive values exist, set a small default value
-                grid_for_log[grid_for_log == 0] = 1e-10
-
+            grid_for_log = np.copy(grid)
+            grid_for_log[grid_for_log == 0] = 1e-10
             masked_grid = np.ma.masked_invalid(np.log10(grid_for_log))
             title += ' (log scale)'
         else:
-            masked_grid = np.ma.masked_invalid(self.grid)
+            masked_grid = np.ma.masked_invalid(grid)
 
-        extent = [0, self.width, 0, self.height]
+        # ! changed from list to tuple, since otherwise error
+        extent = (0, self.width, 0, self.height)
 
         if show_heatmap:
             plt.imshow(masked_grid, cmap=cmap, origin='lower', vmin=vmin, vmax=vmax, extent=extent)
-            if not log_scale:
+            if not show_legend:
                 self._save_colorbar_legend(title, cmap=cmap, vmin=vmin, vmax=vmax, label=label, orientation='horizontal')
                 self._save_colorbar_legend(title, cmap=cmap, vmin=vmin, vmax=vmax, label=label, orientation='vertical')
             if show_legend:
@@ -234,711 +560,378 @@ class HeatmapGenerator:
 
         if show_buildings:
             for building in self.buildings:
-                x, y, w, h = building
+                # x, y, w, h = building
+                x = building['x']
+                y = building['y']
+                w = building['width']
+                h = building['height']
                 x_array = [x, x+w, x+w, x, x]
                 y_array = [y, y, y+h, y+h, y]
                 plt.plot(x_array, y_array,'r-', linewidth=2)
 
         if show_points and self.points:
             c = 0.5 * self.resolution
-            for label, (x, y) in self.points.items():
+            for label, point in self.points.items():
+                x = point['x']
+                y = point['y']
                 if label[0] == 'R' and show_receivers_values and show_heatmap:
-                    grid_x, grid_y = self._meters_to_grid(x, y)
-                    value = self.grid[grid_y, grid_x]
+                    grid_point = self._point_meters_to_grid(point)
+                    value = grid[grid_point]
                     if log_scale and value > 0:
                         value = np.log10(value)
                     label += f" ({value:.2f})"
                 plt.plot(x + c, y + c, 'o', color=point_color, markersize=6)
                 plt.text(x + 2 * c, y + 2 * c, label, color=point_color, fontweight=1000, fontsize=20, bbox=dict(pad=0.2, boxstyle='round',  lw=0, ec=None, fc='black', alpha=0.3))
             # * plot a line between all points if the lines is not crossing a building
-            for label1, (x1, y1) in self.points.items():
-                for label2, (x2, y2) in self.points.items():
+            for label1, point_1 in self.points.items():
+                x1 = point_1['x']
+                y1 = point_1['y']
+                for label2, point_2 in self.points.items():
+                    x2 = point_2['x']
+                    y2 = point_2['y']
                     if label1 == label2: continue
                     if label1[0] == 'R' and label2[0] == 'R': continue
-                    if self._line_intersects_building(x1, y1, x2, y2): continue
+                    if line_intersects_building(self.buildings, point_1, point_2): continue
                     plt.plot([x1 + c, x2 + c], [y1 + c, y2 + c], '--', alpha=0.5, color=point_color)
 
-        plt.rcParams['text.usetex'] = True
-        plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
-        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 18})
+        plt.rc('font', **{'size': 22})
+        fontsize = 35
         plt.grid(True)
         # plt.title(title)
-        plt.xlabel('$x$ [m]', fontsize=26)
-        plt.ylabel('$y$ [m]', fontsize=26)
-        plt.xticks(fontsize = 26)
-        plt.yticks(fontsize = 26)
-        plt.savefig(f"./results_pdf/{title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
-        print(f"Saved {title}.pdf")
+        plt.xlabel('$x$ [m]', fontsize=fontsize)
+        plt.ylabel('$y$ [m]', fontsize=fontsize)
+        plt.xticks(fontsize = fontsize)
+        plt.yticks(fontsize = fontsize)
+        ax = plt.gca()
+        ax.yaxis.set_major_locator(plt.MultipleLocator(5))
+        ax.xaxis.set_major_locator(plt.MultipleLocator(5))
+        # Remove duplicate zero label from Y axis
+        yticks = ax.get_yticks()
+        ax.set_yticklabels(['' if t == 0 else f'{int(t)}' for t in yticks])
+
+        try:
+            plt.savefig(f"{results_folder_pdf}/{title}.pdf", dpi=300, format='pdf', bbox_inches='tight')
+            print(f"Saved {title}.pdf")
+        except RuntimeError as e:
+            if "latex could not be found" in str(e):
+                print(f"Warning: LaTeX rendering failed, retrying with default font for {title}.pdf")
+                plt.close(figure)
+                plt.rcParams['text.usetex'] = False
+                self.visualize(grid=grid, title=title, cmap=cmap, show_buildings=show_buildings,
+                             show_points=show_points, point_color=point_color, vmin=vmin, vmax=vmax,
+                             log_scale=log_scale, label=label, show_receivers_values=show_receivers_values,
+                             show_heatmap=show_heatmap, show_legend=show_legend)
+                return
+            else:
+                raise
         plt.close(figure)
 
-    @classmethod
-    def from_saved_data(cls, filename: str):
-        """
-        Load a heatmap from a saved data file
+def can_point_receive_signal(ber_heatmap: HeatmapGenerator, point_grid: Point) -> bool:
+    point: Point = ber_heatmap._point_grid_to_meters(point_grid)
+    can_receive_signal = False
+    for label, heatmap_point in ber_heatmap.points.items():
+        if label[0] == 'R': 
+            continue
+        if line_intersects_building(ber_heatmap.buildings, point, heatmap_point):
+            continue
+        if calculate_distance(point, heatmap_point) == np.inf: 
+            continue
+        can_receive_signal = True
+    return can_receive_signal
 
-        Args:
-            filename: Path to the saved data file
+empty_ber: Dict[PathLoss, float] = {
+    'product': np.nan, 
+    'active': np.nan,
+}
+empty_snr: Dict[str, float] = {
+    'product': np.nan, 
+    'active': np.nan,
+    'T': np.nan
+}
 
-        Returns:
-            HeatmapGenerator: A new HeatmapGenerator with the loaded data
-        """
-        data = np.load(filename, allow_pickle=True)
-        width = data['width'].item()
-        height = data['height'].item()
-        resolution = data['resolution'].item()
+def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
+    Dict[PathLoss, float], 
+    Dict[str, float], 
+    str | None
+]:
+    is_building = np.isnan(ber_heatmap.grid[point_grid])
+    if is_building: return empty_ber, empty_snr, None
+    if not can_point_receive_signal(ber_heatmap, point_grid): return empty_ber, empty_snr, None
 
-        heatmap = cls(width, height, resolution)
-        heatmap.grid = data['grid']
-        heatmap.buildings = data['buildings'].tolist()
-
-        # Convert points back from numpy arrays to tuples
-        points_dict = data['points'].item()
-        heatmap.points = {k: tuple(v) for k, v in points_dict.items()}
-
-        return heatmap
-
-    def _line_intersects_building(self, x1: float, y1: float, x2: float, y2: float) -> bool:
-        """
-        Check if line between two points intersects any building.
-        Uses line segment intersection algorithm.
-        """
-        def ccw(A: tuple, B: tuple, C: tuple) -> bool:
-            """Returns True if points are counter-clockwise oriented"""
-            return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
-
-        def intersect(A: tuple, B: tuple, C: tuple, D: tuple) -> bool:
-            """Returns True if line segments AB and CD intersect"""
-            return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
-
-        for bx, by, bw, bh in self.buildings:
-            building_corners = [
-                (bx, by), (bx + bw, by),
-                (bx + bw, by + bh), (bx, by + bh)
-            ]
-
-            for i in range(4):
-                if intersect(
-                    (x1, y1), (x2, y2),
-                    building_corners[i], building_corners[(i + 1) % 4]
-                ):
-                    return True
-        return False
-
-    def calculate_distance_from_point(self, point: str) -> np.ndarray:
-        """
-        Calculate the minimum distance from each grid cell to the specified point.
-
-        Args:
-            point: point labels to consider
-        Returns:
-            Grid of distances
-        """
-        distances = np.full_like(self.grid, np.inf)
-        px, py = self.points[point]
-
-        for grid_y in range(self.grid_height):
-            for grid_x in range(self.grid_width):
-                if np.isnan(self.grid[grid_y, grid_x]):
-                    continue
-
-                x, y = self._grid_to_meters(grid_x, grid_y)
-                if self._line_intersects_building(x, y, px, py):
-                    continue
-
-                distance = np.sqrt((x - px)**2 + (y - py)**2)
-                distances[grid_y, grid_x] = distance
-
-        return distances
-
-    @staticmethod
-    def visualize_distance_matrix(title: str, distances: np.ndarray, cmap='viridis'):
-        height, width = distances.shape
-        heatmap = HeatmapGenerator(width, height)
-        heatmap.grid = distances
-        heatmap.visualize(title, cmap=cmap, show_buildings=False, show_points=True)
-
-
-
-def process_grid_point(args: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Process a single grid point. This function is designed to be called by multiprocessing.
-
-    Args:
-        args: Dictionary containing all necessary parameters for processing a grid point
-
-    Returns:
-        Dictionary containing the results for this grid point
-    """
-    grid_x = args['grid_x']
-    grid_y = args['grid_y']
-    x = args['x']
-    y = args['y']
-    is_building = args['is_building']
-
-    if is_building:
-        return {
-            'grid_x': grid_x,
-            'grid_y': grid_y,
-            'skip': True
-        }
+    point: Point = ber_heatmap._point_grid_to_meters(point_grid)
     
-    unique_seed = (int(time.time() * 1000000) % (2**32) + os.getpid() * 1000 + int(grid_y * 100 + grid_x)) % (2**32)
+    unique_seed = (int(time.time() * 1000000) % (2**32) + os.getpid() * 1000 + int(point['y'] * 100 + point['x'])) % (2**32)
     np.random.seed(unique_seed)
 
-    distance_from_T = args['distance_from_T']
-    distances_from_Ps_current = args['distances_from_Ps_current']
-    K = args['K']
-    N = args['N']
-    M = args['M']
-    J = args['J']
-    eta = args['eta']
-    snr_db = args['snr_db']
-    num_symbols = args['num_symbols']
-    receivers = args['receivers']
-    H = args['H']
-    Gs_per_ris = args['Gs_per_ris']
-    Cs = args['Cs']
-    tx_grid_y = args['tx_grid_y']
-    tx_grid_x = args['tx_grid_x']
-    ris_path_distances = args['ris_path_distances']
-    ber_heatmap_resolution = args['ber_heatmap_resolution']
-
-    if distance_from_T == np.inf and all(d == np.inf for d in distances_from_Ps_current):
-        return {
-            'grid_x': grid_x,
-            'grid_y': grid_y,
-            'skip': True
-        }
-
-    B = calculate_mimo_channel_gain(distance_from_T, K, K) * calculate_free_space_path_loss(distance_from_T)
-    power_from_T = calculate_channel_power(B)
-    signal_power_from_T = calculate_signal_power_from_channel_using_ssk(K, B, Pt_dbm)
-
-    Fs = [calculate_mimo_channel_gain(d, N, K) for d in distances_from_Ps_current]
-
-    for i in range(M):
-        for j in range(J):
-            if x == receivers[j][0] and y == receivers[j][1]:
-                Fs[i] = Gs_per_ris[i][j]
-
-    mean_power_sum = 0.0
-    mean_power_product = 0.0
-    mean_power_active = 0.0
-    errors_sum = 0
-    errors_product = 0
-    errors_active = 0
-
-    power_from_Ps_sum = np.zeros(M)
-    power_from_Ps_product = np.zeros(M)
-    power_from_Ps_active = np.zeros(M)
-
-    snr_from_T = 0.0
-    snr_sum = 0.0
-    snr_product = 0.0
-    snr_active = 0.0
-    snr_from_Ps_sum = np.zeros(M)
-    snr_from_Ps_product = np.zeros(M)
-    snr_from_Ps_active = np.zeros(M)
-
-    for _ in range(num_symbols):
-        Ps = []
-
-        for i in range(M):
-            distance_pi_to_receivers = []
-            for j in range(J):
-                rx_grid_x, rx_grid_y = int(receivers[j][0] / ber_heatmap_resolution), int(receivers[j][1] / ber_heatmap_resolution)
-                dist_ij = args[f'distances_from_P{i}'][rx_grid_y, rx_grid_x]
-                distance_pi_to_receivers.append(dist_ij)
-
-            G_receivers_connected_to_ris_i = [
-                Gs_per_ris[i][j] for j in range(J)
-                if distance_pi_to_receivers[j] != np.inf
-            ]
-
-            J_prime = len(G_receivers_connected_to_ris_i)
-            if J_prime == 0:
-                P = np.diag(random_reflection_vector(N, eta))
-                Ps.append(P)
-            elif i == 0:
-                P, _ = calculate_ris_reflection_matrice(K, N, J_prime, G_receivers_connected_to_ris_i, H, eta)
-                Ps.append(P)
+    distance_from: Dict[str, float] = {}
+    channel_gain_from: Dict[str, np.ndarray] = {}
+    point_label: str | None = None
+    for label, heatmap_point in ber_heatmap.points.items():
+        if heatmap_point['x'] == point['x'] and heatmap_point['y'] == point['y'] and label[0] != 'P':
+            point_label = label
+            break
+    if point_label: 
+        distance_from = ber_heatmap.distance_graph[point_label]
+        for label in ber_heatmap.channel_graph.keys():
+            if label[0] == 'R': 
+                continue
+            if point_label in ber_heatmap.channel_graph[label]:
+                channel_gain_from[label] = ber_heatmap.channel_graph[label][point_label]
+    else: 
+        for label, heatmap_point in ber_heatmap.points.items():
+            if line_intersects_building(ber_heatmap.buildings, point, heatmap_point):
+                distance_from[label] = np.inf
             else:
-                P_prev = unify_ris_reflection_matrices(Ps, Cs)
-                modified_Gs = []
-                for G in G_receivers_connected_to_ris_i:
-                    modified_Gs.append(G @ P_prev @ Cs[i-1])
-                P, _ = calculate_ris_reflection_matrice(K, N, J_prime, modified_Gs, H, eta)
-                Ps.append(P)
+                distance_from[label] = calculate_distance(point, heatmap_point)
+            if label[0] == 'R': 
+                continue
+            if distance_from[label] == np.inf: 
+                continue
+            channel = ber_heatmap.channel_matrix.get(heatmap_point, point)
+            if channel is None:
+                continue
+            channel_gain_from[label] = channel
 
-        effective_channel_sum = np.zeros((K, K), dtype=complex)
-        effective_channel_product = np.zeros((K, K), dtype=complex)
-        effective_channel_active = np.zeros((K, K), dtype=complex)
+    # ! mean_power is used only to set the BER as np.nan
+    # ! power_from_Ps is not useful
 
-        signal_power_sum = np.zeros(M)
-        signal_power_product = np.zeros(M)
-        signal_power_active = np.zeros(M)
+    B = channel_gain_from.get('T', np.zeros((globals['K'], globals['K']), dtype=complex))
+    # power_from_T = calculate_channel_power(B)
+    # signal_power_from_T = calculate_signal_power_from_channel_using_ssk(globals['K'], B, globals['Pt_dbm'])
 
-        for i in range(M):
-            if i == 0:
-                P_to_i = Ps[0]
-            else:
-                P_to_i = unify_ris_reflection_matrices(Ps[:i+1], Cs[:i])
+    ris_paths_to_T: List[List[str]] = []
+    for label, p_point in ber_heatmap.points.items():
+        if label[0] != 'P': continue
+        if distance_from[label] == np.inf: continue
+        curr_label = label
+        ris_paths_to_T.append([])
+        while curr_label != 'T':
+            ris_paths_to_T[-1].append(curr_label)
+            curr_label = ber_heatmap.parent_tree[curr_label]
 
-            from_this_ris_effective_channel_without_path_loss = Fs[i] @ P_to_i @ H
-
-            total_distance_sum = sum(ris_path_distances[:i+1]) + distances_from_Ps_current[i]
-            total_path_loss_sum = calculate_free_space_path_loss(total_distance_sum)
-            from_this_ris_effective_channel_sum = from_this_ris_effective_channel_without_path_loss * total_path_loss_sum
-            effective_channel_sum += from_this_ris_effective_channel_sum
-
-            total_path_loss_product = 1
-            for j in range(i+1):
-                if ris_path_distances[j] == np.inf:
-                    continue
-                total_path_loss_product *= calculate_free_space_path_loss(ris_path_distances[j])
-            total_path_loss_product *= calculate_free_space_path_loss(distances_from_Ps_current[i])
-            from_this_ris_effective_channel_product = from_this_ris_effective_channel_without_path_loss * total_path_loss_product
-            effective_channel_product += from_this_ris_effective_channel_product
-
-            total_path_loss_active = calculate_free_space_path_loss(distances_from_Ps_current[i])
-            from_this_ris_effective_channel_active = from_this_ris_effective_channel_without_path_loss * total_path_loss_active
-            effective_channel_active += from_this_ris_effective_channel_active
-
-            power_from_Ps_sum[i] += calculate_channel_power(from_this_ris_effective_channel_sum) / num_symbols
-            power_from_Ps_product[i] += calculate_channel_power(from_this_ris_effective_channel_product) / num_symbols
-            power_from_Ps_active[i] += calculate_channel_power(from_this_ris_effective_channel_active) / num_symbols
-
-            signal_power_sum[i] = calculate_signal_power_from_channel_using_ssk(K, from_this_ris_effective_channel_sum, Pt_dbm)
-            signal_power_product[i] = calculate_signal_power_from_channel_using_ssk(K, from_this_ris_effective_channel_product, Pt_dbm)
-            signal_power_active[i] = calculate_signal_power_from_channel_using_ssk(K, from_this_ris_effective_channel_active, Pt_dbm)
-
-        noise_floor = create_random_noise_vector_from_noise_floor(K)
-        noise_T = noise_floor if use_noise_floor else calculate_channel_power(B)
-        noise_signal_power_T = calculate_signal_power(noise_T)
-
-        power_sum = power_from_T if distance_from_T != np.inf else calculate_channel_power(effective_channel_sum)
-        mean_power_sum += power_sum / num_symbols
-        noise_sum = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_sum)
-        noise_signal_power_sum = calculate_signal_power(noise_sum)
-
-        power_product = power_from_T if distance_from_T != np.inf else calculate_channel_power(effective_channel_product)
-        mean_power_product += power_product / num_symbols
-        noise_product = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_product)
-        noise_signal_power_product = calculate_signal_power(noise_product)
-
-        power_active = power_from_T if distance_from_T != np.inf else calculate_channel_power(effective_channel_active)
-        mean_power_active += power_active / num_symbols
-        noise_active = noise_floor if use_noise_floor else create_random_noise_vector_from_snr(K, snr_db, power_active)
-        noise_signal_power_active = calculate_signal_power(noise_active)
-
-        if distance_from_T == np.inf:
-            errors_sum += simulate_ssk_transmission_reflection(K, effective_channel_sum, noise_sum, Pt_dbm)
-            errors_product += simulate_ssk_transmission_reflection(K, effective_channel_product, noise_product, Pt_dbm)
-            errors_active += simulate_ssk_transmission_reflection(K, effective_channel_active, noise_active, Pt_dbm)
-
-            snr_sum += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(K, effective_channel_sum, Pt_dbm)) - 10 * np.log10(noise_signal_power_sum)) / num_symbols
-            snr_product += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(K, effective_channel_product, Pt_dbm)) - 10 * np.log10(noise_signal_power_product)) / num_symbols
-            snr_active += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(K, effective_channel_active, Pt_dbm)) - 10 * np.log10(noise_signal_power_active)) / num_symbols
-        else:
-            errors_sum += simulate_ssk_transmission_direct(K, B, effective_channel_sum, noise_sum, Pt_dbm)
-            errors_product += simulate_ssk_transmission_direct(K, B, effective_channel_product, noise_product, Pt_dbm)
-            errors_active += simulate_ssk_transmission_direct(K, B, effective_channel_active, noise_active, Pt_dbm)
-
-            snr_sum += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(K, B + effective_channel_sum, Pt_dbm)) - 10 * np.log10(noise_signal_power_sum)) / num_symbols
-            snr_product += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(K, B + effective_channel_product, Pt_dbm)) - 10 * np.log10(noise_signal_power_product)) / num_symbols
-            snr_active += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(K, B + effective_channel_active, Pt_dbm)) - 10 * np.log10(noise_signal_power_active)) / num_symbols
-
-        snr_from_T += (10 * np.log10(signal_power_from_T) - 10 * np.log10(noise_signal_power_T)) / num_symbols
-        snr_from_Ps_sum += (10 * np.log10(signal_power_sum) - 10 * np.log10(noise_signal_power_sum)) / num_symbols
-        snr_from_Ps_product += (10 * np.log10(signal_power_product) - 10 * np.log10(noise_signal_power_product)) / num_symbols
-        snr_from_Ps_active += (10 * np.log10(signal_power_active) - 10 * np.log10(noise_signal_power_active)) / num_symbols
-
-    ber_sum = np.nan if mean_power_sum == 0 else errors_sum / num_symbols
-    ber_product = np.nan if mean_power_product == 0 else errors_product / num_symbols
-    ber_active = np.nan if mean_power_active == 0 else errors_active / num_symbols
-
-    return {
-        'grid_x': grid_x,
-        'grid_y': grid_y,
-        'power_from_Ps_sum': power_from_Ps_sum,
-        'power_from_Ps_product': power_from_Ps_product,
-        'power_from_Ps_active': power_from_Ps_active,
-        'ber_sum': ber_sum,
-        'ber_product': ber_product,
-        'ber_active': ber_active,
-        'skip': False,
-        'is_receiver': any(x == receivers[j][0] and y == receivers[j][1] for j in range(J)),
-        'snr_from_T': snr_from_T,
-        'snr_sum': snr_sum,
-        'snr_product': snr_product,
-        'snr_active': snr_active,
-        'snr_from_Ps_sum': snr_from_Ps_sum,
-        'snr_from_Ps_product': snr_from_Ps_product,
-        'snr_from_Ps_active': snr_from_Ps_active,
+    errors: Dict[PathLoss, int] = {
+        'product': 0, 
+        'active': 0,
     }
 
+    snr: Dict[str, float] = {
+        'product': 0.0, 
+        'active': 0.0,
+        'T': 0.0
+    }
+    for i in range(ber_heatmap.M):
+        snr[f'P{i+1}'] = 0.0
+
+    not_diagonal_errors: Dict[str, int] = {}
+
+    for n in range(globals['num_symbols']):
+        should_be_diagonal = point_label != None and point_label[0] == 'R'
+        print_y = (n == 0 and point['x'] == 16 and (point['y'] == 11 or point['y'] == 9))
+        Ps, chain_to_last_P, normalitation_factor_for_chain_to_last_P = ber_heatmap.get_new_RIS_configurations()
+        effective_channel: Dict[PathLoss, ndarray] = {
+            'product': np.zeros((globals['K'], globals['K']), dtype=complex),
+            'active': np.zeros((globals['K'], globals['K']), dtype=complex)
+        }
+        signal_power: Dict[PathLoss, Dict[str, float]] = {
+            'product': {},
+            'active': {},
+        }
+
+        for p_label, p_point in ber_heatmap.points.items():
+            if p_label[0] != 'P': continue
+            if distance_from[p_label] == np.inf: continue
+            if p_label not in channel_gain_from: continue
+
+            F = channel_gain_from[p_label]
+            PH = chain_to_last_P[p_label]
+            PH_normalized = PH * normalitation_factor_for_chain_to_last_P[p_label]
+
+            if F.shape != (4, 36):
+                print(f"ERROR IN F SHAPE FOR POINT {point['x']},{point['y']}: {channel_gain_from[p_label].shape}")
+                # raise Exception(f"F shape is not correct: {F.shape} instead of (4, 36)")
+                return empty_ber, empty_snr, None
+            from_this_ris_effective_channel = F @ PH
+            if should_be_diagonal and not verify_matrix_is_diagonal(from_this_ris_effective_channel):
+                key = f"{p_label} -> {point_label}"
+                if key not in not_diagonal_errors: 
+                    not_diagonal_errors[key] = 0
+                not_diagonal_errors[key] += 1
+
+            effective_channel['product'] += from_this_ris_effective_channel
+            signal_power['product'][p_label] = calculate_signal_power_from_channel_using_ssk(
+                globals['K'], from_this_ris_effective_channel, globals['Pt_dbm'])
+
+            from_this_ris_effective_channel_active = F @ PH_normalized
+            effective_channel['active'] += from_this_ris_effective_channel_active
+            signal_power['active'][p_label] = calculate_signal_power_from_channel_using_ssk(
+                globals['K'], from_this_ris_effective_channel_active, globals['Pt_dbm'])
+
+        # todo reimplement fixed snr too
+        noise_floor = create_random_noise_vector_from_noise_floor(globals['K'])
+        noise: Dict[PathLoss, ndarray] = {
+            'product': noise_floor,
+            'active': noise_floor
+        }
+        noise_signal_power: Dict[PathLoss, float] = {
+            'product': calculate_signal_power(noise['product']),
+            'active': calculate_signal_power(noise['active']),
+        }
+
+        for path_loss in path_loss_types:
+            if distance_from['T'] == np.inf:
+                if print_y and path_loss=='active': print(f"Point: {point['x']}, {point['y']}, Path Loss: {path_loss}")
+                errors[path_loss] += simulate_ssk_transmission_reflection(globals['K'], effective_channel[path_loss], noise[path_loss], globals['Pt_dbm'], (print_y and path_loss=='active'))
+                if print_y and path_loss=='active': 
+                    print("F:")
+                    print_effective_channel(F)
+                    print("PH:")
+                    print_effective_channel(PH)
+                    print("PH normalized:")
+                    print_effective_channel(PH_normalized)
+                    print("Sigma:")
+                    R, sigma, Vh = np.linalg.svd(effective_channel[path_loss])
+                    print_effective_channel(sigma)
+                    print('\n')
+            else:
+                errors[path_loss] += simulate_ssk_transmission_direct(globals['K'], B, effective_channel[path_loss], noise[path_loss], globals['Pt_dbm'])
+
+            snr[path_loss] += (10 * np.log10(calculate_signal_power_from_channel_using_ssk(globals['K'], effective_channel[path_loss] + B, globals['Pt_dbm'])) - 10 * np.log10(noise_signal_power[path_loss])) / globals['num_symbols']
+        # todo snr from T and RISs
+
+    ber: Dict[PathLoss, float] = {
+        'product': errors['product'] / globals['num_symbols'],
+        'active': errors['active'] / globals['num_symbols'],
+    }
+
+    for key, value in not_diagonal_errors.items():
+        print(f"ERROR: for path {key} the effective channel matrix was not diagonal in {value} cases")
+
+    return ber, snr, point_label
+
+    
+
 def ber_heatmap_reflection_simulation(
-    simulation_name: str,
-    width: int,
-    height: int,
-    buildings: List[Tuple[int, int, int, int]],
-    transmitter: Tuple[int, int],
-    ris_points: List[Tuple[int, int]],
-    receivers: List[Tuple[int, int]],
-    num_symbols: int,
-    N: int = 16,
-    K: int = 2,
-    eta: float = 0.9,
-    snr_db: int = 10,
-    force_recompute: bool = False,
-    n_colors: int = 256,
-    n_processes: int = None
+        situation: Situation
 ):
-    """
-    Run RIS reflection simulation with given parameters using parallel processing
-
-    Args:
-        width: Width of the simulation area
-        height: Height of the simulation area
-        buildings: List of (x, y, w, h) tuples for buildings
-        transmitter: (x, y) coordinates of transmitter
-        ris_points: List of (x, y) coordinates for RIS points
-        receivers: List of (x, y) coordinates for receivers
-        N: Number of reflecting elements per RIS
-        K: Number of antennas
-        eta: Reflection efficiency
-        snr_db: Signal-to-noise ratio in dB
-        num_symbols: Number of symbols to simulate
-        force_recompute: If True, recompute even if data exists
-        n_colors: number of colors to be used for the heatmap
-        n_processes: Number of processes to use (None for auto-detect)
-    """
-    print(f"Called function with num_symbols = {num_symbols}")
-
-    if n_processes is None:
-        n_processes = min(cpu_count(), max_cpu_count)
-    print(f"Using {n_processes} CPU cores for parallel processing.")
+    # force_recompute = situation['force_recompute']
+    width = situation['width']
+    height = situation['height']
+    buildings = situation['buildings']
+    transmitter = situation['transmitter']
+    ris_points = situation['ris_points']
+    receivers = situation['receivers']
 
     M = len(ris_points)
-    for path_loss_calculation_type in ['sum', 'product', 'active']:
-        title = f'{simulation_name} (K = {K}, SNR = {snr_db}) [Path Loss: {path_loss_calculation_type}]'
-        data_filename = f"./results_data/{title} BER Heatmap.npz"
-        print(f"filename {data_filename} exist: {os.path.exists(data_filename)}")
-
-        # Check if data already exists
-        if not force_recompute and os.path.exists(data_filename):
-            print(f"Data file {data_filename} already exists. Loading...")
-            ber_heatmap = HeatmapGenerator.from_saved_data(data_filename)
-            viridis = matplotlib.colormaps['viridis']
-            cmap = matplotlib.colors.ListedColormap([viridis(x) for x in np.linspace(0, 1, n_colors)])
-            ber_heatmap.visualize(title + ' BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
-            # ber_heatmap.visualize(title + ' BER Heatmap', log_scale=True, vmin=-10.0, vmax=0.0, label='BER', show_receivers_values=True)
-            return
-
-    os.makedirs("./results_data", exist_ok=True)
-
-    ber_heatmap = HeatmapGenerator(width, height)
-
-    for building in buildings:
-        ber_heatmap.add_building(*building)
-
-    tx, ty = transmitter
-    ber_heatmap.add_point('T', tx, ty)
-
-    M = len(ris_points)
-    for i, (px, py) in enumerate(ris_points):
-        ber_heatmap.add_point(f'P{i+1}', px, py)
-
     J = len(receivers)
-    for i, (rx, ry) in enumerate(receivers):
-        ber_heatmap.add_point(f'R{i+1}', rx, ry)
 
-    distances_from_T = ber_heatmap.calculate_distance_from_point('T')
-    # HeatmapGenerator.visualize_distance_matrix('Distance from Transmitter', distances_from_T)
-    distances_from_Ps = [ber_heatmap.calculate_distance_from_point(f'P{i+1}') for i in range(M)]
-    # for m in range(M):
-    #     HeatmapGenerator.visualize_distance_matrix(f'Distance from RIS {m+1}', distances_from_Ps[m])
+    n_processes = min(cpu_count(), max_cpu_count)
+    print(f"Using {n_processes} CPU cores for parallel processing.")
+    print(f"N simulations per point: {globals['num_symbols']}")
 
-    ber_heatmap_sum = HeatmapGenerator.copy_from(ber_heatmap)
-    ber_heatmap_product = HeatmapGenerator.copy_from(ber_heatmap)
-    ber_heatmap_active = HeatmapGenerator.copy_from(ber_heatmap)
-    snr_heatmap_from_T = HeatmapGenerator.copy_from(ber_heatmap)
-    snr_heatmap_sum = HeatmapGenerator.copy_from(ber_heatmap)
-    snr_heatmap_product = HeatmapGenerator.copy_from(ber_heatmap)
-    snr_heatmap_active = HeatmapGenerator.copy_from(ber_heatmap)
-    snr_heatmap_from_Ps_sum = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
-    snr_heatmap_from_Ps_product = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
-    snr_heatmap_from_Ps_active = [HeatmapGenerator.copy_from(ber_heatmap) for _ in range(M)]
+    os.makedirs(results_folder, exist_ok=True)
+    title = f'{situation['simulation_name']} (K = {globals['K']}, N = {globals['N']})'
+    data_filename = f"{results_folder_data}/{title}.npz"
+    data_already_present = os.path.exists(data_filename) and not situation['force_recompute']
 
-    mean_power_per_receiver_sum = np.zeros(J, dtype=float)
-    mean_power_per_receiver_product = np.zeros(J, dtype=float)
-    mean_power_per_receiver_active = np.zeros(J, dtype=float)
+    channel_matrix = load_or_create_channel_matrix(situation)
 
-    ber_heatmap.visualize(f'{simulation_name} (K = {K}, SNR = {snr_db})', label='', show_receivers_values=False, vmax=0.0, vmin=0.0, show_heatmap=False)
+    if not data_already_present:
+        ber_heatmap = HeatmapGenerator(situation, channel_matrix)
 
-    tx_grid_y, tx_grid_x = ber_heatmap._meters_to_grid(tx, ty)
-    # todo H could be multiple ones and not just transmitter to first RIS. For the multi path scenario, change this
-    H = calculate_mimo_channel_gain(distances_from_Ps[0][tx_grid_y, tx_grid_x], K, N)
+        points_list: List[Point] = []
+        for y in range(ber_heatmap.grid_height):
+            for x in range(ber_heatmap.grid_width):
+                point: Point = {
+                    'y': y, 'x': x
+                }
+                og_point: Point = ber_heatmap._point_grid_to_meters(point)
+                if is_point_inside_building(og_point, ber_heatmap.buildings): continue
+                if og_point in ris_points: continue
+                points_list.append(point)
 
-    if M > 1:
-        receiver_grid_coords = [(ber_heatmap._meters_to_grid(rx, ry)) for rx, ry in receivers]
-        Gs_per_ris = [[calculate_mimo_channel_gain(distances_from_Ps[i][ry, rx], N, K)
-              for rx, ry in receiver_grid_coords] for i in range(M)]
+        def multithread_fn(point: Point):
+            res = process_point(ber_heatmap, point)
+            if res == None: return None
+            ber, snr, point_label = res
+            return point, ber, snr, point_label
 
-        ris_grid_coords = [ber_heatmap._meters_to_grid(px, py) for px, py in ris_points]
-        Cs = [calculate_mimo_channel_gain(
-            distances_from_Ps[i+1][ris_grid_coords[i][1], ris_grid_coords[i][0]],
-            N, N
-        ) for i in range(M-1)]
+        pool = Pool(processes=n_processes)
+        results = list(tqdm(
+            pool.imap(multithread_fn, points_list),
+            total=len(points_list),
+            desc="Processing grid points"
+        ))
+
+        # results = []
+        # for point in tqdm(points_list, desc="Processing grid points"):
+        #     results.append(multithread_fn(point))
+
+        for res in results:
+            if res == None: continue
+            point, ber, snr, point_label = res
+            ber_heatmap.stat_grids['BER path loss product'][point] = ber['product']
+            ber_heatmap.stat_grids['BER path loss active'][point] = ber['active']
+
+            ber_heatmap.stat_grids['SNR path loss product'][point] = snr['product']
+            ber_heatmap.stat_grids['SNR path loss active'][point] = snr['active']
+
+        np.savez(
+            data_filename,
+            globals=np.array([globals], dtype=object),
+            ber_heatmap=np.array([ber_heatmap], dtype=object)
+        )
+        print(f"Saved data to {data_filename}")
     else:
-        receiver_grid_coords = [(ber_heatmap._meters_to_grid(rx, ry)) for rx, ry in receivers]
-        Gs_per_ris = [[calculate_mimo_channel_gain(distances_from_Ps[0][ry, rx], N, K)
-              for rx, ry in receiver_grid_coords]]
-        Cs = []
+        print(f"Loading existing data from {data_filename}")
+        loaded_data = np.load(data_filename, allow_pickle=True)
+        loaded_globals = loaded_data['globals'].item()
+        ber_heatmap: HeatmapGenerator = loaded_data['ber_heatmap'].item()
 
-    # * Calculate cumulative path distances
-    ris_path_distances = []
-    for i in range(M):
-        if i == 0:
-            # * Distance from T to first RIS
-            ris_path_distances.append(distances_from_Ps[0][ty, tx])
-        else:
-            # * Distance between consecutive RIS points
-            ris_path_distances.append(
-                distances_from_Ps[i][ris_points[i-1][1], ris_points[i-1][0]]
-            )
+        ber_heatmap.channel_matrix = channel_matrix
 
-    args_list = []
-    for grid_y in range(ber_heatmap.grid_height):
-        for grid_x in range(ber_heatmap.grid_width):
-            x, y = ber_heatmap._grid_to_meters(grid_x, grid_y)
+        if loaded_globals['K'] != globals['K'] or loaded_globals['N'] != globals['N'] or loaded_globals['num_symbols'] != globals['num_symbols']:
+            print("Warning: Loaded data has different parameters than current globals")
+            print(f"Loaded: K={loaded_globals['K']}, N={loaded_globals['N']}, num_symbols={loaded_globals['num_symbols']}")
+            print(f"Current: K={globals['K']}, N={globals['N']}, num_symbols={globals['num_symbols']}")
 
-            args = {
-                'grid_x': grid_x,
-                'grid_y': grid_y,
-                'x': x,
-                'y': y,
-                'is_building': np.isnan(ber_heatmap.grid[grid_y, grid_x]),
-                'distance_from_T': distances_from_T[grid_y, grid_x],
-                'distances_from_Ps_current': [distances_from_Ps[i][grid_y, grid_x] for i in range(M)],
-                'K': K,
-                'N': N,
-                'M': M,
-                'J': J,
-                'eta': eta,
-                'snr_db': snr_db,
-                'num_symbols': num_symbols,
-                'receivers': receivers,
-                'H': H,
-                'Gs_per_ris': Gs_per_ris,
-                'Cs': Cs,
-                'tx_grid_y': tx_grid_y,
-                'tx_grid_x': tx_grid_x,
-                'ris_path_distances': ris_path_distances,
-                'ber_heatmap_resolution': ber_heatmap.resolution,
+        print(f"Successfully loaded data with {ber_heatmap.width}x{ber_heatmap.height} grid")
+
+    for y in range(ber_heatmap.grid_height):
+        for x in range(ber_heatmap.grid_width):
+            point: Point = {
+                'y': y, 'x': x
             }
+            if can_point_receive_signal(ber_heatmap, point): continue
+            is_building = np.isnan(ber_heatmap.grid[point])
+            if is_building: continue
+            # for unreachable points, set the ber to nan
+            # todo this is a fix for an old, long generation that put zero instead. Will remove
+            ber_heatmap.stat_grids['BER path loss product'][point] = np.nan 
+            ber_heatmap.stat_grids['BER path loss active'][point] = np.nan 
 
-            for i in range(M):
-                args[f'distances_from_P{i}'] = distances_from_Ps[i]
+            ber_heatmap.stat_grids['SNR path loss product'][point] = np.nan 
+            ber_heatmap.stat_grids['SNR path loss active'][point] = np.nan 
 
-            args_list.append(args)
 
-    print(f"Processing {len(args_list)} grid points...")
-    pool = Pool(processes=n_processes)
-    results = list(tqdm(
-        pool.imap(process_grid_point, args_list),
-        total=len(args_list),
-        desc="Processing grid points"
-    ))
+    ber_heatmap.visualize(title=f"{title} - BER path loss product", grid=ber_heatmap.stat_grids['BER path loss product'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=False)
+    ber_heatmap.visualize(title=f"{title} - BER path loss active", grid=ber_heatmap.stat_grids['BER path loss active'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=False)
 
-    for result in results:
-        if result['skip']:
-            continue
-
-        grid_x = result['grid_x']
-        grid_y = result['grid_y']
-
-        snr_heatmap_from_T.grid[grid_y, grid_x] = result['snr_from_T']
-        snr_heatmap_sum.grid[grid_y, grid_x] = result['snr_sum']
-        snr_heatmap_product.grid[grid_y, grid_x] = result['snr_product']
-        snr_heatmap_active.grid[grid_y, grid_x] = result['snr_active']
-
-        for i in range(M):
-            snr_heatmap_from_Ps_sum[i].grid[grid_y, grid_x] = result['snr_from_Ps_sum'][i]
-            snr_heatmap_from_Ps_product[i].grid[grid_y, grid_x] = result['snr_from_Ps_product'][i]
-            snr_heatmap_from_Ps_active[i].grid[grid_y, grid_x] = result['snr_from_Ps_active'][i]
-
-        if grid_y == 0 and grid_x == 0:
-            # print snr
-            print(f"SNR from T: {result['snr_from_T']:.2f}")
-            print(f"[Path Loss: sum] SNR from Ps: {[f'{snr:.2f}' for snr in result['snr_from_Ps_sum']]}")
-            print(f"[Path Loss: product] SNR from Ps: {[f'{snr:.2f}' for snr in result['snr_from_Ps_product']]}")
-            print(f"[Path Loss: active] SNR from Ps: {[f'{snr:.2f}' for snr in result['snr_from_Ps_active']]}")
-
-        ber_heatmap_sum.grid[grid_y, grid_x] = result['ber_sum']
-        ber_heatmap_product.grid[grid_y, grid_x] = result['ber_product']
-        ber_heatmap_active.grid[grid_y, grid_x] = result['ber_active']
-
-        if result['is_receiver']:
-            for i in range(M):
-                for j in range(J):
-                    if ber_heatmap._grid_to_meters(grid_x, grid_y) == receivers[j]:
-                        mean_power_per_receiver_sum[j] += result['power_from_Ps_sum'][i]
-                        mean_power_per_receiver_product[j] += result['power_from_Ps_product'][i]
-                        mean_power_per_receiver_active[j] += result['power_from_Ps_active'][i]
-
-    print(f"[Path Loss: sum] Mean power per receiver: {[f'{power:.2e}' for power in mean_power_per_receiver_sum]}")
-    print(f"[Path Loss: product] Mean power per receiver: {[f'{power:.2e}' for power in mean_power_per_receiver_product]}")
-    print(f"[Path Loss: active] Mean power per receiver: {[f'{power:.2e}' for power in mean_power_per_receiver_active]}")
-    print("------")
-    for j in range(J):
-        rx_grid_x, rx_grid_y = ber_heatmap._meters_to_grid(receivers[j][0], receivers[j][1])
-        print(f"\t[Path Loss: sum] Receiver {j+1} mean power: {mean_power_per_receiver_sum[j]:.2e}, BER: {(ber_heatmap_sum.grid[rx_grid_y, rx_grid_x]*100):.2f}%")
-        print(f"\t[Path Loss: product] Receiver {j+1} mean power: {mean_power_per_receiver_product[j]:.2e}, BER: {(ber_heatmap_product.grid[rx_grid_y, rx_grid_x]*100):.2f}%")
-        print(f"\t[Path Loss: active] Receiver {j+1} mean power: {mean_power_per_receiver_active[j]:.2e}, BER: {(ber_heatmap_active.grid[rx_grid_y, rx_grid_x]*100):.2f}%")
-    print("------")
-
-    title = f'{simulation_name} (K = {K}, SNR = {snr_db})'
-    viridis = matplotlib.colormaps['viridis']
-    cmap = matplotlib.colors.ListedColormap([viridis(x) for x in np.linspace(0, 1, n_colors)])
-
-    ber_heatmap_sum.visualize(title + ' [Path Loss: sum] BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
-    ber_heatmap_product.visualize(title + ' [Path Loss: product] BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
-    ber_heatmap_active.visualize(title + ' [Path Loss: active] BER Heatmap', cmap=cmap, vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True)
-
-    snr_heatmap_from_T.visualize(
-        title + ' SNR from T',
-        cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
-    )
-    snr_heatmap_sum.visualize(
-        title + ' [Path Loss: sum] SNR',
-        cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
-    )
-    snr_heatmap_product.visualize(
-        title + ' [Path Loss: product] SNR',
-        cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
-    )
-    snr_heatmap_active.visualize(
-        title + ' [Path Loss: active] SNR',
-        cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
-    )
-    for i in range(M):
-        snr_heatmap_from_Ps_sum[i].visualize(
-            title + f' [Path Loss: sum] SNR from P{i+1}',
-            cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
-        )
-        snr_heatmap_from_Ps_product[i].visualize(
-            title + f' [Path Loss: product] SNR from P{i+1}',
-            cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
-        )
-        snr_heatmap_from_Ps_active[i].visualize(
-            title + f' [Path Loss: active] SNR from P{i+1}',
-            cmap=cmap, label='SNR', show_receivers_values=True, show_legend=True
-        )
+    ber_heatmap.visualize(title=f"{title} - SNR path loss product", grid=ber_heatmap.stat_grids['SNR path loss product'], label='SNR', show_receivers_values=True, show_legend=False, vmin=0.0, vmax=100.0)
+    ber_heatmap.visualize(title=f"{title} - SNR path loss active", grid=ber_heatmap.stat_grids['SNR path loss active'], label='SNR', show_receivers_values=True, show_legend=False, vmin=0.0, vmax=100.0)
+    
 
 def main():
-    calculate_single_reflection = True
-    calculate_multiple_reflection = False
-    calculate_multiple_complex_reflection = False
-    K=4
-    N=36
-
     begin_time = time.perf_counter()
-
-    # * One reflection simulation
-    if calculate_single_reflection:
-        buildings_single = [
-            (0, 10, 7, 10),
-            (8, 0, 12, 8)
-        ]
-        transmitter_single = (3, 3)
-        ris_points_single = [(7, 9)]
-        receivers_single = [(16, 11), (10, 18)]
-
+    for situation in situations:
+        if not situation['calculate']: continue
         start_time = time.perf_counter()
-        ber_heatmap_reflection_simulation(
-            simulation_name="Single Reflection",
-            width=20,
-            height=20,
-            buildings=buildings_single,
-            transmitter=transmitter_single,
-            ris_points=ris_points_single,
-            receivers=receivers_single,
-            N=N,
-            K=K,
-            num_symbols=num_symbols,
-            force_recompute=True,
-        )
+
+        ber_heatmap_reflection_simulation(situation)
+
         end_time = time.perf_counter()
-        print(f"Single reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}\n\n")
-
-    # * Multiple reflection simulation
-    if calculate_multiple_reflection:
-        buildings_multiple = [
-            (0, 10, 10, 10),
-            (2, 4, 7, 1)
-        ]
-        transmitter_multiple = (1, 1)
-        ris_points_multiple = [(0, 9), (10, 9)]
-        receivers_multiple = [(16, 14), (12, 18)]
-
-        start_time = time.perf_counter()
-        ber_heatmap_reflection_simulation(
-            simulation_name="RISs in series, only final",
-            width=20,
-            height=20,
-            buildings=buildings_multiple,
-            transmitter=transmitter_multiple,
-            ris_points=ris_points_multiple,
-            receivers=receivers_multiple,
-            N=N,
-            K=K,
-            num_symbols=num_symbols
-        )
-        end_time = time.perf_counter()
-        print(f"Multiple reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}\n\n")
-
-    # * Multiple complex reflection simulation - one receiver gets from the middle RIS, another from the last RIS
-    if calculate_multiple_complex_reflection:
-        buildings_multiple = [
-            (0, 10, 10, 10),
-            (3, 4, 7, 1),
-            (15, 10, 5, 1),
-            (9, 0, 1, 8),
-            (5, 7, 7, 1),
-        ]
-        transmitter_multiple = (1, 1)
-        ris_points_multiple = [
-            (0, 9),
-            (10, 9),
-            (18, 6),
-        ]
-        receivers_multiple = [
-            (4, 5),
-            (14, 16),
-            (12, 18),
-            (11, 3),
-            (15, 1),
-        ]
-
-        start_time = time.perf_counter()
-        ber_heatmap_reflection_simulation(
-            simulation_name="RISs in series",
-            width=20,
-            height=20,
-            buildings=buildings_multiple,
-            transmitter=transmitter_multiple,
-            ris_points=ris_points_multiple,
-            receivers=receivers_multiple,
-            N=N,
-            K=K,
-            num_symbols=num_symbols,
-        )
-        end_time = time.perf_counter()
-        print(f"Multiple complex reflection simulation took {end_time - start_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}\n\n")
-
+        print(f"{situation['simulation_name']} simulation took {end_time - start_time:.2f} seconds for {globals['num_symbols']} symbols with K={globals['K']}, N={globals['N']}\n\n")
     end_time = time.perf_counter()
-    print(f"Total time taken: {end_time - begin_time:.2f} seconds for {num_symbols} symbols with K={K}, N={N}")
+    print(f"Total time taken: {end_time - begin_time:.2f} seconds for {globals['num_symbols']} symbols with K={globals['K']}, N={globals['N']}")
 
 if __name__ == "__main__":
     main()
