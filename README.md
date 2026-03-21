@@ -75,9 +75,41 @@ The framework supports multi-threaded execution for faster simulations. The numb
 - `noise_power_utils.py`: Noise modeling and power calculation utilities
 - `requirements.txt`: Python dependencies
 
-## Scientific Documentation
+## Publications
 
-For detailed mathematical descriptions and theoretical background, please refer to the following publications:
+This codebase has been developed as part of the following research publications. All papers share the affiliation: Department of Information Engineering and Computer Science, University of Trento, Italy & CNIT, Italy.
+
+### Published
+
+**S. Marrocco, P. Casari, M. Segata**, "Exploiting Reconfigurable Intelligent Surfaces to Achieve Multi-Receiver Physical Layer Security," in *31st IEEE International Symposium on On-Line Testing and Robust System Design (IOLTS 2025)*, Ischia, Italy, June 2025.
+
+> Primary paper introducing the null-space diagonalization approach for multi-receiver physical layer security using RIS, with support for cascaded RIS configurations (in series and in parallel).
+
+**S. Marrocco, P. Casari, M. Segata**, "Multi-Receiver Physical Layer Security Using Reconfigurable Intelligent Surfaces," in *16th IEEE Vehicular Networking Conference (VNC 2025), Poster Session*, Porto, Portugal, June 2025.
+
+> Companion poster paper presenting the multi-receiver PLS framework at the vehicular networking venue.
+
+### Accepted
+
+**S. Marrocco, P. Casari, M. Segata**, "RIS-Based Physical Layer Security: Realistic Evaluation and Challenges Ahead," in *18th Wireless On-demand Network systems and Services Conference (WONS 2026)*, 2026.
+
+> Extends the IOLTS 2025 work by integrating Sionna ray-tracing for realistic channel estimation, replacing the stochastic Rice fading model. Studies the spatial coverage of the PLS secured area using 3D ray-traced propagation.
+
+### Under Review
+
+**S. Marrocco, L. Maccari, M. Segata**, "In Ray Tracing We Trust? On the Usage of Ray Tracing for Vehicular Network Simulations," submitted to *IEEE Vehicular Networking Conference (VNC 2026)*, 2026.
+
+> A simulation study on the reliability of Sionna ray tracing for vehicular network simulations, comparing against real-world measurements and empirical models (Veins obstacle shadowing, ETSI 3GPP Urban Micro).
+
+### In Preparation
+
+**S. Marrocco, P. Casari, M. Segata**, "Exploiting Reconfigurable Intelligent Surfaces to Achieve Multi-Receiver Physical Layer Security," targeting *IEEE Transactions on Wireless Communications (TWC)*.
+
+> Journal extension of the IOLTS 2025 conference paper with extended security analysis and noise modeling.
+
+### Cite This Work
+
+If you use this code in your research, please cite:
 
 ```bibtex
 @inproceedings{marrocco2025exploiting,
@@ -104,6 +136,17 @@ Intelligent Surfaces}},
 Poster Session},
    month = {6},
    year = {2025}
+}
+```
+
+```bibtex
+@inproceedings{marrocco2025sionna,
+   author = {Marrocco, Simone and Casari, Paolo and Segata, Michele},
+   title = {{RIS-Based Physical Layer Security: Realistic Evaluation
+and Challenges Ahead}},
+   booktitle = {18th Wireless On-demand Network systems and Services
+Conference (WONS 2026)},
+   year = {2026}
 }
 ```
 
