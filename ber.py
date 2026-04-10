@@ -430,23 +430,24 @@ def plot_ber_curves():
                 print(f"Loading existing data from {data_filename}")
             num_symbols = 0
             for weight in weights: num_symbols+=weight
+            # Keep original filename format for compatibility with main.tex
             plt_name = f'SSK BER Performance with RIS (K={K}, N={N}, J={J}, M={M}, num_symbols={num_symbols})'
 
             plt.figure(figsize=(8, 5))
 
-            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_direct']['mean'], 'o-', label='Direct', markersize=6)
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_direct']['mean'], 'o-', label='SSK baseline', markersize=6)
             plt.fill_between(plot_data['snr_range_db'], plot_data['ber_direct']['lower'], plot_data['ber_direct']['upper'], alpha=0.2)
 
-            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_receiver']['mean'], 's-', label='Receiver', markersize=6)
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_receiver']['mean'], 's-', label='Legitimate receiver', markersize=6)
             plt.fill_between(plot_data['snr_range_db'], plot_data['ber_receiver']['lower'], plot_data['ber_receiver']['upper'], alpha=0.2)
 
-            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_receiver_double']['mean'], '^-', label='Receiver (2 RIS)', markersize=6)
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_receiver_double']['mean'], '^-', label='Legitimate, 2 RIS in parallel', markersize=6)
             plt.fill_between(plot_data['snr_range_db'], plot_data['ber_receiver_double']['lower'], plot_data['ber_receiver_double']['upper'], alpha=0.2)
 
             plt.semilogy(plot_data['snr_range_db'], plot_data['ber_eavesdropper']['mean'], 'x-', label='Eavesdropper', markersize=6)
             plt.fill_between(plot_data['snr_range_db'], plot_data['ber_eavesdropper']['lower'], plot_data['ber_eavesdropper']['upper'], alpha=0.2)
 
-            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_eavesdropper_double']['mean'], 'd-', label='Eavesdropper (2 RIS)', markersize=6)
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_eavesdropper_double']['mean'], 'd-', label='Eavesdropper, 2 RIS in parallel', markersize=6)
             plt.fill_between(plot_data['snr_range_db'], plot_data['ber_eavesdropper_double']['lower'], plot_data['ber_eavesdropper_double']['upper'], alpha=0.2)
 
             plt.grid(True)
