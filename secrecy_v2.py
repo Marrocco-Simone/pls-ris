@@ -391,16 +391,17 @@ def plot_paper_replication(data: dict, output_path: str):
     reve = data['paper_reve']
     snr = data['snr_range_db']
 
+    fontsize = 20
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(snr, secrecy, 'k-o', label="Secrecy Rate", markersize=5)
-    ax.plot(snr, rbob, 'b--s', label=r"$R_{\mathrm{Bob}}$", markersize=4, alpha=0.7)
-    ax.plot(snr, reve, 'r--^', label=r"$R_{\mathrm{Eve}}$", markersize=4, alpha=0.7)
-    ax.set_xlabel("SNR (dB)")
-    ax.set_ylabel("Rate (bits/s/Hz)")
-    ax.set_title(f"Paper Replication - SSK (N={N_ELEMENTS}, K={K_ANTENNAS}, $\\eta$={ETA}, unit channels)")
+    ax.plot(snr, secrecy, 'k-o', label="Secrecy Rate", markersize=8)
+    ax.plot(snr, rbob, 'b--s', label=r"$R_{\mathrm{Bob}}$", markersize=7, alpha=0.7)
+    ax.plot(snr, reve, 'r--^', label=r"$R_{\mathrm{Eve}}$", markersize=7, alpha=0.7)
+    ax.set_xlabel("SNR (dB)", fontsize=fontsize)
+    ax.set_ylabel("Rate (bits/s/Hz)", fontsize=fontsize)
     ax.set_ylim(0, 1.1)
     ax.set_yticks(np.arange(0, 1.1, 0.2))
-    ax.legend(fontsize=9)
+    ax.tick_params(axis='both', labelsize=fontsize)
+    ax.legend(fontsize=fontsize-2)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     fig.savefig(output_path, dpi=300, format='pdf')
@@ -419,6 +420,7 @@ def plot_single_rate(
     ylabel: str,
     output_path: str,
 ):
+    fontsize = 20
     data_2d = {'secrecy': secrecy_2d, 'bob': rbob_2d, 'eve': reve_2d}[rate_key]
     num_scenarios = data_2d.shape[0]
     pt_step = pt_range_dbm[1] - pt_range_dbm[0] if len(pt_range_dbm) > 1 else 1
@@ -434,14 +436,14 @@ def plot_single_rate(
             color=PLOT_COLORS[idx % len(PLOT_COLORS)],
             linestyle=PLOT_LINESTYLES[idx % len(PLOT_LINESTYLES)],
             marker=PLOT_MARKERS[idx % len(PLOT_MARKERS)],
-            markersize=5,
+            markersize=8,
         )
-    ax.set_xlabel("Transmit Power (dBm)")
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
+    ax.set_xlabel("Transmit Power (dBm)", fontsize=fontsize)
+    ax.set_ylabel(ylabel, fontsize=fontsize)
     ax.set_ylim(0, 1.1)
     ax.set_yticks(np.arange(0, 1.1, 0.2))
-    ax.legend(fontsize=8, loc="best")
+    ax.tick_params(axis='both', labelsize=fontsize)
+    ax.legend(fontsize=fontsize-4, loc="best")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     fig.savefig(output_path, dpi=300, format='pdf')
@@ -451,23 +453,21 @@ def plot_single_rate(
 
 def plot_xi_sweep(data: dict, snr_idx: int, snr_db: int, output_path: str):
     """Plot R_Bob, R_Eve, Secrecy vs B/FPH power ratio for a given SNR."""
+    fontsize = 20
     xi_range = data['xi_range_db']
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(xi_range, data['xi_secrecy'][snr_idx], 'k-o', label="Secrecy Rate", markersize=5)
+    ax.plot(xi_range, data['xi_secrecy'][snr_idx], 'k-o', label="Secrecy Rate", markersize=8)
     ax.plot(xi_range, data['xi_rbob'][snr_idx], 'b--s',
-            label=r"$R_{\mathrm{Bob}}$", markersize=4, alpha=0.7)
+            label=r"$R_{\mathrm{Bob}}$", markersize=7, alpha=0.7)
     ax.plot(xi_range, data['xi_reve'][snr_idx], 'r--^',
-            label=r"$R_{\mathrm{Eve}}$", markersize=4, alpha=0.7)
-    ax.set_xlabel(r"$\|Bx\|^2 / \|FPHx\|^2$ (dB)")
-    ax.set_ylabel("Rate (bits/s/Hz)")
-    ax.set_title(
-        f"Secrecy vs Direct/Reflected Power Ratio "
-        f"(N={N_ELEMENTS}, K={K_ANTENNAS}, $\\eta$={ETA}, SNR={snr_db} dB)"
-    )
+            label=r"$R_{\mathrm{Eve}}$", markersize=7, alpha=0.7)
+    ax.set_xlabel(r"$\|Bx\|^2 / \|FPHx\|^2$ (dB)", fontsize=fontsize)
+    ax.set_ylabel("Rate (bits/s/Hz)", fontsize=fontsize)
     ax.set_ylim(0, 1.1)
     ax.set_yticks(np.arange(0, 1.1, 0.2))
-    ax.legend(fontsize=9)
+    ax.tick_params(axis='both', labelsize=fontsize)
+    ax.legend(fontsize=fontsize-2)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     fig.savefig(output_path, dpi=300, format='pdf')
@@ -477,6 +477,7 @@ def plot_xi_sweep(data: dict, snr_idx: int, snr_db: int, output_path: str):
 
 def generate_all_plots(data: dict):
     configure_latex()
+    plt.rc('font', **{'size': 18})
 
     plot_paper_replication(data, f"{OUTPUT_DIR}/Secrecy_Rate_Paper.pdf")
 
@@ -513,6 +514,10 @@ def generate_all_plots(data: dict):
 
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    # Configure fonts for paper-quality plots
+    configure_latex()
+    plt.rc('font', **{'size': 22})
 
     if os.path.exists(RESULTS_FILE):
         data = load_results(RESULTS_FILE)

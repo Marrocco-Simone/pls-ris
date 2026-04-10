@@ -15,6 +15,17 @@ from noise_power_utils import (
     create_random_noise_vector_from_snr,
 )
 
+
+def configure_latex():
+    """Configure matplotlib to use LaTeX for better text rendering."""
+    try:
+        plt.rcParams['text.usetex'] = True
+        plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
+        plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+    except Exception:
+        plt.rcParams['text.usetex'] = False
+
+
 num_symbols=1000000
 max_cpu_count = 64
 n_processes = min(cpu_count(), max_cpu_count)
@@ -339,6 +350,11 @@ def plot_ber_curves():
     K = 2     # * Number of antennas
     eta = 0.9 # * Reflection efficiency
 
+    # Configure fonts once at the start
+    configure_latex()
+    fontsize = 16
+    plt.rc('font', **{'size': fontsize})
+
     for J in range(1, 3):  # * Number of receivers
         for M in range(1, 3):  # * Number of RIS surfaces
             print(f"Processing J={J}, M={M}")
@@ -415,28 +431,30 @@ def plot_ber_curves():
             num_symbols = 0
             for weight in weights: num_symbols+=weight
             plt_name = f'SSK BER Performance with RIS (K={K}, N={N}, J={J}, M={M}, num_symbols={num_symbols})'
-            plt.figure(figsize=(10, 6))
 
-            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_direct']['mean'], 'o-', label=f'Simulation Direct')
+            plt.figure(figsize=(8, 5))
+
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_direct']['mean'], 'o-', label='Direct', markersize=6)
             plt.fill_between(plot_data['snr_range_db'], plot_data['ber_direct']['lower'], plot_data['ber_direct']['upper'], alpha=0.2)
 
-            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_receiver']['mean'], 's-', label='Simulation Receiver')
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_receiver']['mean'], 's-', label='Receiver', markersize=6)
             plt.fill_between(plot_data['snr_range_db'], plot_data['ber_receiver']['lower'], plot_data['ber_receiver']['upper'], alpha=0.2)
 
-            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_receiver_double']['mean'], '^-', label='Simulation Receiver Double RIS Source')
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_receiver_double']['mean'], '^-', label='Receiver (2 RIS)', markersize=6)
             plt.fill_between(plot_data['snr_range_db'], plot_data['ber_receiver_double']['lower'], plot_data['ber_receiver_double']['upper'], alpha=0.2)
 
-            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_eavesdropper']['mean'], 'x-', label=f'Simulation Eavesdropper')
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_eavesdropper']['mean'], 'x-', label='Eavesdropper', markersize=6)
             plt.fill_between(plot_data['snr_range_db'], plot_data['ber_eavesdropper']['lower'], plot_data['ber_eavesdropper']['upper'], alpha=0.2)
 
-            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_eavesdropper_double']['mean'], 'd-', label=f'Simulation Eavesdropper Double RIS Source')
+            plt.semilogy(plot_data['snr_range_db'], plot_data['ber_eavesdropper_double']['mean'], 'd-', label='Eavesdropper (2 RIS)', markersize=6)
             plt.fill_between(plot_data['snr_range_db'], plot_data['ber_eavesdropper_double']['lower'], plot_data['ber_eavesdropper_double']['upper'], alpha=0.2)
 
             plt.grid(True)
-            plt.xlabel('SNR (dB)')
-            plt.ylabel('Bit Error Rate (BER)')
-            plt.title(plt_name)
-            plt.legend()
+            plt.xlabel('SNR (dB)', fontsize=fontsize)
+            plt.ylabel('Bit Error Rate (BER)', fontsize=fontsize)
+            plt.tick_params(axis='both', labelsize=fontsize)
+            plt.legend(fontsize=fontsize-2, loc='best')
+            plt.tight_layout()
 
             # Create results directory if it doesn't exist
             results_dir = "./ber/pdf"
@@ -451,6 +469,7 @@ def plot_ber_curves():
                     plt.savefig(f"{results_dir}/{plt_name}.pdf", dpi=300, format='pdf', bbox_inches='tight')
                 else:
                     raise
+            plt.close()
             print(f"Saved {plt_name}.pdf\n\n")
 
 if __name__ == "__main__":
