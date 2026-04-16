@@ -47,6 +47,25 @@ results_folder = './heatmap'
 results_folder_pdf = results_folder + '/pdf'
 results_folder_data = results_folder + '/data'
 
+class Globals(TypedDict):
+    K: int
+    N: int
+    num_symbols: int
+    use_noise_floor: bool
+    Pt_dbm: float
+    eta: float
+    snr_db: int
+
+globals: Globals = {
+    'K': 4,
+    'N': 36,
+    'eta': 0.9,
+    'num_symbols': 100,
+    'use_noise_floor': True,
+    'Pt_dbm': 30.0,
+    'snr_db': 10,
+}
+
 def load_or_create_channel_matrix(situation: Situation) -> ChannelMatrix:
     """
     Load pre-computed Sionna channel matrix from file, or create a new random one.
@@ -185,25 +204,6 @@ def configure_latex():
         plt.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
     except Exception:
         plt.rcParams['text.usetex'] = False
-
-class Globals(TypedDict):
-    K: int
-    N: int
-    num_symbols: int
-    use_noise_floor: bool
-    Pt_dbm: float
-    eta: float
-    snr_db: int
-
-globals: Globals = {
-    'K': 4,
-    'N': 36,
-    'eta': 0.9,
-    'num_symbols': 10000,
-    'use_noise_floor': True,
-    'Pt_dbm': 40.0,
-    'snr_db': 10,
-}
 
 PathLoss = Literal['product', 'active']
 path_loss_types: List[PathLoss] = ['product', 'active']
@@ -726,7 +726,6 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
 
     for n in range(globals['num_symbols']):
         should_be_diagonal = point_label != None and point_label[0] == 'R'
-        print_y = (n == 0 and point['x'] == 16 and (point['y'] == 11 or point['y'] == 9))
         Ps, chain_to_last_P, normalitation_factor_for_chain_to_last_P = ber_heatmap.get_new_RIS_configurations()
         effective_channel: Dict[PathLoss, ndarray] = {
             'product': np.zeros((globals['K'], globals['K']), dtype=complex),
@@ -779,19 +778,7 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
 
         for path_loss in path_loss_types:
             if distance_from['T'] == np.inf:
-                if print_y and path_loss=='active': print(f"Point: {point['x']}, {point['y']}, Path Loss: {path_loss}")
-                errors[path_loss] += simulate_ssk_transmission_reflection(globals['K'], effective_channel[path_loss], noise[path_loss], globals['Pt_dbm'], (print_y and path_loss=='active'))
-                if print_y and path_loss=='active': 
-                    print("F:")
-                    print_effective_channel(F)
-                    print("PH:")
-                    print_effective_channel(PH)
-                    print("PH normalized:")
-                    print_effective_channel(PH_normalized)
-                    print("Sigma:")
-                    R, sigma, Vh = np.linalg.svd(effective_channel[path_loss])
-                    print_effective_channel(sigma)
-                    print('\n')
+                errors[path_loss] += simulate_ssk_transmission_reflection(globals['K'], effective_channel[path_loss], noise[path_loss], globals['Pt_dbm'])
             else:
                 errors[path_loss] += simulate_ssk_transmission_direct(globals['K'], B, effective_channel[path_loss], noise[path_loss], globals['Pt_dbm'])
 
