@@ -97,7 +97,7 @@ situations: List[Situation] = [
     {
         "simulation_name": "Single Reflection",
         "calculate": True,
-        "force_recompute": False,
+        "force_recompute": True,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -116,7 +116,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "Single Reflection - Rich Multipath",
-        "calculate": True,
+        "calculate": False,
         "force_recompute": False,
         "width": 20,
         "height": 20,
@@ -148,7 +148,7 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "Single Reflection BIG",
-        "calculate": True,
+        "calculate": False,
         "force_recompute": False,
         "width": 2000,
         "height": 2000,
@@ -190,7 +190,7 @@ situations: List[Situation] = [
     {
         "simulation_name": "RISs in series, only final",
         "calculate": True,
-        "force_recompute": False,
+        "force_recompute": True,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -211,7 +211,7 @@ situations: List[Situation] = [
     {
         "simulation_name": "RISs in series",
         "calculate": True,
-        "force_recompute": False,
+        "force_recompute": True,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -239,7 +239,7 @@ situations: List[Situation] = [
     {
         "simulation_name": "RISs in parallel",
         "calculate": True,
-        "force_recompute": False,
+        "force_recompute": True,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
