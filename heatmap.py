@@ -1,3 +1,4 @@
+import argparse
 import matplotlib.colors
 import numpy as np
 import matplotlib.pyplot as plt
@@ -43,6 +44,56 @@ from heatmap_situations import (
     ChannelMatrix
 )
 
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments to override globals."""
+    parser = argparse.ArgumentParser(
+        description='RIS Physical Layer Security Heatmap Simulation'
+    )
+    
+    # Add arguments for each global
+    parser.add_argument('--K', type=int, help='Number of transmit antennas')
+    parser.add_argument('--N', type=int, help='Number of RIS elements')
+    parser.add_argument('--num_symbols', type=int, help='Number of symbols to simulate')
+    parser.add_argument('--use_noise_floor', dest='use_noise_floor', action='store_true',
+                        help='Use noise floor mode')
+    parser.add_argument('--no_use_noise_floor', dest='use_noise_floor', action='store_false',
+                        help='Use fixed SNR mode (default)')
+    parser.set_defaults(use_noise_floor=None)  # None means "not specified"
+    parser.add_argument('--Pt_dbm', type=float, help='Transmission power in dBm')
+    parser.add_argument('--eta', type=float, help='RIS reflection efficiency')
+    parser.add_argument('--snr_db', type=int, help='SNR in dB (for fixed SNR mode)')
+    
+    return parser.parse_args()
+
+
+def update_globals_from_args(args: argparse.Namespace) -> None:
+    """Override globals values with command-line arguments."""
+    global globals
+    
+    if args.K is not None:
+        globals['K'] = args.K
+    if args.N is not None:
+        globals['N'] = args.N
+    if args.num_symbols is not None:
+        globals['num_symbols'] = args.num_symbols
+    if args.use_noise_floor is not None:
+        globals['use_noise_floor'] = args.use_noise_floor
+    if args.Pt_dbm is not None:
+        globals['Pt_dbm'] = args.Pt_dbm
+    if args.eta is not None:
+        globals['eta'] = args.eta
+    if args.snr_db is not None:
+        globals['snr_db'] = args.snr_db
+
+
+def compute_results_folders() -> Tuple[str, str, str]:
+    """Compute results folder paths based on current globals."""
+    results_folder = './heatmap' + f"/K{globals['K']}_N{globals['N']}_symbols{globals['num_symbols']}_eta{int(globals['eta']*100)}" + f"_Pt{int(globals['Pt_dbm'])}dBm" + ("_noise_floor" if globals['use_noise_floor'] else f"_fixed_snr{globals['snr_db']}dB")
+    results_folder_pdf = results_folder + '/pdf'
+    results_folder_data = results_folder + '/data'
+    return results_folder, results_folder_pdf, results_folder_data
+
 class Globals(TypedDict):
     K: int
     N: int
@@ -62,9 +113,10 @@ globals: Globals = {
     'snr_db': 10,
 }
 
-results_folder = './heatmap' + f"/K{globals['K']}_N{globals['N']}_symbols{globals['num_symbols']}_eta{int(globals['eta']*100)}" + f"_Pt{int(globals['Pt_dbm'])}dBm" + ("_noise_floor" if globals['use_noise_floor'] else f"_fixed_snr{globals['snr_db']}dB")
-results_folder_pdf = results_folder + '/pdf'
-results_folder_data = results_folder + '/data'
+# Results folders will be computed in main() after CLI argument parsing
+results_folder = ''
+results_folder_pdf = ''
+results_folder_data = ''
 
 max_cpu_count = 20
 parallel_processing = False
@@ -940,6 +992,14 @@ def ber_heatmap_reflection_simulation(
     
 
 def main():
+    # Parse CLI arguments and update globals BEFORE any globals usage
+    args = parse_args()
+    update_globals_from_args(args)
+    
+    # Compute results folders with updated globals
+    global results_folder, results_folder_pdf, results_folder_data
+    results_folder, results_folder_pdf, results_folder_data = compute_results_folders()
+    
     begin_time = time.perf_counter()
     for situation in situations:
         if not situation['calculate']: continue
