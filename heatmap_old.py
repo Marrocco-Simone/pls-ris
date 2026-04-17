@@ -838,8 +838,8 @@ def ber_heatmap_reflection_simulation(
 
 def main():
     calculate_single_reflection = True
-    calculate_multiple_reflection = False
-    calculate_multiple_complex_reflection = False
+    calculate_multiple_reflection = True
+    calculate_multiple_complex_reflection = True
     K=4
     N=36
 
