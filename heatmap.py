@@ -935,8 +935,8 @@ def ber_heatmap_reflection_simulation(
     ber_heatmap.visualize(title=f"{title} - BER path loss product", grid=ber_heatmap.stat_grids['BER path loss product'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=False)
     ber_heatmap.visualize(title=f"{title} - BER path loss active", grid=ber_heatmap.stat_grids['BER path loss active'], vmin=0.0, vmax=0.5, label='BER', show_receivers_values=True, show_legend=False)
 
-    ber_heatmap.visualize(title=f"{title} - SNR path loss product", grid=ber_heatmap.stat_grids['SNR path loss product'], label='SNR', show_receivers_values=True, show_legend=False, vmin=0.0, vmax=100.0)
-    ber_heatmap.visualize(title=f"{title} - SNR path loss active", grid=ber_heatmap.stat_grids['SNR path loss active'], label='SNR', show_receivers_values=True, show_legend=False, vmin=0.0, vmax=100.0)
+    ber_heatmap.visualize(title=f"{title} - SNR path loss product", grid=ber_heatmap.stat_grids['SNR path loss product'], label='SNR', show_receivers_values=True, show_legend=False, vmin=-200.0, vmax=100.0)
+    ber_heatmap.visualize(title=f"{title} - SNR path loss active", grid=ber_heatmap.stat_grids['SNR path loss active'], label='SNR', show_receivers_values=True, show_legend=False, vmin=-200.0, vmax=100.0)
     
 
 def main():
