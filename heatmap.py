@@ -47,6 +47,7 @@ max_cpu_count = 100
 results_folder = './heatmap'
 results_folder_pdf = results_folder + '/pdf'
 results_folder_data = results_folder + '/data'
+parallel_processing = False
 
 class Globals(TypedDict):
     K: int
@@ -61,7 +62,7 @@ globals: Globals = {
     'K': 4,
     'N': 36,
     'eta': 0.9,
-    'num_symbols': 100,
+    'num_symbols': 10000,
     'use_noise_floor': True,
     'Pt_dbm': 30.0,
     'snr_db': 10,
@@ -808,7 +809,6 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
 
     return ber, snr, point_label
 
-    
 
 def ber_heatmap_reflection_simulation(
         situation: Situation
@@ -824,8 +824,6 @@ def ber_heatmap_reflection_simulation(
     M = len(ris_points)
     J = len(receivers)
 
-    n_processes = min(cpu_count(), max_cpu_count)
-    print(f"Using {n_processes} CPU cores for parallel processing.")
     print(f"N simulations per point: {globals['num_symbols']}")
 
     os.makedirs(results_folder, exist_ok=True)
@@ -855,16 +853,20 @@ def ber_heatmap_reflection_simulation(
             ber, snr, point_label = res
             return point, ber, snr, point_label
 
-        pool = Pool(processes=n_processes)
-        results = list(tqdm(
-            pool.imap(multithread_fn, points_list),
-            total=len(points_list),
-            desc="Processing grid points"
-        ))
-
-        # results = []
-        # for point in tqdm(points_list, desc="Processing grid points"):
-        #     results.append(multithread_fn(point))
+        if parallel_processing:
+            n_processes = min(cpu_count(), max_cpu_count)
+            print(f"Using {n_processes} CPU cores for parallel processing.")
+            pool = Pool(processes=n_processes)
+            results = list(tqdm(
+                pool.imap(multithread_fn, points_list),
+                total=len(points_list),
+                desc="Processing grid points"
+            ))
+        else:
+            print("Parallel processing is disabled. Processing grid points sequentially.")
+            results = []
+            for point in tqdm(points_list, desc="Processing grid points"):
+                results.append(multithread_fn(point))
 
         for res in results:
             if res == None: continue
