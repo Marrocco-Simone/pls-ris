@@ -632,11 +632,11 @@ def can_point_receive_signal(ber_heatmap: HeatmapGenerator, point_grid: Point) -
     point: Point = ber_heatmap._point_grid_to_meters(point_grid)
     can_receive_signal = False
     for label, heatmap_point in ber_heatmap.points.items():
-        if label[0] == 'R': 
+        if label[0] == 'R':
             continue
         if line_intersects_building(ber_heatmap.buildings, point, heatmap_point):
             continue
-        if calculate_distance(point, heatmap_point) == np.inf: 
+        if calculate_distance(point, heatmap_point) == np.inf:
             continue
         can_receive_signal = True
     return can_receive_signal
@@ -652,8 +652,8 @@ empty_snr: Dict[str, float] = {
 }
 
 def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
-    Dict[PathLoss, float], 
-    Dict[str, float], 
+    Dict[PathLoss, float],
+    Dict[str, float],
     str | None
 ]:
     is_building = np.isnan(ber_heatmap.grid[point_grid])
@@ -661,7 +661,7 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
     if not can_point_receive_signal(ber_heatmap, point_grid): return empty_ber, empty_snr, None
 
     point: Point = ber_heatmap._point_grid_to_meters(point_grid)
-    
+
     unique_seed = (int(time.time() * 1000000) % (2**32) + os.getpid() * 1000 + int(point['y'] * 100 + point['x'])) % (2**32)
     np.random.seed(unique_seed)
 
@@ -679,7 +679,7 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
                 continue
             if point_label in ber_heatmap.channel_graph[label]:
                 channel_gain_from[label] = ber_heatmap.channel_graph[label][point_label]
-    else: 
+    else:
         for label, heatmap_point in ber_heatmap.points.items():
             if line_intersects_building(ber_heatmap.buildings, point, heatmap_point):
                 distance_from[label] = np.inf
