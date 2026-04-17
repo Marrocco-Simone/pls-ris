@@ -62,10 +62,11 @@ globals: Globals = {
     'snr_db': 10,
 }
 
-max_cpu_count = 100
-results_folder = './heatmap' + f"/K{globals['K']}_N{globals['N']}_symbols{globals['num_symbols']}_eta{int(globals['eta']*100)}" + (f"_Pt{int(globals['Pt_dbm'])}dBm" if globals['use_noise_floor'] else f"_snr{globals['snr_db']}dB")
+results_folder = './heatmap' + f"/K{globals['K']}_N{globals['N']}_symbols{globals['num_symbols']}_eta{int(globals['eta']*100)}" + f"_Pt{int(globals['Pt_dbm'])}dBm" + ("_noise_floor" if globals['use_noise_floor'] else f"_fixed_snr{globals['snr_db']}dB")
 results_folder_pdf = results_folder + '/pdf'
 results_folder_data = results_folder + '/data'
+
+max_cpu_count = 20
 parallel_processing = False
 
 def load_or_create_channel_matrix(situation: Situation) -> ChannelMatrix:
