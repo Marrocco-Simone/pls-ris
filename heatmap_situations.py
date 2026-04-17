@@ -246,7 +246,7 @@ situations: List[Situation] = [
         "buildings": [
             { 'x': 8, 'y': 0, 'width': 1, 'height': 7 },
             { 'x': 12, 'y': 0, 'width': 1, 'height': 7 },
-            { 'x': 8, 'y': 11, 'width': 5, 'height': 1 },
+            { 'x': 8, 'y': 11, 'width': 6, 'height': 1 },
             { 'x': 8, 'y': 15, 'width': 5, 'height': 5 },
         ],
         "transmitter": {'x': 10, 'y': 1},
