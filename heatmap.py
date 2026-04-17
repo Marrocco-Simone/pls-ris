@@ -118,7 +118,7 @@ results_folder = ''
 results_folder_pdf = ''
 results_folder_data = ''
 
-max_cpu_count = 50
+max_cpu_count = 20
 parallel_processing = True
 
 def load_or_create_channel_matrix(situation: Situation) -> ChannelMatrix:
