@@ -366,8 +366,23 @@ class HeatmapGenerator(Heatmap):
 
 
     def _grid_to_meters(self, i: float) -> float:
-        """Convert grid coordinates to meter coordinates"""
+        """Convert grid coordinates to meter coordinates (cell corner)"""
         return i * self.resolution
+
+    def _grid_to_meters_center(self, i: float) -> float:
+        """Convert grid coordinates to meter coordinates (cell center).
+
+        Use this for intersection tests to avoid floating-point precision issues
+        when cell corners fall exactly on building boundaries.
+        """
+        return i * self.resolution + (self.resolution / 2)
+
+    def _point_grid_to_meters_center(self, point: Point) -> Point:
+        """Convert grid point to meters using cell center."""
+        return {
+            'x': self._grid_to_meters_center(point['x']),
+            'y': self._grid_to_meters_center(point['y'])
+        }
 
     def _point_meters_to_grid(self, point: Point) -> Point:
         return {
@@ -629,7 +644,7 @@ class HeatmapGenerator(Heatmap):
         plt.close(figure)
 
 def can_point_receive_signal(ber_heatmap: HeatmapGenerator, point_grid: Point) -> bool:
-    point: Point = ber_heatmap._point_grid_to_meters(point_grid)
+    point: Point = ber_heatmap._point_grid_to_meters_center(point_grid)
     can_receive_signal = False
     for label, heatmap_point in ber_heatmap.points.items():
         if label[0] == 'R':
@@ -661,6 +676,7 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
     if not can_point_receive_signal(ber_heatmap, point_grid): return empty_ber, empty_snr, None
 
     point: Point = ber_heatmap._point_grid_to_meters(point_grid)
+    point_center: Point = ber_heatmap._point_grid_to_meters_center(point_grid)
 
     unique_seed = (int(time.time() * 1000000) % (2**32) + os.getpid() * 1000 + int(point['y'] * 100 + point['x'])) % (2**32)
     np.random.seed(unique_seed)
@@ -681,7 +697,7 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
                 channel_gain_from[label] = ber_heatmap.channel_graph[label][point_label]
     else:
         for label, heatmap_point in ber_heatmap.points.items():
-            if line_intersects_building(ber_heatmap.buildings, point, heatmap_point):
+            if line_intersects_building(ber_heatmap.buildings, point_center, heatmap_point):
                 distance_from[label] = np.inf
             else:
                 distance_from[label] = calculate_distance(point, heatmap_point)
