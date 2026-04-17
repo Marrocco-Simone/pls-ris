@@ -8,7 +8,7 @@ def simple_work(x):
     arr = np.random.rand(100, 100)
     return np.sum(arr @ arr)
 
-n = 1000
+n = 100000
 print(f'Testing with {cpu_count()} cores...')
 
 # Sequential
