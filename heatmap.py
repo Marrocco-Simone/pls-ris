@@ -25,7 +25,8 @@ from ber import (
 from noise_power_utils import (
     calculate_channel_power,
     calculate_signal_power,
-    create_random_noise_vector_from_noise_floor
+    create_random_noise_vector_from_noise_floor,
+    create_random_noise_vector_from_snr
 )
 from heatmap_utils import (
     calculate_signal_power_from_channel_using_ssk,
@@ -765,12 +766,24 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
             signal_power['active'][p_label] = calculate_signal_power_from_channel_using_ssk(
                 globals['K'], from_this_ris_effective_channel_active, globals['Pt_dbm'])
 
-        # todo reimplement fixed snr too
-        noise_floor = create_random_noise_vector_from_noise_floor(globals['K'])
-        noise: Dict[PathLoss, ndarray] = {
-            'product': noise_floor,
-            'active': noise_floor
-        }
+        if globals['use_noise_floor']:
+            noise_floor = create_random_noise_vector_from_noise_floor(globals['K'])
+            noise: Dict[PathLoss, ndarray] = {
+                'product': noise_floor,
+                'active': noise_floor
+            }
+        else:
+            # Fixed SNR mode: noise power relative to received signal power
+            # If direct LOS exists, use direct channel power; otherwise use effective channel power
+            power_from_T = calculate_channel_power(B)
+            power_product = power_from_T if distance_from['T'] != np.inf else calculate_channel_power(effective_channel['product'])
+            power_active = power_from_T if distance_from['T'] != np.inf else calculate_channel_power(effective_channel['active'])
+
+            noise: Dict[PathLoss, ndarray] = {
+                'product': create_random_noise_vector_from_snr(globals['K'], globals['snr_db'], power_product),
+                'active': create_random_noise_vector_from_snr(globals['K'], globals['snr_db'], power_active)
+            }
+
         noise_signal_power: Dict[PathLoss, float] = {
             'product': calculate_signal_power(noise['product']),
             'active': calculate_signal_power(noise['active']),
