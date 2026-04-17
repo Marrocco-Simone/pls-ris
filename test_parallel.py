@@ -32,3 +32,15 @@ with Pool(cpu_count()) as pool:
 par_time = time.time() - start
 print(f'Parallel: {n/par_time:.1f} it/s')
 print(f'Speedup: {seq_time/par_time:.1f}x')
+
+# Parallel little cpus
+start = time.time()
+with Pool(5) as pool:
+    results = list(tqdm(
+        pool.imap(simple_work, range(n)), 
+        total=n, 
+        desc="Processing in parallel but reduced"
+    ))
+par_time = time.time() - start
+print(f'Parallel but reduced: {n/par_time:.1f} it/s')
+print(f'Speedup but reduced: {seq_time/par_time:.1f}x')
