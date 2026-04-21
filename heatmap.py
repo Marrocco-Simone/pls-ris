@@ -816,10 +816,6 @@ def process_point(ber_heatmap: HeatmapGenerator, point_grid: Point) -> Tuple[
             PH = chain_to_last_P[p_label]
             PH_normalized = PH * normalitation_factor_for_chain_to_last_P[p_label]
 
-            if F.shape != (4, 36):
-                print(f"ERROR IN F SHAPE FOR POINT {point['x']},{point['y']}: {channel_gain_from[p_label].shape}")
-                # raise Exception(f"F shape is not correct: {F.shape} instead of (4, 36)")
-                return empty_ber, empty_snr, None
             from_this_ris_effective_channel = F @ PH
             if should_be_diagonal and not verify_matrix_is_diagonal(from_this_ris_effective_channel):
                 key = f"{p_label} -> {point_label}"
