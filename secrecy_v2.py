@@ -287,7 +287,7 @@ def run_all_computations() -> dict:
             'F': F_paper, 'B': sqrt_Pt * B_paper,
             'sigma_sq': N0_mw,
             'meta': {'group': 'realistic', 'sc_idx': 0,
-                     'pt_idx': pt_idx, 'label': 'No path loss (paper)'},
+                     'pt_idx': pt_idx, 'label': 'No path loss, as [13]'},
         })
 
     # Each scenario on Pt axis (path loss already baked into channels)
@@ -320,7 +320,7 @@ def run_all_computations() -> dict:
     paper_reve = np.zeros(len(SNR_RANGE_DB))
 
     num_scenarios = 1 + len(SCENARIOS)
-    scenario_labels = ["No path loss (paper)"] + [s["label"] for s in SCENARIOS]
+    scenario_labels = ["No path loss, as [13]"] + [s["label"] for s in SCENARIOS]
 
     pt_secrecy = np.zeros((num_scenarios, len(PT_RANGE_DBM)))
     pt_rbob = np.zeros((num_scenarios, len(PT_RANGE_DBM)))
@@ -391,7 +391,7 @@ def plot_paper_replication(data: dict, output_path: str):
     reve = data['paper_reve']
     snr = data['snr_range_db']
 
-    fontsize = 20
+    fontsize = 24
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.plot(snr, secrecy, 'k-o', label="Secrecy Rate", markersize=8)
     ax.plot(snr, rbob, 'b--s', label=r"$R_{\mathrm{Bob}}$", markersize=7, alpha=0.7)
@@ -420,7 +420,7 @@ def plot_single_rate(
     ylabel: str,
     output_path: str,
 ):
-    fontsize = 20
+    fontsize = 24
     data_2d = {'secrecy': secrecy_2d, 'bob': rbob_2d, 'eve': reve_2d}[rate_key]
     num_scenarios = data_2d.shape[0]
     pt_step = pt_range_dbm[1] - pt_range_dbm[0] if len(pt_range_dbm) > 1 else 1
@@ -453,7 +453,7 @@ def plot_single_rate(
 
 def plot_xi_sweep(data: dict, snr_idx: int, snr_db: int, output_path: str):
     """Plot R_Bob, R_Eve, Secrecy vs B/FPH power ratio for a given SNR."""
-    fontsize = 20
+    fontsize = 24
     xi_range = data['xi_range_db']
 
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -489,6 +489,11 @@ def generate_all_plots(data: dict):
 
     pt_range = data['pt_range_dbm']
     labels = data['scenario_labels']
+    # Map old label to new label for display purposes
+    labels = np.array([
+        "No path loss, as [13]" if str(lbl) == "No path loss (paper)" else str(lbl)
+        for lbl in labels
+    ])
     secrecy = data['pt_secrecy']
     rbob = data['pt_rbob']
     reve = data['pt_reve']
