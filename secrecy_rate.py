@@ -385,13 +385,15 @@ def load_results(path: str) -> dict:
 # Plotting (pure visualization, no computation)
 ###############################################################################
 
+fontsize = 30
+fontsize_legend = 18
+
 def plot_paper_replication(data: dict, output_path: str):
     secrecy = data['paper_secrecy']
     rbob = data['paper_rbob']
     reve = data['paper_reve']
     snr = data['snr_range_db']
 
-    fontsize = 24
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.plot(snr, secrecy, 'k-o', label="Secrecy Rate", markersize=8)
     ax.plot(snr, rbob, 'b--s', label=r"$R_{\mathrm{Bob}}$", markersize=7, alpha=0.7)
@@ -401,7 +403,7 @@ def plot_paper_replication(data: dict, output_path: str):
     ax.set_ylim(0, 1.1)
     ax.set_yticks(np.arange(0, 1.1, 0.2))
     ax.tick_params(axis='both', labelsize=fontsize)
-    ax.legend(fontsize=fontsize-2)
+    ax.legend(fontsize=fontsize_legend)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     fig.savefig(output_path, dpi=300, format='pdf')
@@ -420,7 +422,6 @@ def plot_single_rate(
     ylabel: str,
     output_path: str,
 ):
-    fontsize = 24
     data_2d = {'secrecy': secrecy_2d, 'bob': rbob_2d, 'eve': reve_2d}[rate_key]
     num_scenarios = data_2d.shape[0]
     pt_step = pt_range_dbm[1] - pt_range_dbm[0] if len(pt_range_dbm) > 1 else 1
@@ -443,7 +444,7 @@ def plot_single_rate(
     ax.set_ylim(0, 1.1)
     ax.set_yticks(np.arange(0, 1.1, 0.2))
     ax.tick_params(axis='both', labelsize=fontsize)
-    ax.legend(fontsize=fontsize-4, loc="best")
+    ax.legend(fontsize=fontsize_legend, loc="best")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     fig.savefig(output_path, dpi=300, format='pdf')
@@ -453,7 +454,6 @@ def plot_single_rate(
 
 def plot_xi_sweep(data: dict, snr_idx: int, snr_db: int, output_path: str):
     """Plot R_Bob, R_Eve, Secrecy vs B/FPH power ratio for a given SNR."""
-    fontsize = 24
     xi_range = data['xi_range_db']
 
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -467,7 +467,7 @@ def plot_xi_sweep(data: dict, snr_idx: int, snr_db: int, output_path: str):
     ax.set_ylim(0, 1.1)
     ax.set_yticks(np.arange(0, 1.1, 0.2))
     ax.tick_params(axis='both', labelsize=fontsize)
-    ax.legend(fontsize=fontsize-2)
+    ax.legend(fontsize=fontsize_legend)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     fig.savefig(output_path, dpi=300, format='pdf')
