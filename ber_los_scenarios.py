@@ -959,8 +959,8 @@ def print_debug_tables(results: Dict):
     key_powers = [-100, -75, -50, -25, 0, 25, 50, 75]
     
     # Header with two B2 curves
-    print(f"{'Power (dBm)':<12} | {'B1':<16} | {'B2-SSK':<16} | {'B2-Direct':<16} | {'B3':<16} | {'E1':<16} | {'E2':<16}")
-    print(f"{'':12} | {'(NLOS)':<16} | {'(LOS,SSK)':<16} | {'(LOS,ML)':<16} | {'(Direct)':<16} | {'(NLOS)':<16} | {'(LOS)':<16}")
+    print(f"{'Power (dBm)':<12} | {'B1':<16} | {'B2-S-Diag':<16} | {'B2-S-Dir':<16} | {'B3':<16} | {'E1':<16} | {'E2':<16}")
+    print(f"{'':12} | {'(NLOS-Diag)':<16} | {'(LOS-Diag)':<16} | {'(LOS-Dir)':<16} | {'(Direct)':<16} | {'(NLOS)':<16} | {'(LOS)':<16}")
     print("-" * 130)
     
     for ris_mode in ['passive', 'active']:
@@ -1115,12 +1115,12 @@ def plot_results(results: Dict):
     }
     
     labels = {
-        'B1': r'B$_1$ (NLOS, reflection)',
-        'B2_SSK': r'B$_2$ (LOS, SSK detection)',
-        'B2_Direct': r'B$_2$ (LOS, Direct ML)',
-        'B3': r'B$_3$ (Direct only, no RIS)',
-        'E1': r'E$_1$ (NLOS, reflection)',
-        'E2': r'E$_2$ (LOS, direct + RIS)'
+        'B1': r'B$_1$ NLOS - Diagonal',
+        'B2_SSK': r'B$_2$ LOS - Diagonal',
+        'B2_Direct': r'B$_2$ LOS - Direct',
+        'B3': r'B$_3$ LOS - Direct (no RIS)',
+        'E1': r'E$_1$ NLOS - Direct',
+        'E2': r'E$_2$ LOS - Direct'
     }
     
     linestyles = {
