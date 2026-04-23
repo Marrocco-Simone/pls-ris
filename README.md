@@ -1,83 +1,189 @@
 # Multi-Receiver Physical Layer Security Using Reconfigurable Intelligent Surfaces
 
-This repository contains the simulation code for investigating multi-receiver physical layer security using Reconfigurable Intelligent Surfaces (RIS).
+This repository contains simulation code for investigating physical layer security (PLS) in wireless communications using Reconfigurable Intelligent Surfaces (RIS).
 
 ## Overview
 
-The project implements a comprehensive simulation environment for studying physical layer security in multi-receiver scenarios enhanced by RIS technology. The framework includes:
+Physical Layer Security (PLS) introduces security and privacy mechanisms directly at the signal level, as an additional measure on top of what is provided by higher layers of the communication stack. By properly tuning the configuration of RIS, it is possible to enable communication with a set of intended receivers while making the signal unintelligible in nearby areas.
 
-- **RIS Channel Modeling**: Advanced channel matrix calculations and RIS reflection optimization
-- **Physical Layer Security**: Implementation of secrecy capacity calculations and secure transmission schemes
-- **Multi-Receiver Support**: Simulation of scenarios with multiple legitimate receivers and eavesdroppers
-- **Performance Analysis**: Bit Error Rate (BER) analysis and security metrics evaluation
-- **Visualization Tools**: Heatmap generation and performance plotting capabilities
+This codebase extends existing approaches to work with **multiple receivers** and **multiple RIS**, discussing secrecy characteristics in the spatial domain. The framework supports both **stochastic channel modeling** (fast simulations with Rice fading) and **realistic ray-tracing** (using Sionna RT with 3D scenarios and multipath propagation).
 
-## Key Features
-
-- **Space Shift Keying (SSK) Modulation**: Implementation of SSK transmission schemes for secure communication
-- **RIS Optimization**: Diagonalization-based algorithms for optimal RIS reflection matrix design
-- **Multi-threaded Simulation**: Parallel processing support for large-scale simulations
-- **Noise Modeling**: Comprehensive noise power calculations with SNR and noise floor options
-- **Security Metrics**: Secrecy rate calculations and eavesdropper analysis
-- **Visualization**: Interactive heatmap generation with customizable parameters
-
-## Installation
-
-### Prerequisites
-
-- Python 3.8+
-- Required Python packages (see `requirements.txt`)
-
-### Dependencies
-
-Install the required dependencies using pip:
+## Quick Start
 
 ```bash
+# Setup environment
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-```
 
-## Usage
-
-### Basic Simulation
-
-The main simulation script can be run directly:
-
-```bash
+# Run main spatial simulation
 python heatmap.py
 ```
 
-This will generate performance heatmaps showing the security and communication performance across different spatial configurations.
+## Available Simulations
 
-> [!NOTE]
-> The `heatmap_v2.py` file is currently work in progress and represents a rewrite of the main heatmap functionality. Use `heatmap.py` for stable simulations.
+### 1. Spatial BER Heatmap (`heatmap.py`)
 
-### Configuration
+**What it does:** Generates spatial heatmaps showing Bit Error Rate (BER) and SNR across a grid of positions. Simulates how the signal quality varies in space for legitimate receivers vs. eavesdroppers.
 
-Key simulation parameters can be configured in the main scripts:
+**How to run:**
+```bash
+# Default simulation
+python heatmap.py
 
-- **K**: Number of transmit antennas for SSK modulation
-- **N**: Number of RIS elements
-- **Pt_dbm**: Transmission power in dBm
-- **eta**: RIS efficiency parameter
-- **snr_db**: Signal-to-noise ratio in dB
+# With custom parameters
+python heatmap.py --K 4 --N 36 --num_symbols 1000 --Pt_dbm 20
+```
 
-### Parallel Processing
+**Parameters:**
+- `--K`: Number of antennas (power of 2: 2, 4, 8...)
+- `--N`: Number of RIS elements
+- `--num_symbols`: Symbols to simulate per grid point
+- `--Pt_dbm`: Transmission power in dBm
+- `--use_noise_floor`: Use realistic noise floor instead of fixed SNR
 
-The framework supports multi-threaded execution for faster simulations. The number of CPU cores used is automatically detected and limited to 64 for optimal performance.
+**Output:** PDF heatmaps saved to `heatmap/K{N}_N{N}_.../pdf/`
+
+---
+
+### 2. BER vs SNR Curves (`ber.py`)
+
+**What it does:** Simulates BER performance across different SNR values, comparing legitimate receivers and eavesdroppers. Includes confidence intervals.
+
+**How to run:**
+```bash
+python ber.py
+```
+
+**Output:** PDF plots in `ber/pdf/`
+
+---
+
+### 3. Secrecy Rate Analysis (`secrecy_rate.py`)
+
+**What it does:** Computes information-theoretic secrecy rates using Monte Carlo sampling. Compares achievable rates for legitimate receivers vs. eavesdroppers.
+
+**How to run:**
+```bash
+python secrecy_rate.py
+```
+
+**Output:** PDF plots in `secrecy_results/`
+
+---
+
+### 4. LOS/NLOS Scenarios (`ber_los_scenarios.py`)
+
+**What it does:** Analyzes scenarios with receivers having direct line-of-sight (LOS) vs. non-line-of-sight (NLOS). Compares passive vs. active RIS performance.
+
+**How to run:**
+```bash
+python ber_los_scenarios.py
+```
+
+**Output:** PDF plots in `ber_los/pdf/`
+
+---
+
+### 5. Diagonalization Verification (`diagonalization.py`)
+
+**What it does:** Standalone script to verify that the RIS reflection matrix produces diagonal effective channels for legitimate receivers while randomizing for eavesdroppers.
+
+**How to run:**
+```bash
+python diagonalization.py
+```
+
+**Output:** Console output showing diagonalization success/failure
+
+---
+
+### 6. Sionna Ray-Tracing (`compute_sionna_channels.py`)
+
+**What it does:** Computes realistic channel matrices using Sionna RT ray-tracing for all predefined scenarios. Replaces stochastic Rice fading with physically accurate propagation.
+
+**Prerequisites:** Requires TensorFlow and Sionna (see `requirements.txt`)
+
+**How to run:**
+```bash
+# First generate scene XML files
+python generate_scene_xmls.py
+
+# Then compute ray-traced channels
+python compute_sionna_channels.py
+```
+
+**Output:** `.npz` files in `heatmap/channel_matrices/`
+
+**Note:** Forces CPU mode to avoid GPU memory issues.
+
+---
+
+### 7. Real-World Scenes (`scripts/osm_to_sionna/`)
+
+**What it does:** Converts OpenStreetMap building data to Sionna-compatible 3D scenes using Blender.
+
+**Prerequisites:** Blender 3.6+ with blosm and mitsuba-blender addons
+
+**How to run:**
+```bash
+# Interactive mode (opens map selector)
+python scripts/osm_to_sionna/osm_to_sionna.py --name "my_scene"
+
+# With coordinates
+python scripts/osm_to_sionna/osm_to_sionna.py \
+    --coords "11.12006,46.06603,11.12419,46.06868" \
+    --name "trento_test"
+```
+
+See `scripts/osm_to_sionna/README.md` for detailed setup instructions.
+
+---
 
 ## Project Structure
 
-- `diagonalization.py`: RIS reflection matrix optimization algorithms
-- `ber.py`: Bit Error Rate simulation and analysis
-- `heatmap.py`: Main simulation script with visualization capabilities
-- `heatmap_v2.py`: Work-in-progress rewrite of the main heatmap functionality
-- `heatmap_utils.py`: Utility functions for signal processing and channel calculations
-- `noise_power_utils.py`: Noise modeling and power calculation utilities
-- `requirements.txt`: Python dependencies
+```
+.
+├── Core Simulations
+│   ├── heatmap.py              # Spatial BER/SNR heatmaps
+│   ├── ber.py                  # BER vs SNR curves
+│   ├── secrecy_rate.py         # Secrecy rate analysis
+│   └── ber_los_scenarios.py    # LOS/NLOS comparisons
+│
+├── RIS Optimization
+│   ├── diagonalization.py      # Reflection matrix calculation
+│   ├── estimation_ambiguity.py   # Channel estimation tools
+│   └── estimation_ambiguity_series.py  # Multi-RIS estimation
+│
+├── Channel Modeling
+│   ├── heatmap_utils.py        # Channel calculations
+│   ├── heatmap_situations.py   # Scenario definitions
+│   └── noise_power_utils.py    # Noise generation
+│
+├── Sionna Integration
+│   ├── compute_sionna_channels.py    # Ray-traced channels
+│   ├── sionna_utils.py               # Actor utilities
+│   ├── generate_scene_xmls.py          # Scene generation
+│   └── single_ris_channel_calc.py    # Single scenario verification
+│
+└── Tools
+    └── scripts/osm_to_sionna/  # OpenStreetMap converter
+```
+
+## Key Parameters
+
+| Parameter | Description | Typical Values |
+|-----------|-------------|----------------|
+| **K** | Transmit antennas (power of 2) | 2, 4, 8 |
+| **N** | RIS elements | 16, 36, 200 |
+| **J** | Legitimate receivers | 1, 2, 5 |
+| **M** | RIS surfaces | 1, 2, 3 |
+| **eta** | Reflection efficiency | 0.9 |
+| **Pt_dBm** | Transmit power | 0, 20, 40 |
 
 ## Publications
 
-This codebase has been developed as part of the following research publications. All papers share the affiliation: Department of Information Engineering and Computer Science, University of Trento, Italy & CNIT, Italy.
+This codebase has been developed as part of the following research publications. All papers share the affiliation: **Department of Information Engineering and Computer Science, University of Trento, Italy & CNIT, Italy**.
 
 ### Published
 
@@ -95,19 +201,7 @@ This codebase has been developed as part of the following research publications.
 
 > Extends the IOLTS 2025 work by integrating Sionna ray-tracing for realistic channel estimation, replacing the stochastic Rice fading model. Studies the spatial coverage of the PLS secured area using 3D ray-traced propagation.
 
-### Under Review
-
-**S. Marrocco, L. Maccari, M. Segata**, "In Ray Tracing We Trust? On the Usage of Ray Tracing for Vehicular Network Simulations," submitted to *IEEE Vehicular Networking Conference (VNC 2026)*, 2026.
-
-> A simulation study on the reliability of Sionna ray tracing for vehicular network simulations, comparing against real-world measurements and empirical models (Veins obstacle shadowing, ETSI 3GPP Urban Micro).
-
-### In Preparation
-
-**S. Marrocco, P. Casari, M. Segata**, "Exploiting Reconfigurable Intelligent Surfaces to Achieve Multi-Receiver Physical Layer Security," targeting *IEEE Transactions on Wireless Communications (TWC)*.
-
-> Journal extension of the IOLTS 2025 conference paper with extended security analysis and noise modeling.
-
-### Cite This Work
+## Citation
 
 If you use this code in your research, please cite:
 
@@ -150,21 +244,10 @@ Conference (WONS 2026)},
 }
 ```
 
-## Results and Data
-
-Simulation results are automatically saved in the `results_data_v2/` directory:
-
-- `results_data_v2/pdf/`: Generated plots and visualizations in PDF format
-- `results_data_v2/data/`: Raw simulation data and numerical results
-
 ## License
 
 This project is released for research and academic purposes. Please cite the relevant publications when using this code in your research.
 
 ## Contributing
 
-This research code is maintained by Simone Marrocco. For questions or collaborations, please refer to the publications listed above.
-
-## Acknowledgments
-
-This work was supported by research funding and developed in collaboration with the Department of Information Engineering and Computer Science, University of Trento, Italy.
+This research code is maintained by **Simone Marrocco**. For questions or collaborations, please refer to the publications listed above or contact the Department of Information Engineering and Computer Science, University of Trento, Italy.
