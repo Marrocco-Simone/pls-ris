@@ -101,8 +101,11 @@ def simulate_ssk_transmission_direct(K: int, B: np.ndarray, effective_channel: n
         raise ValueError(f"Direct: Effective channel shape must be ({K}, {K}), but got {effective_channel.shape}")
 
     def calculate_detected_id(x: np.ndarray, noise: np.ndarray):
+        Pt_mw = 10**(Pt_dbm/10)
+        sqrt_Pt = np.sqrt(Pt_mw)
+        
         y = (B + effective_channel) @ x + noise
-        distances = np.array([np.linalg.norm(y - B[:, i]) for i in range(B.shape[1])])
+        distances = np.array([np.linalg.norm(y - sqrt_Pt * B[:, i]) for i in range(K)])
         return np.argmin(distances)
 
     return simulate_ssk_transmission(K, noise, calculate_detected_id, Pt_dbm)
