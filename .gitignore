@@ -4,8 +4,11 @@ simulations/results/*.png
 .venv
 *.npz
 *.pdf
+*.png
 *.log
 *.zip
+*.ipynb
+*.pkl
 */target/
 Cargo.lock
 *.md
