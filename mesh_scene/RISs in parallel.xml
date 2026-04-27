@@ -73,9 +73,9 @@
 		</transform>
 	</shape>
 
-	<!-- Building 3: Target dimensions 5m (width) × 1m (length) × 3m (height) at position (8, 11, 0)
-	     Blender default cube is 2×2×2 units, so we scale by (2.5, 0.5, 1.5)
-	     - Width: 2 × 2.5 = 5m
+	<!-- Building 3: Target dimensions 6m (width) × 1m (length) × 3m (height) at position (8, 11, 0)
+	     Blender default cube is 2×2×2 units, so we scale by (3.0, 0.5, 1.5)
+	     - Width: 2 × 3.0 = 6m
 	     - Length: 2 × 0.5 = 1m
 	     - Height: 2 × 1.5 = 3m
 	     Transform order: scale first, then translate
@@ -85,7 +85,7 @@
 		<boolean name="face_normals" value="true" />
 		<ref id="mat-itu_marble" name="bsdf" />
 		<transform name="to_world">
-			<scale x="2.5" y="0.5" z="1.5" />
+			<scale x="3.0" y="0.5" z="1.5" />
 			<translate x="8" y="11" z="1.5" />
 		</transform>
 	</shape>
