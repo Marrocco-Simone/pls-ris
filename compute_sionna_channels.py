@@ -1,9 +1,24 @@
 import argparse
+import os
+
+# Parse --gpu flag BEFORE importing TensorFlow (CUDA_VISIBLE_DEVICES must be set first)
+def _parse_gpu_flag() -> bool:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('--gpu', action='store_true')
+    args, _ = parser.parse_known_args()
+    return args.gpu
+
+_USE_GPU = _parse_gpu_flag()
+
+if not _USE_GPU:
+    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
 import numpy as np
 import tensorflow as tf # pyright: ignore[reportMissingImports]
 from sionna.rt import load_scene, PlanarArray, Transmitter, Receiver, Camera, PathSolver, mi # pyright: ignore[reportMissingImports]
 import time
-import os
 import gc
 import drjit as dr # pyright: ignore[reportMissingImports]
 from typing import Tuple, Dict, List, TypedDict
@@ -13,17 +28,19 @@ from heatmap_utils import line_intersects_building, is_point_inside_building
 from multiprocess import Pool, cpu_count # pyright: ignore[reportAttributeAccessIssue]
 from sionna_utils import Actor, create_tx_actor, create_ris_actor, create_rx_actor, calculate_orientation
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-tf.config.set_visible_devices([], 'GPU')
+if not _USE_GPU:
+    tf.config.set_visible_devices([], 'GPU')
+    try:
+        dr.set_backend('cpu')
+        print("Dr.Jit backend set to CPU")
+    except Exception:
+        print("Could not set Dr.Jit backend to CPU, continuing...")
+    print("CPU mode enabled (use --gpu for GPU acceleration)")
+else:
+    print("GPU mode enabled")
+
 
 dr.set_expand_threshold(1024 * 1024 * 1024)
-
-try:
-    dr.set_backend('cpu')
-    print("Dr.Jit backend set to CPU")
-except:
-    print("Could not set Dr.Jit backend to CPU, continuing...")
 
 
 class SionnaGlobals(TypedDict):
@@ -75,7 +92,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--no_refraction', dest='refraction', action='store_false', help='Disable refraction')
     parser.set_defaults(refraction=None)
     parser.add_argument('--seed', type=int, help='Random seed for path solver')
-    
+    parser.add_argument('--gpu', action='store_true', help='Enable GPU acceleration (default: CPU)')
+
     return parser.parse_args()
 
 
