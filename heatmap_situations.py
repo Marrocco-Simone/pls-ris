@@ -96,8 +96,8 @@ class Situation(TypedDict):
 situations: List[Situation] = [
     {
         "simulation_name": "Single Reflection",
-        "calculate": True,
-        "force_recompute": True,
+        "calculate": False,
+        "force_recompute": False,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -189,8 +189,8 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in series, only final",
-        "calculate": True,
-        "force_recompute": True,
+        "calculate": False,
+        "force_recompute": False,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -210,8 +210,8 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in series",
-        "calculate": True,
-        "force_recompute": True,
+        "calculate": False,
+        "force_recompute": False,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -238,8 +238,8 @@ situations: List[Situation] = [
     },
     {
         "simulation_name": "RISs in parallel",
-        "calculate": True,
-        "force_recompute": True,
+        "calculate": False,
+        "force_recompute": False,
         "width": 20,
         "height": 20,
         "resolution": 0.5,
@@ -261,6 +261,26 @@ situations: List[Situation] = [
             {'x': 10, 'y': 12},
             {'x': 5, 'y': 13},
             {'x': 15, 'y': 7},
+        ]
+    },
+    {
+        "simulation_name": "Single Reflection - More Resolution",
+        "calculate": True,
+        "force_recompute": True,
+        "width": 20,
+        "height": 20,
+        "resolution": 0.05,
+        "buildings": [
+            {'x': 0, 'y': 10, 'width': 7, 'height': 10},
+            {'x': 8, 'y': 0, 'width': 12, 'height': 8},
+        ],
+        "transmitter": {'x': 3,'y': 3},
+        "ris_points": [
+            {'x': 7,'y': 9}
+        ],
+        "receivers": [
+            {'x': 16,'y': 11},
+            {'x': 10,'y': 18}
         ]
     },
 ]

@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import tensorflow as tf # pyright: ignore[reportMissingImports]
 from sionna.rt import load_scene, PlanarArray, Transmitter, Receiver, Camera, PathSolver, mi # pyright: ignore[reportMissingImports]
@@ -5,7 +6,7 @@ import time
 import os
 import gc
 import drjit as dr # pyright: ignore[reportMissingImports]
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, TypedDict
 from tqdm import tqdm
 from heatmap_situations import situations, Situation, Point, Building, ChannelMatrix
 from heatmap_utils import line_intersects_building, is_point_inside_building
@@ -23,6 +24,82 @@ try:
     print("Dr.Jit backend set to CPU")
 except:
     print("Could not set Dr.Jit backend to CPU, continuing...")
+
+
+class SionnaGlobals(TypedDict):
+    K: int
+    N: int
+    max_depth: int
+    los: bool
+    specular_reflection: bool
+    diffuse_reflection: bool
+    refraction: bool
+    seed: int
+
+
+sionna_globals: SionnaGlobals = {
+    'K': 4,
+    'N': 36,
+    'max_depth': 3,
+    'los': True,
+    'specular_reflection': True,
+    'diffuse_reflection': False,
+    'refraction': True,
+    'seed': 42,
+}
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments to override sionna_globals."""
+    parser = argparse.ArgumentParser(
+        description='Compute Sionna ray-traced channel matrices'
+    )
+    
+    parser.add_argument('--K', type=int, help='Number of transmit antennas')
+    parser.add_argument('--N', type=int, help='Number of RIS elements')
+    parser.add_argument('--max_depth', type=int, help='Maximum depth for path tracing')
+    parser.add_argument('--los', dest='los', action='store_true', help='Enable line-of-sight')
+    parser.add_argument('--no_los', dest='los', action='store_false', help='Disable line-of-sight')
+    parser.set_defaults(los=None)
+    parser.add_argument('--specular_reflection', dest='specular_reflection', action='store_true',
+                        help='Enable specular reflection')
+    parser.add_argument('--no_specular_reflection', dest='specular_reflection', action='store_false',
+                        help='Disable specular reflection')
+    parser.set_defaults(specular_reflection=None)
+    parser.add_argument('--diffuse_reflection', dest='diffuse_reflection', action='store_true',
+                        help='Enable diffuse reflection')
+    parser.add_argument('--no_diffuse_reflection', dest='diffuse_reflection', action='store_false',
+                        help='Disable diffuse reflection')
+    parser.set_defaults(diffuse_reflection=None)
+    parser.add_argument('--refraction', dest='refraction', action='store_true', help='Enable refraction')
+    parser.add_argument('--no_refraction', dest='refraction', action='store_false', help='Disable refraction')
+    parser.set_defaults(refraction=None)
+    parser.add_argument('--seed', type=int, help='Random seed for path solver')
+    
+    return parser.parse_args()
+
+
+def update_globals_from_args(args: argparse.Namespace) -> None:
+    """Override sionna_globals values with command-line arguments."""
+    global sionna_globals
+    
+    if args.K is not None:
+        sionna_globals['K'] = args.K
+    if args.N is not None:
+        sionna_globals['N'] = args.N
+    if args.max_depth is not None:
+        sionna_globals['max_depth'] = args.max_depth
+    if args.los is not None:
+        sionna_globals['los'] = args.los
+    if args.specular_reflection is not None:
+        sionna_globals['specular_reflection'] = args.specular_reflection
+    if args.diffuse_reflection is not None:
+        sionna_globals['diffuse_reflection'] = args.diffuse_reflection
+    if args.refraction is not None:
+        sionna_globals['refraction'] = args.refraction
+    if args.seed is not None:
+        sionna_globals['seed'] = args.seed
+
 
 def compute_channel_matrix(scene, my_cam, tx: Actor, rx: Actor) -> np.ndarray:
     """Compute channel matrix between transmitter and receiver."""
@@ -58,13 +135,13 @@ def compute_channel_matrix(scene, my_cam, tx: Actor, rx: Actor) -> np.ndarray:
 
     paths = p_solver(
         scene=scene,
-        max_depth=3,
-        los=True,
-        specular_reflection=True,
-        diffuse_reflection=False,
-        refraction=True,
+        max_depth=sionna_globals['max_depth'],
+        los=sionna_globals['los'],
+        specular_reflection=sionna_globals['specular_reflection'],
+        diffuse_reflection=sionna_globals['diffuse_reflection'],
+        refraction=sionna_globals['refraction'],
         synthetic_array=False,
-        seed=42
+        seed=sionna_globals['seed']
     )
 
     a, tau = paths.cir(normalize_delays=True, out_type="numpy")
@@ -83,8 +160,12 @@ def compute_channel_matrix(scene, my_cam, tx: Actor, rx: Actor) -> np.ndarray:
 
     return h_numpy
 
-def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> ChannelMatrix | None:
+def compute_channels_for_scenario(situation: Situation) -> ChannelMatrix | None:
     """Compute all channel matrices for a single scenario."""
+    global sionna_globals
+    K = sionna_globals['K']
+    N = sionna_globals['N']
+    
     simulation_name = situation['simulation_name']
     print(f"\n{'='*60}")
     print(f"Processing scenario: {simulation_name}")
@@ -109,6 +190,12 @@ def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Chann
     channel_matrix.metadata = {
         'K': K,
         'N': N,
+        'max_depth': sionna_globals['max_depth'],
+        'los': sionna_globals['los'],
+        'specular_reflection': sionna_globals['specular_reflection'],
+        'diffuse_reflection': sionna_globals['diffuse_reflection'],
+        'refraction': sionna_globals['refraction'],
+        'seed': sionna_globals['seed'],
         'width': situation['width'],
         'height': situation['height'],
         'resolution': situation['resolution'],
@@ -351,20 +438,31 @@ def compute_channels_for_scenario(situation: Situation, K: int, N: int) -> Chann
 
 def main():
     """Main function to compute all channel matrices."""
-    K = 4
-    N = 36
-
-    output_dir = "heatmap/channel_matrices"
+    # Parse CLI arguments and update sionna_globals BEFORE any usage
+    args = parse_args()
+    update_globals_from_args(args)
+    
+    # Compute output directory with parameters in name
+    output_dir = (
+        f"heatmap/channel_matrices_K{sionna_globals['K']}_N{sionna_globals['N']}"
+        f"_depth{sionna_globals['max_depth']}_los{sionna_globals['los']}"
+    )
     os.makedirs(output_dir, exist_ok=True)
 
     print("="*60)
     print("SIONNA CHANNEL MATRIX COMPUTATION")
     print("="*60)
     print(f"Parameters:")
-    print(f"  K (antennas): {K}")
-    print(f"  N (RIS elements): {N}")
+    print(f"  K (antennas): {sionna_globals['K']}")
+    print(f"  N (RIS elements): {sionna_globals['N']}")
+    print(f"  max_depth: {sionna_globals['max_depth']}")
+    print(f"  los: {sionna_globals['los']}")
+    print(f"  specular_reflection: {sionna_globals['specular_reflection']}")
+    print(f"  diffuse_reflection: {sionna_globals['diffuse_reflection']}")
+    print(f"  refraction: {sionna_globals['refraction']}")
+    print(f"  seed: {sionna_globals['seed']}")
     print(f"  Output directory: {output_dir}")
-    print(f"  File pattern: sionna_channels_<situation_name>.npz")
+    print(f"  File pattern: sionna_channels_<situation>_K{sionna_globals['K']}_N{sionna_globals['N']}_...npz")
     print("="*60)
 
     processed_scenarios = []
@@ -375,10 +473,14 @@ def main():
             print(f"\nSkipping {simulation_name} (calculate=False)")
             continue
 
-        channel_matrix = compute_channels_for_scenario(situation, K, N)
+        channel_matrix = compute_channels_for_scenario(situation)
         if channel_matrix is not None:
-            # Save individual file for this situation
-            individual_file = os.path.join(output_dir, f"sionna_channels_{simulation_name}.npz")
+            # Save individual file for this situation with parameters in filename
+            individual_file = os.path.join(
+                output_dir,
+                f"sionna_channels_{simulation_name}_K{sionna_globals['K']}_N{sionna_globals['N']}"
+                f"_depth{sionna_globals['max_depth']}_los{sionna_globals['los']}.npz"
+            )
 
             print(f"\n{'='*60}")
             print(f"Saving results for {simulation_name}...")
@@ -400,7 +502,13 @@ def main():
         for name in processed_scenarios:
             print(f"  - {name}")
         total_size_mb = sum(
-            os.path.getsize(os.path.join(output_dir, f"sionna_channels_{name}.npz")) / (1024 * 1024)
+            os.path.getsize(
+                os.path.join(
+                    output_dir,
+                    f"sionna_channels_{name}_K{sionna_globals['K']}_N{sionna_globals['N']}"
+                    f"_depth{sionna_globals['max_depth']}_los{sionna_globals['los']}.npz"
+                )
+            ) / (1024 * 1024)
             for name in processed_scenarios
         )
         print(f"  Total file size: {total_size_mb:.2f} MB")

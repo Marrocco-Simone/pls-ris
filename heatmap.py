@@ -1,4 +1,5 @@
 import argparse
+import glob
 import matplotlib.colors
 import numpy as np
 import matplotlib.pyplot as plt
@@ -63,6 +64,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--Pt_dbm', type=float, help='Transmission power in dBm')
     parser.add_argument('--eta', type=float, help='RIS reflection efficiency')
     parser.add_argument('--snr_db', type=int, help='SNR in dB (for fixed SNR mode)')
+    parser.add_argument('--sionna_channels_path', type=str, default=None,
+                        help='Path to Sionna channel matrices directory (enables Sionna mode)')
     
     return parser.parse_args()
 
@@ -85,11 +88,18 @@ def update_globals_from_args(args: argparse.Namespace) -> None:
         globals['eta'] = args.eta
     if args.snr_db is not None:
         globals['snr_db'] = args.snr_db
+    if args.sionna_channels_path is not None:
+        globals['sionna_channels_path'] = args.sionna_channels_path
 
 
 def compute_results_folders() -> Tuple[str, str, str]:
     """Compute results folder paths based on current globals."""
-    results_folder = './heatmap' + f"/K{globals['K']}_N{globals['N']}_symbols{globals['num_symbols']}_eta{int(globals['eta']*100)}" + f"_Pt{int(globals['Pt_dbm'])}dBm" + ("_noise_floor" if globals['use_noise_floor'] else f"_fixed_snr{globals['snr_db']}dB")
+    prefix = "sionna" if globals['sionna_channels_path'] else "stochastic"
+    results_folder = (
+        f'./heatmap/{prefix}_K{globals["K"]}_N{globals["N"]}_symbols{globals["num_symbols"]}_eta{int(globals["eta"]*100)}'
+        f'_Pt{int(globals["Pt_dbm"])}dBm'
+        f'{"_noise_floor" if globals["use_noise_floor"] else f"_fixed_snr{globals["snr_db"]}dB"}'
+    )
     results_folder_pdf = results_folder + '/pdf'
     results_folder_data = results_folder + '/data'
     return results_folder, results_folder_pdf, results_folder_data
@@ -102,6 +112,7 @@ class Globals(TypedDict):
     Pt_dbm: float
     eta: float
     snr_db: int
+    sionna_channels_path: str | None
 
 globals: Globals = {
     'K': 4,
@@ -109,8 +120,9 @@ globals: Globals = {
     'eta': 0.9,
     'num_symbols': 10000,
     'use_noise_floor': True,
-    'Pt_dbm': 30.0,
+    'Pt_dbm': 0.0,
     'snr_db': 10,
+    'sionna_channels_path': None,
 }
 
 # Results folders will be computed in main() after CLI argument parsing
@@ -132,31 +144,39 @@ def load_or_create_channel_matrix(situation: Situation) -> ChannelMatrix:
         ChannelMatrix instance (either loaded from Sionna or with random generation)
     """
     simulation_name = situation['simulation_name']
-    filepath = f'heatmap/channel_matrices/sionna_channels_{simulation_name}.npz'
+    
+    if globals['sionna_channels_path']:
+        # Look for Sionna channels in the specified path
+        # The filename includes K, N, max_depth, los parameters
+        # We search for any file matching the pattern for this situation
+        pattern = os.path.join(
+            globals['sionna_channels_path'],
+            f'sionna_channels_{simulation_name}_K{globals["K"]}_N{globals["N"]}*.npz'
+        )
+        matching_files = glob.glob(pattern)
+        
+        if matching_files:
+            filepath = matching_files[0]  # Use the first match
+            try:
+                print(f"Loading Sionna channel matrix from {filepath}...")
+                data = np.load(filepath, allow_pickle=True)
+                channel_matrix: ChannelMatrix = data['channel_matrix'].item()
 
-    if os.path.exists(filepath):
-        try:
-            print(f"Loading Sionna channel matrix from {filepath}...")
-            data = np.load(filepath, allow_pickle=True)
-            channel_matrix: ChannelMatrix = data['channel_matrix'].item()
-
-            if (channel_matrix.metadata['K'] == globals['K'] and
-                channel_matrix.metadata['N'] == globals['N'] and
-                channel_matrix.metadata['resolution'] == situation['resolution']):
-                print(f"✓ Loaded Sionna channels for '{simulation_name}'")
-                return channel_matrix
-            else:
-                print(f"⚠ Metadata mismatch for '{simulation_name}', generating random channels")
-                print(f"   Expected: K={globals['K']}, N={globals['N']}, resolution={situation['resolution']}")
-                print(f"   Found: K={channel_matrix.metadata['K']}, N={channel_matrix.metadata['N']}, resolution={channel_matrix.metadata['resolution']}")
-
-        except Exception as e:
-            print(f"⚠ Failed to load Sionna channels: {e}")
+                if (channel_matrix.metadata['K'] == globals['K'] and
+                    channel_matrix.metadata['N'] == globals['N'] and
+                    channel_matrix.metadata['resolution'] == situation['resolution']):
+                    print(f"✓ Loaded Sionna channels for '{simulation_name}'")
+                    return channel_matrix
+                else:
+                    print(f"⚠ Metadata mismatch for '{simulation_name}', generating random channels")
+                    print(f"   Expected: K={globals['K']}, N={globals['N']}, resolution={situation['resolution']}")
+                    print(f"   Found: K={channel_matrix.metadata['K']}, N={channel_matrix.metadata['N']}, resolution={channel_matrix.metadata['resolution']}")
+            except Exception as e:
+                print(f"⚠ Failed to load Sionna channels: {e}")
+                print("Generating random channels")
+        else:
+            print(f"⚠ No Sionna channel files found matching pattern: {pattern}")
             print("Generating random channels")
-
-    else:
-        print(f"⚠ Sionna file not found: {filepath}")
-        print("Generating random channels")
 
     print(f"Creating random channel matrix for '{simulation_name}'...")
     channel_matrix = _create_random_channel_matrix(situation)
