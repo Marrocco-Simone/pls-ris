@@ -96,8 +96,8 @@ class Situation(TypedDict):
 situations: List[Situation] = [
     {
         "simulation_name": "Single Reflection",
-        "calculate": False,
-        "force_recompute": False,
+        "calculate": True,
+        "force_recompute": True,
         "width": 20,
         "height": 20,
         "resolution": 0.5,

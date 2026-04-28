@@ -165,7 +165,11 @@ def compute_channel_matrix(scene, my_cam, tx: Actor, rx: Actor) -> np.ndarray:
     a, tau = paths.cir(normalize_delays=True, out_type="numpy")
     h = tf.reduce_sum(a, axis=-2)
     h = tf.squeeze(h)
-    h_numpy = h.numpy() 
+    h_numpy = h.numpy()
+    # Ensure 2D output (rx_ant, tx_ant) - squeeze may not remove all dims if batch>1
+    if h_numpy.ndim > 2:
+        print(f"Warning: Expected channel matrix to be 2D, but got shape {h_numpy.shape}. Attempting to reshape.")
+        h_numpy = h_numpy.reshape(h_numpy.shape[-2], h_numpy.shape[-1]) 
 
     scene.remove(tx.name)
     scene.remove(rx.name)
@@ -287,6 +291,7 @@ def compute_channels_for_scenario(situation: Situation) -> ChannelMatrix | None:
 
     print(f"Processing {len(source_actors)} sources × {len(grid_points)} grid points = {len(source_actors) * len(grid_points)} channels")
     print(f"(Skipped {grid_width * grid_height - len(grid_points)} points inside buildings)")
+    print(f"Sources: {[sa.name for sa in source_actors]}")
 
     # Initialize logging structures
     channel_stats = {
@@ -295,8 +300,11 @@ def compute_channels_for_scenario(situation: Situation) -> ChannelMatrix | None:
         'total_failed': 0,
         'total_blocked': 0,
         'by_source': {},
-        'channel_powers': []
+        'channel_powers': [],
+        'error_types': {},  # Track error type frequency
+        'errors_logged': 0  # Count of detailed errors printed
     }
+    MAX_DETAILED_ERRORS = 10  # Print full traceback for first N errors
 
     for source_actor, source_point in zip(source_actors, source_points):
         source_name = source_actor.name
@@ -305,7 +313,8 @@ def compute_channels_for_scenario(situation: Situation) -> ChannelMatrix | None:
             'succeeded': 0,
             'failed': 0,
             'blocked': 0,
-            'powers': []
+            'powers': [],
+            'error_types': {}
         }
 
     for grid_x, grid_y, point in tqdm(grid_points, desc="Grid points"):
@@ -353,8 +362,36 @@ def compute_channels_for_scenario(situation: Situation) -> ChannelMatrix | None:
                 scene = load_scene(scene_path)
                 scene.frequency = 3.5e9
             except Exception as e:
+                import traceback
                 channel_stats['total_failed'] += 1
                 channel_stats['by_source'][source_name]['failed'] += 1
+
+                # Track error types
+                error_type = f"{type(e).__name__}: {str(e)[:100]}"
+                channel_stats['error_types'][error_type] = channel_stats['error_types'].get(error_type, 0) + 1
+                channel_stats['by_source'][source_name]['error_types'][error_type] = \
+                    channel_stats['by_source'][source_name]['error_types'].get(error_type, 0) + 1
+
+                # Print detailed traceback for first few errors
+                if channel_stats['errors_logged'] < MAX_DETAILED_ERRORS:
+                    channel_stats['errors_logged'] += 1
+                    print(f"\n{'='*60}")
+                    print(f"ERROR #{channel_stats['errors_logged']}: {source_name}→Grid_{grid_x}_{grid_y}")
+                    print(f"Source: {source_actor.name} at {source_point}, array={source_actor.rows}x{source_actor.cols}")
+                    print(f"Dest: Grid_{grid_x}_{grid_y} at ({point['x']},{point['y']}), array={grid_actor.rows}x{grid_actor.cols}")
+                    print(f"Exception: {type(e).__name__}: {e}")
+                    print("Traceback:")
+                    traceback.print_exc()
+                    print(f"{'='*60}\n")
+
+                # Reload scene after error to ensure clean state
+                try:
+                    del scene
+                except:
+                    pass
+                gc.collect()
+                scene = load_scene(scene_path)
+                scene.frequency = 3.5e9
 
     del scene
     gc.collect()
@@ -388,6 +425,16 @@ def compute_channels_for_scenario(situation: Situation) -> ChannelMatrix | None:
             print(f"      Min: {np.min(powers):.3e}")
             print(f"      Max: {np.max(powers):.3e}")
             print(f"      Std: {np.std(powers):.3e}")
+        if stats['failed'] > 0 and stats['error_types']:
+            print(f"    Error types:")
+            for err_type, count in sorted(stats['error_types'].items(), key=lambda x: -x[1])[:5]:
+                print(f"      {count:6d}x {err_type}")
+
+    # Print overall error summary
+    if channel_stats['error_types']:
+        print(f"\nOverall Error Summary (top 10):")
+        for err_type, count in sorted(channel_stats['error_types'].items(), key=lambda x: -x[1])[:10]:
+            print(f"  {count:6d}x {err_type}")
 
     # Analyze P→R line patterns if receivers exist
     if len(receivers) > 0 and len(ris_points) > 0:
